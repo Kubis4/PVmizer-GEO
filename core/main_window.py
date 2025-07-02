@@ -428,7 +428,7 @@ class MainWindow(QMainWindow):
         """Create main UI components with ENHANCED ERROR HANDLING"""
         try:
             print("🔧 Creating UI components...")
-            
+
             # CREATE CANVAS MANAGER FIRST
             try:
                 from drawing_view.drawing_canvas_manager import CanvasManager
@@ -440,7 +440,7 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print(f"❌ CanvasManager creation failed: {e}")
                 self.canvas_manager = self._create_minimal_canvas_manager()
-            
+
             # CREATE LEFT PANEL SECOND
             if LeftControlPanel:
                 try:
@@ -452,10 +452,11 @@ class MainWindow(QMainWindow):
             else:
                 print("❌ LeftControlPanel class not available")
                 self.left_panel = None
-            
+
             # CREATE CONTENT TABS LAST
             if ContentTabWidget:
                 try:
+                    print("🔧 Attempting to create ContentTabWidget...")
                     self.content_tabs = ContentTabWidget(self)
                     print("✅ ContentTabWidget created")
                 except Exception as e:
@@ -464,7 +465,7 @@ class MainWindow(QMainWindow):
             else:
                 print("❌ ContentTabWidget class not available")
                 self.content_tabs = None
-            
+
         except Exception as e:
             print(f"❌ Component creation failed: {e}")
             traceback.print_exc()

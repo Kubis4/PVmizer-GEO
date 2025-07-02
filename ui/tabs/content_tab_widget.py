@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QTabWidget, QWidget, QVBoxLayout, QLabel, QMessageBo
 from PyQt5.QtCore import pyqtSignal, Qt, QTimer
 from PyQt5.QtGui import QPixmap
 import time
-
+import pyvista as pv
 from .maps_tab import MapsTab
 from .drawing_tab import DrawingTab
 from .model_tab import ModelTab
@@ -1012,3 +1012,83 @@ Tab Accessibility:
         
         if hasattr(self.main_window, 'statusBar'):
             self.main_window.statusBar().showMessage("Workflow reset. Start from Maps tab.", 2000)
+
+
+    def render_roof_model(self, roof_type, dimensions):
+        """Render the roof model in the 3D Model tab and switch to it"""
+        print(f"🏗️ Rendering {roof_type} roof with dimensions: {dimensions}")
+
+        # Switch to the 3D Model tab
+        self.setCurrentIndex(self.indexOf(self.model_tab))
+
+        # Use the ModelTab's methods to clear and initialize the scene
+        self.model_tab.clear_model()
+
+        # Create the roof model
+        roof_model = self._create_roof_model(roof_type, dimensions)
+        if roof_model:
+            # Add the model to the 3D scene
+            self.model_tab.plotter.add_mesh(roof_model, color='skyblue', name='roof_model', show_edges=True)
+            self.model_tab.plotter.reset_camera()
+            print(f"✅ {roof_type} roof rendered successfully")
+        else:
+            print(f"❌ Failed to create {roof_type} roof model")
+
+    def _create_roof_model(self, roof_type, dimensions):
+        """Create a 3D roof model using PyVista"""
+        length, width, height = dimensions['length'], dimensions['width'], dimensions['height']
+
+        if roof_type.lower() == "gable":
+            # Define the points for the gable roof
+            points = [
+                [0, 0, 0],  # Bottom-left corner
+                [length, 0, 0],  # Bottom-right corner
+                [length / 2, width / 2, height],  # Peak of the roof
+                [length, width, 0],  # Top-right corner
+                [0, width, 0],  # Top-left corner
+            ]
+
+            # Define the faces
+            faces = [
+                3, 0, 1, 2,  # Front triangular face
+                3, 1, 3, 2,  # Right triangular face
+                3, 3, 4, 2,  # Back triangular face
+                3, 4, 0, 2,  # Left triangular face
+                4, 0, 1, 3, 4  # Base quadrilateral
+            ]
+
+            # Create the PolyData
+            return pv.PolyData(points, faces)
+
+        elif roof_type.lower() == "flat":
+            # Example for flat roof
+            points = [
+                [0, 0, 0],
+                [length, 0, 0],
+                [length, width, 0],
+                [0, width, 0],
+                [0, 0, height],
+                [length, 0, height],
+                [length, width, height],
+                [0, width, height],
+            ]
+
+            faces = [
+                4, 0, 1, 2, 3,  # Base
+                4, 4, 5, 6, 7,  # Top
+                4, 0, 1, 5, 4,  # Front
+                4, 1, 2, 6, 5,  # Right
+                4, 2, 3, 7, 6,  # Back
+                4, 3, 0, 4, 7,  # Left
+            ]
+
+            return pv.PolyData(points, faces)
+
+        # Add other roof types (hip, pyramid, etc.) as needed
+
+        else:
+            print(f"❌ Unsupported roof type: {roof_type}")
+            return None
+        
+
+        
