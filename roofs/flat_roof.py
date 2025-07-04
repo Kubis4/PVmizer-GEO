@@ -3,7 +3,7 @@ import pyvista as pv
 import numpy as np
 import os, sys
 from pathlib import Path
-from roof_annotation import RoofAnnotation 
+from roofs.roof_annotation import RoofAnnotation 
 
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -83,7 +83,7 @@ class FlatRoof:
             self.create_flat_roof()
             
             # Initialize solar panel handler
-            from solar_panel_flat import SolarPanelPlacementFlat
+            from solar_panel_handlers.solar_panel_flat import SolarPanelPlacementFlat
             self.solar_panel_handler = SolarPanelPlacementFlat(self)
             
             # Add key bindings for solar panel placement

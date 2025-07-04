@@ -4,12 +4,12 @@ import numpy as np
 import os
 import sys
 from pathlib import Path
-from solar_panel_gable import SolarPanelPlacementGable
+from solar_panel_handlers.solar_panel_gable import SolarPanelPlacementGable
 import tkinter as tk
 from tkinter import messagebox
-from roof_annotation import RoofAnnotation
-from roof_obstacle import RoofObstacle
-from obstacle_dialogs import RoofObstacleDialogs
+from roofs.roof_annotation import RoofAnnotation
+from roofs.roof_obstacle import RoofObstacle
+from ui.dialogs.obstacle_dialogs import RoofObstacleDialogs
 
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""

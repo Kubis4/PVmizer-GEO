@@ -1,12 +1,12 @@
-from obstacle_dialogs import RoofObstacleDialogs
-from roof_obstacle import RoofObstacle
+from ui.dialogs.obstacle_dialogs import RoofObstacleDialogs
+from roofs.roof_obstacle import RoofObstacle
 from translations import _
 import pyvista as pv
 import numpy as np
 import os
 import sys
 from pathlib import Path
-from roof_annotation import RoofAnnotation 
+from roofs.roof_annotation import RoofAnnotation 
 
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -100,7 +100,7 @@ class PyramidRoof:
         # Set default camera view
         self.set_default_camera_view()
         
-        from solar_panel_pyramid import SolarPanelPlacementPyramid
+        from solar_panel_handlers.solar_panel_pyramid import SolarPanelPlacementPyramid
         self.solar_panel_handler = SolarPanelPlacementPyramid(self)
         # Let the handler manage help text instead
         self.help_visible = True  # Mark as visible even though we're not showing our own

@@ -1108,3 +1108,76 @@ pip install pyvista pyvistaqt
                 print("✅ 3D view refreshed")
         except Exception as e:
             print(f"⚠️ Error refreshing view: {e}")
+
+
+    def reset_plotter(self):
+        """Reset the plotter completely for a new model"""
+        try:
+            if hasattr(self, 'plotter'):
+                # Store camera position
+                camera_position = None
+                if hasattr(self.plotter, 'camera_position'):
+                    try:
+                        camera_position = self.plotter.camera_position
+                    except:
+                        pass
+                
+                # Clear all actors
+                if hasattr(self.plotter, 'clear'):
+                    self.plotter.clear()
+                
+                # Remove all actors manually
+                if hasattr(self.plotter, 'renderer') and hasattr(self.plotter.renderer, 'actors'):
+                    actors = list(self.plotter.renderer.actors.keys())
+                    for actor in actors:
+                        try:
+                            self.plotter.remove_actor(actor)
+                        except:
+                            pass
+                
+                # Add axes back
+                if hasattr(self.plotter, 'add_axes'):
+                    self.plotter.add_axes()
+                
+                # Restore camera if we had one
+                if camera_position:
+                    try:
+                        self.plotter.camera_position = camera_position
+                    except:
+                        pass
+                else:
+                    # Reset camera
+                    if hasattr(self.plotter, 'reset_camera'):
+                        self.plotter.reset_camera()
+                
+                # Force update
+                if hasattr(self.plotter, 'update'):
+                    self.plotter.update()
+                
+                if hasattr(self.plotter, 'render'):
+                    self.plotter.render()
+                
+                print("✅ Model tab plotter reset")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            print(f"❌ Error resetting plotter: {e}")
+            return False
+        
+    def get_plotter(self):
+        """Get the properly initialized plotter"""
+        try:
+            if hasattr(self, 'plotter'):
+                return self.plotter
+            
+            # Try other attribute names
+            for attr_name in ['pv_widget', 'pyvista_widget', 'vtk_widget']:
+                if hasattr(self, attr_name):
+                    return getattr(self, attr_name)
+            
+            return None
+        except Exception as e:
+            print(f"❌ Error getting plotter from model tab: {e}")
+            return None

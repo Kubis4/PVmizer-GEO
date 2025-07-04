@@ -1013,82 +1013,74 @@ Tab Accessibility:
         if hasattr(self.main_window, 'statusBar'):
             self.main_window.statusBar().showMessage("Workflow reset. Start from Maps tab.", 2000)
 
-
-    def render_roof_model(self, roof_type, dimensions):
-        """Render the roof model in the 3D Model tab and switch to it"""
-        print(f"🏗️ Rendering {roof_type} roof with dimensions: {dimensions}")
-
-        # Switch to the 3D Model tab
-        self.setCurrentIndex(self.indexOf(self.model_tab))
-
-        # Use the ModelTab's methods to clear and initialize the scene
-        self.model_tab.clear_model()
-
-        # Create the roof model
-        roof_model = self._create_roof_model(roof_type, dimensions)
-        if roof_model:
-            # Add the model to the 3D scene
-            self.model_tab.plotter.add_mesh(roof_model, color='skyblue', name='roof_model', show_edges=True)
-            self.model_tab.plotter.reset_camera()
-            print(f"✅ {roof_type} roof rendered successfully")
-        else:
-            print(f"❌ Failed to create {roof_type} roof model")
-
-    def _create_roof_model(self, roof_type, dimensions):
-        """Create a 3D roof model using PyVista"""
-        length, width, height = dimensions['length'], dimensions['width'], dimensions['height']
-
-        if roof_type.lower() == "gable":
-            # Define the points for the gable roof
-            points = [
-                [0, 0, 0],  # Bottom-left corner
-                [length, 0, 0],  # Bottom-right corner
-                [length / 2, width / 2, height],  # Peak of the roof
-                [length, width, 0],  # Top-right corner
-                [0, width, 0],  # Top-left corner
-            ]
-
-            # Define the faces
-            faces = [
-                3, 0, 1, 2,  # Front triangular face
-                3, 1, 3, 2,  # Right triangular face
-                3, 3, 4, 2,  # Back triangular face
-                3, 4, 0, 2,  # Left triangular face
-                4, 0, 1, 3, 4  # Base quadrilateral
-            ]
-
-            # Create the PolyData
-            return pv.PolyData(points, faces)
-
-        elif roof_type.lower() == "flat":
-            # Example for flat roof
-            points = [
-                [0, 0, 0],
-                [length, 0, 0],
-                [length, width, 0],
-                [0, width, 0],
-                [0, 0, height],
-                [length, 0, height],
-                [length, width, height],
-                [0, width, height],
-            ]
-
-            faces = [
-                4, 0, 1, 2, 3,  # Base
-                4, 4, 5, 6, 7,  # Top
-                4, 0, 1, 5, 4,  # Front
-                4, 1, 2, 6, 5,  # Right
-                4, 2, 3, 7, 6,  # Back
-                4, 3, 0, 4, 7,  # Left
-            ]
-
-            return pv.PolyData(points, faces)
-
-        # Add other roof types (hip, pyramid, etc.) as needed
-
-        else:
-            print(f"❌ Unsupported roof type: {roof_type}")
+    def force_switch_to_model_tab(self):
+        """Force switch to model tab without validation - FOR ROOF GENERATION"""
+        try:
+            print("🔧 FORCE SWITCHING TO MODEL TAB (BYPASS VALIDATION)")
+            
+            # Temporarily set all workflow states to True
+            original_states = {
+                'screenshot_taken': self.screenshot_taken,
+                'drawing_completed': self.drawing_completed,
+                'building_created': self.building_created
+            }
+            
+            self.screenshot_taken = True
+            self.drawing_completed = True
+            self.building_created = True
+            
+            # Update accessibility
+            self._update_tab_accessibility()
+            
+            # Switch to model tab directly
+            self.blockSignals(True)
+            self.setCurrentIndex(2)  # Model tab index
+            self.blockSignals(False)
+            
+            # Update left panel if needed
+            if hasattr(self.main_window, 'left_panel'):
+                if hasattr(self.main_window.left_panel, 'switch_to_tab_content'):
+                    self.main_window.left_panel.switch_to_tab_content(2)
+            
+            # Update title
+            if self.model_tab:
+                if hasattr(self.model_tab, 'set_title'):
+                    self.model_tab.set_title("3D Model View")
+            
+            # Refresh view
+            if self.model_tab:
+                if hasattr(self.model_tab, 'refresh_view'):
+                    self.model_tab.refresh_view()
+            
+            print("✅ Force switched to model tab")
+            
+            # Store original states for potential restoration
+            self._original_workflow_states = original_states
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Force model tab switch failed: {e}")
+            return False
+        
+    def get_model_plotter(self):
+        """Get the plotter from the model tab"""
+        try:
+            if hasattr(self, 'model_tab'):
+                # Try to get plotter from model tab
+                if hasattr(self.model_tab, 'get_plotter'):
+                    return self.model_tab.get_plotter()
+                
+                # Try to get plotter directly
+                if hasattr(self.model_tab, 'plotter'):
+                    return self.model_tab.plotter
+                
+                # Try other attribute names
+                for attr_name in ['pv_widget', 'pyvista_widget', 'vtk_widget']:
+                    if hasattr(self.model_tab, attr_name):
+                        return getattr(self.model_tab, attr_name)
+            
             return None
-        
-
-        
+        except Exception as e:
+            print(f"❌ Error getting model plotter: {e}")
+            return None
