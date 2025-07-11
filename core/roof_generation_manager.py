@@ -13,7 +13,7 @@ import numpy as np
 
 # Import your GableRoof class - with fallback handling
 try:
-    from roofs.gable_roof import GableRoof
+    from roofs.concrete.gable_roof import GableRoof
     GABLE_ROOF_AVAILABLE = True
 except ImportError:
     print("⚠️ Could not import GableRoof from roofs.gable_roof")
@@ -22,7 +22,7 @@ except ImportError:
 
 # Try to import other roof types
 try:
-    from roofs.flat_roof import FlatRoof
+    from roofs.concrete.flat_roof import FlatRoof
     FLAT_ROOF_AVAILABLE = True
 except ImportError:
     print("⚠️ Could not import FlatRoof from roofs.flat_roof")
@@ -30,7 +30,7 @@ except ImportError:
     FlatRoof = None
 
 try:
-    from roofs.hip_roof import HipRoof
+    from roofs.concrete.hip_roof import HipRoof
     HIP_ROOF_AVAILABLE = True
 except ImportError:
     print("⚠️ Could not import HipRoof from roofs.hip_roof")
@@ -38,7 +38,7 @@ except ImportError:
     HipRoof = None
 
 try:
-    from roofs.pyramid_roof import PyramidRoof
+    from roofs.concrete.pyramid_roof import PyramidRoof
     PYRAMID_ROOF_AVAILABLE = True
 except ImportError:
     print("⚠️ Could not import PyramidRoof from roofs.pyramid_roof")
@@ -336,11 +336,12 @@ class RoofGenerationManager(QObject):
             
             # FlatRoof specific handlers
             if roof_type == 'FlatRoof':
-                # Define safe handlers for FlatRoof
+                # ✅ FIXED: Use add_panels() method instead of place_panels()
                 def safe_place_panels_north():
                     try:
                         if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
-                            self.current_roof.solar_panel_handler.place_panels(area="north")
+                            print(f"🔧 FLAT: Adding panels to NORTH area")
+                            self.current_roof.solar_panel_handler.add_panels(area="north")  # ✅ CORRECT METHOD
                         else:
                             print("⚠️ Cannot place north panels - solar panel handler not available")
                     except Exception as e:
@@ -349,7 +350,8 @@ class RoofGenerationManager(QObject):
                 def safe_place_panels_center():
                     try:
                         if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
-                            self.current_roof.solar_panel_handler.place_panels(area="center")
+                            print(f"🔧 FLAT: Adding panels to CENTER area")
+                            self.current_roof.solar_panel_handler.add_panels(area="center")  # ✅ CORRECT METHOD
                         else:
                             print("⚠️ Cannot place center panels - solar panel handler not available")
                     except Exception as e:
@@ -358,36 +360,62 @@ class RoofGenerationManager(QObject):
                 def safe_place_panels_south():
                     try:
                         if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
-                            self.current_roof.solar_panel_handler.place_panels(area="south")
+                            print(f"🔧 FLAT: Adding panels to SOUTH area")
+                            self.current_roof.solar_panel_handler.add_panels(area="south")  # ✅ CORRECT METHOD
                         else:
                             print("⚠️ Cannot place south panels - solar panel handler not available")
                     except Exception as e:
                         print(f"⚠️ Error placing south panels: {e}")
+                
+                def safe_place_panels_east():
+                    try:
+                        if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 FLAT: Adding panels to EAST area")
+                            self.current_roof.solar_panel_handler.add_panels(area="east")  # ✅ CORRECT METHOD
+                        else:
+                            print("⚠️ Cannot place east panels - solar panel handler not available")
+                    except Exception as e:
+                        print(f"⚠️ Error placing east panels: {e}")
+                
+                def safe_place_panels_west():
+                    try:
+                        if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 FLAT: Adding panels to WEST area")
+                            self.current_roof.solar_panel_handler.add_panels(area="west")  # ✅ CORRECT METHOD
+                        else:
+                            print("⚠️ Cannot place west panels - solar panel handler not available")
+                    except Exception as e:
+                        print(f"⚠️ Error placing west panels: {e}")
                         
                 def safe_clear_panels():
                     try:
                         if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 FLAT: Clearing panels")
                             self.current_roof.solar_panel_handler.clear_panels()
                         else:
                             print("⚠️ Cannot clear panels - solar panel handler not available")
                     except Exception as e:
                         print(f"⚠️ Error clearing panels: {e}")
                         
-                # Add FlatRoof specific key handlers
-                plotter.add_key_event("1", safe_place_panels_north)
-                plotter.add_key_event("2", safe_place_panels_center)
-                plotter.add_key_event("3", safe_place_panels_south)
+                # ✅ CORRECT FLAT ROOF KEY MAPPINGS
+                plotter.add_key_event("1", safe_place_panels_north)   # Key 1 → NORTH
+                plotter.add_key_event("2", safe_place_panels_center)  # Key 2 → CENTER
+                plotter.add_key_event("3", safe_place_panels_south)   # Key 3 → SOUTH
+                plotter.add_key_event("4", safe_place_panels_east)    # Key 4 → EAST
+                plotter.add_key_event("5", safe_place_panels_west)    # Key 5 → WEST
                 plotter.add_key_event("c", safe_clear_panels)
                 plotter.add_key_event("C", safe_clear_panels)
                 
                 print("✅ Added FlatRoof-specific safe key handlers")
-                
-            # Other roof types (GableRoof, HipRoof, PyramidRoof)
-            else:
-                # Define safe handlers for other roof types
+                print("✅ Key 1 → NORTH, Key 2 → CENTER, Key 3 → SOUTH, Key 4 → EAST, Key 5 → WEST")
+
+            
+            # ✅ GABLE ROOF SPECIFIC HANDLERS
+            elif roof_type == 'GableRoof':
                 def safe_add_panels_left():
                     try:
                         if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 GABLE: Adding panels to LEFT side")
                             self.current_roof.solar_panel_handler.add_panels("left")
                         else:
                             print("⚠️ Cannot add left panels - solar panel handler not available")
@@ -397,6 +425,7 @@ class RoofGenerationManager(QObject):
                 def safe_add_panels_right():
                     try:
                         if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 GABLE: Adding panels to RIGHT side")
                             self.current_roof.solar_panel_handler.add_panels("right")
                         else:
                             print("⚠️ Cannot add right panels - solar panel handler not available")
@@ -406,21 +435,122 @@ class RoofGenerationManager(QObject):
                 def safe_clear_panels():
                     try:
                         if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 GABLE: Clearing panels")
                             self.current_roof.solar_panel_handler.clear_panels()
                         else:
                             print("⚠️ Cannot clear panels - solar panel handler not available")
                     except Exception as e:
                         print(f"⚠️ Error clearing panels: {e}")
-                        
-                # Add common key handlers
-                plotter.add_key_event("1", safe_add_panels_left)
-                plotter.add_key_event("2", safe_add_panels_right)
+                
+                # ✅ CORRECT GABLE ROOF KEY MAPPINGS
+                plotter.add_key_event("1", safe_add_panels_left)   # Key 1 → LEFT (correct!)
+                plotter.add_key_event("2", safe_add_panels_right)  # Key 2 → RIGHT (correct!)
                 plotter.add_key_event("c", safe_clear_panels)
                 plotter.add_key_event("C", safe_clear_panels)
-                plotter.add_key_event("Left", safe_add_panels_left)
-                plotter.add_key_event("Right", safe_add_panels_right)
+                plotter.add_key_event("Left", safe_add_panels_left)   # Arrow key support
+                plotter.add_key_event("Right", safe_add_panels_right) # Arrow key support
                 
-                print("✅ Added common safe key handlers")
+                print("✅ Added GABLE roof specific safe key handlers")
+                print("✅ Key 1 → LEFT, Key 2 → RIGHT")
+            
+            # ✅ HIP/PYRAMID ROOF SPECIFIC HANDLERS  
+            elif roof_type in ['HipRoof', 'PyramidRoof']:
+                # ✅ ADD CALL PROTECTION
+                _last_call_time = {}
+                
+                def safe_add_panels_front():
+                    try:
+                        # ✅ CALL PROTECTION
+                        import time
+                        current_time = time.time()
+                        if 'front' in _last_call_time and current_time - _last_call_time['front'] < 0.5:
+                            print(f"🚨 BLOCKED RAPID CALL: Front panel call too soon")
+                            return
+                        _last_call_time['front'] = current_time
+                        
+                        if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 {roof_type.upper()}: Adding panels to FRONT side")
+                            self.current_roof.solar_panel_handler.add_panels("front")
+                        else:
+                            print("⚠️ Cannot add front panels - solar panel handler not available")
+                    except Exception as e:
+                        print(f"⚠️ Error adding front panels: {e}")
+                
+                # ✅ ADD SAME PROTECTION TO OTHER METHODS
+                def safe_add_panels_right():
+                    try:
+                        import time
+                        current_time = time.time()
+                        if 'right' in _last_call_time and current_time - _last_call_time['right'] < 0.5:
+                            print(f"🚨 BLOCKED RAPID CALL: Right panel call too soon")
+                            return
+                        _last_call_time['right'] = current_time
+                        
+                        if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 {roof_type.upper()}: Adding panels to RIGHT side")
+                            self.current_roof.solar_panel_handler.add_panels("right")
+                        else:
+                            print("⚠️ Cannot add right panels - solar panel handler not available")
+                    except Exception as e:
+                        # ✅ ADD EXCEPTION HANDLING
+                     print(f"⚠️ Error adding right panels: {e}")
+                        
+                def safe_add_panels_back():
+                    try:
+                        if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 {roof_type.upper()}: Adding panels to BACK side")
+                            self.current_roof.solar_panel_handler.add_panels("back")
+                        else:
+                            print("⚠️ Cannot add back panels - solar panel handler not available")
+                    except Exception as e:
+                        print(f"⚠️ Error adding back panels: {e}")
+                        
+                def safe_add_panels_left():
+                    try:
+                        if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 {roof_type.upper()}: Adding panels to LEFT side")
+                            self.current_roof.solar_panel_handler.add_panels("left")
+                        else:
+                            print("⚠️ Cannot add left panels - solar panel handler not available")
+                    except Exception as e:
+                        print(f"⚠️ Error adding left panels: {e}")
+                        
+                def safe_clear_panels():
+                    try:
+                        if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            print(f"🔧 {roof_type.upper()}: Clearing panels")
+                            self.current_roof.solar_panel_handler.clear_panels()
+                        else:
+                            print("⚠️ Cannot clear panels - solar panel handler not available")
+                    except Exception as e:
+                        print(f"⚠️ Error clearing panels: {e}")
+                
+                # ✅ CORRECT HIP/PYRAMID KEY MAPPINGS
+                plotter.add_key_event("1", safe_add_panels_front)  # Key 1 → FRONT
+                plotter.add_key_event("2", safe_add_panels_right)  # Key 2 → RIGHT  
+                plotter.add_key_event("3", safe_add_panels_back)   # Key 3 → BACK
+                plotter.add_key_event("4", safe_add_panels_left)   # Key 4 → LEFT
+                plotter.add_key_event("c", safe_clear_panels)
+                plotter.add_key_event("C", safe_clear_panels)
+                
+                print("✅ Added Hip/Pyramid roof specific safe key handlers")
+                print("✅ Key 1 → FRONT, Key 2 → RIGHT, Key 3 → BACK, Key 4 → LEFT")
+            
+            # Unknown roof type fallback
+            else:
+                print(f"⚠️ Unknown roof type: {roof_type}, using basic handlers")
+                # Add basic clear handler
+                def safe_clear_panels():
+                    try:
+                        if self.current_roof and hasattr(self.current_roof, 'solar_panel_handler') and self.current_roof.solar_panel_handler:
+                            self.current_roof.solar_panel_handler.clear_panels()
+                        else:
+                            print("⚠️ Cannot clear panels - solar panel handler not available")
+                    except Exception as e:
+                        print(f"⚠️ Error clearing panels: {e}")
+                
+                plotter.add_key_event("c", safe_clear_panels)
+                plotter.add_key_event("C", safe_clear_panels)
             
             # Common handlers for all roof types
             def safe_reset_camera():
@@ -468,6 +598,7 @@ class RoofGenerationManager(QObject):
         except Exception as e:
             print(f"⚠️ Error adding safe key handlers: {e}")
             traceback.print_exc()
+
     
     def generate_roof(self, roof_type, dimensions):
         """Generate roof with the given dimensions"""

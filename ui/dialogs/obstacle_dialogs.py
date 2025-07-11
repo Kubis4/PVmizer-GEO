@@ -44,7 +44,37 @@ class RoofObstacleDialogs(QDialog):
         # Setup UI
         self.setWindowTitle(_('obstacle_properties'))
         self.setMinimumWidth(450)
+        
+        # ✅ CRITICAL: Apply centralized styling
+        self._apply_dialog_styling()
+        
         self.setup_ui()
+    
+    def _apply_dialog_styling(self):
+        """Apply centralized dialog styling"""
+        try:
+            from ui.styles.dialog_styles import DialogStyles
+            
+            # Try to detect current theme from main window
+            theme = "dark"  # Default to dark
+            if hasattr(self.parent(), 'main_window') and hasattr(self.parent().main_window, 'theme_manager'):
+                theme = self.parent().main_window.theme_manager.current_theme
+            elif hasattr(self.parent(), 'theme_manager'):
+                theme = self.parent().theme_manager.current_theme
+            
+            # Apply appropriate style
+            if theme == "dark":
+                style = DialogStyles.get_dark_dialog_style()
+            else:
+                style = DialogStyles.get_light_dialog_style()
+            
+            self.setStyleSheet(style)
+            print("✅ Applied centralized dialog styling to obstacle dialog")
+            
+        except ImportError:
+            print("⚠️ Dialog styles not available, using default styling")
+        except Exception as e:
+            print(f"❌ Error applying dialog styling: {e}")
     
     def setup_ui(self):
         """Set up the dialog UI"""
@@ -144,7 +174,7 @@ class RoofObstacleDialogs(QDialog):
         # Set initial values based on default selection (Chimney)
         self.update_dimension_labels()
         
-    # Replace horizontal button layout with a QDialogButtonBox
+        # Replace horizontal button layout with a QDialogButtonBox
         button_box = QDialogButtonBox()
         main_layout.addWidget(button_box)
         

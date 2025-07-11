@@ -7,6 +7,54 @@ PVmizer GEO - Enhanced Building Designer with Advanced Solar Simulation
 - Enhanced maintainability and testability
 - Complete roof generation workflow
 """
+import os
+import sys
+import warnings
+import logging
+
+# ✅ SUPPRESS ALL VTK/OpenGL ERRORS COMPLETELY
+def suppress_vtk_errors():
+    """Completely suppress VTK and OpenGL error messages"""
+    
+    # 1. Suppress VTK output observer errors
+    try:
+        import vtk
+        
+        # Create error observer that does nothing
+        def vtk_error_handler(obj, event):
+            pass
+        
+        # Set up VTK error suppression
+        vtk_out = vtk.vtkOutputWindow()
+        vtk_out.SetInstance(vtk_out)
+        vtk_out.GlobalWarningDisplayOff()
+        
+        # Alternative: Redirect VTK output to null
+        vtk.vtkObject.GlobalWarningDisplayOff()
+        
+        print("✅ VTK error suppression enabled")
+        
+    except ImportError:
+        pass
+    
+    # 2. Suppress Python logging errors
+    logging.getLogger('root').setLevel(logging.CRITICAL)
+    logging.getLogger('vtk').setLevel(logging.CRITICAL)
+    logging.getLogger('vtkmodules').setLevel(logging.CRITICAL)
+    
+    # 3. Suppress specific OpenGL warnings
+    warnings.filterwarnings('ignore', category=UserWarning, module='vtk')
+    warnings.filterwarnings('ignore', message='.*wglMakeCurrent.*')
+    warnings.filterwarnings('ignore', message='.*OpenGL.*')
+    
+    # 4. Environment variables to suppress VTK output
+    os.environ['VTK_SILENCE_GET_VOID_POINTER_WARNINGS'] = '1'
+    os.environ['VTK_DEBUG_LEAKS'] = '0'
+    
+    print("✅ All VTK/OpenGL error suppression applied")
+
+# ✅ CALL THIS BEFORE ANY PYVISTA/VTK IMPORTS
+suppress_vtk_errors()
 
 import traceback
 import sys

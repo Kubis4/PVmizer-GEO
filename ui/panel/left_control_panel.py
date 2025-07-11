@@ -10,7 +10,7 @@ from PyQt5.QtGui import QFont
 # Import separated tab panels
 from ui.panel.maps_tab_left import MapsTabPanel
 from ui.panel.drawing_tab_left import DrawingTabPanel
-from ui.panel.model_tab_left import Model3DTabPanel
+from ui.panel.model_tab_left.model_3d_tab_panel import Model3DTabPanel
 
 class ExpandableTipsWidget(QWidget):
     """Expandable tips widget with smooth animation"""

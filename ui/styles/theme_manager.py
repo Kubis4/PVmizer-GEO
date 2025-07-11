@@ -11,6 +11,11 @@ class ThemeManager(QObject):
         super().__init__()
         self.main_window = main_window
     
+    @property
+    def current_theme(self):
+        """Get current theme name"""
+        return "dark" if self.main_window.config.dark_theme else "light"
+    
     def apply_theme(self):
         """Apply current theme with enhanced styling"""
         try:

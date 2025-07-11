@@ -157,13 +157,13 @@ class RoofAnnotation:
             half_width = self.width / 2
             
             # North (front) - at base height level
-            north_point = [0, -half_length - offset, self.base_height]
+            north_point = [0, half_length + offset, self.base_height]
             
             # East (right) - at base height level
             east_point = [half_width + offset, 0, self.base_height]
             
             # South (back) - at base height level
-            south_point = [0, half_length + offset, self.base_height]
+            south_point = [0, -half_length - offset, self.base_height]
             
             # West (left) - at base height level
             west_point = [-half_width - offset, 0, self.base_height]

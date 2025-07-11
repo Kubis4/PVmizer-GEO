@@ -16,6 +16,9 @@ def show_solar_panel_dialog(parent=None, is_flat_roof=False):
     dialog.setWindowTitle(_("solar_panel_settings"))
     dialog.setMinimumWidth(450)  # Slightly wider for category labels
     
+    # ✅ CRITICAL: Apply centralized styling
+    _apply_solar_panel_dialog_styling(dialog, parent)
+    
     # Create layout
     layout = QVBoxLayout(dialog)
     
@@ -211,17 +214,12 @@ def show_solar_panel_dialog(parent=None, is_flat_roof=False):
         orientation_combo = QComboBox()
         
         # Define directions with their corresponding angles
-        # Define directions with their corresponding angles
         directions = [
             ('North', 0),
-            #('Northeast', 45),
             ('East', 90), 
-            #('Southwest', 135),  
             ('South', 180),
-            #('Southeast', 225), 
             ('West', 270),  
-            #('Northwest', 315)
-    ]
+        ]
         
         # Add directions to the dropdown using just the translated name
         for direction, angle in directions:
@@ -335,9 +333,9 @@ def show_solar_panel_dialog(parent=None, is_flat_roof=False):
         
         # Try different ways to access the theme
         if hasattr(dialog, 'parent') and dialog.parent():
-            parent = dialog.parent()
-            if hasattr(parent, 'theme'):
-                current_theme = parent.theme
+            parent_obj = dialog.parent()
+            if hasattr(parent_obj, 'theme'):
+                current_theme = parent_obj.theme
         
         # If not found, try application settings
         if current_theme == "light" and QApplication.instance():
@@ -498,6 +496,12 @@ def show_solar_panel_dialog(parent=None, is_flat_roof=False):
                 panel_orientation = orientation_combo.currentData()
                 
                 # Get the original English direction name for this index
+                directions = [
+                    ('North', 0),
+                    ('East', 90), 
+                    ('South', 180),
+                    ('West', 270),  
+                ]
                 direction_name = directions[orientation_combo.currentIndex()][0]
                 
                 # Validate tilt angle
@@ -519,3 +523,25 @@ def show_solar_panel_dialog(parent=None, is_flat_roof=False):
             return None
     else:
         return None
+
+def _apply_solar_panel_dialog_styling(dialog, parent):
+    """Apply centralized dialog styling to solar panel dialog"""
+    try:
+        from ui.styles.dialog_styles import DialogStyles
+        
+        # Use the new theme detection method
+        theme = DialogStyles.detect_theme(parent)
+        
+        # Apply appropriate style
+        if theme == "dark":
+            style = DialogStyles.get_dark_dialog_style()
+        else:
+            style = DialogStyles.get_light_dialog_style()
+        
+        dialog.setStyleSheet(style)
+        print(f"✅ Applied centralized dialog styling to solar panel dialog (theme: {theme})")
+        
+    except ImportError:
+        print("⚠️ Dialog styles not available, using default styling")
+    except Exception as e:
+        print(f"❌ Error applying dialog styling: {e}")

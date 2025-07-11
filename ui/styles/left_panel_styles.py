@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""
+Centralized Styles for PVmizer GEO Application
+All CSS styles organized by component type
+"""
 
 def get_dark_theme_style():
     """Return the CSS for dark theme"""
@@ -336,17 +340,344 @@ def get_light_theme_style():
         }
     """
 
-#!/usr/bin/env python3
-"""
-Centralized Styles for PVmizer GEO Application
-All CSS styles organized by component type
-"""
+# ============================================================================
+# MODEL 3D TAB PANEL SPECIFIC STYLES
+# ============================================================================
 
-#!/usr/bin/env python3
-"""
-Centralized Styles for PVmizer GEO Application
-All CSS styles organized by component type
-"""
+def get_model3d_white_label_style():
+    """White text labels for Model3D panel"""
+    return """
+        QLabel {
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+    """
+
+def get_model3d_input_style():
+    """Input controls style for Model3D panel"""
+    return """
+        QDoubleSpinBox, QSpinBox {
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 4px 8px;
+            background-color: white;
+            color: #2c3e50;
+            font-size: 12px;
+        }
+        QDoubleSpinBox:focus, QSpinBox:focus {
+            border-color: #3498db;
+        }
+    """
+
+def get_model3d_combo_style():
+    """ComboBox style for Model3D panel"""
+    return """
+        QComboBox {
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 4px 8px;
+            background-color: white;
+            color: #2c3e50;
+            font-size: 12px;
+        }
+        QComboBox:focus {
+            border-color: #3498db;
+        }
+        QComboBox::drop-down {
+            border: none;
+        }
+        QComboBox::down-arrow {
+            width: 12px;
+            height: 12px;
+        }
+    """
+
+def get_model3d_slider_style(slider_type="building"):
+    """Slider styles for Model3D panel"""
+    if slider_type == "building":
+        return """
+            QSlider::groove:horizontal {
+                border: 1px solid #dee2e6;
+                background: #f8f9fa;
+                height: 8px;
+                border-radius: 4px;
+            }
+            QSlider::handle:horizontal {
+                background: #3498db;
+                border: 1px solid #3498db;
+                width: 18px;
+                margin: -5px 0;
+                border-radius: 9px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #2980b9;
+            }
+        """
+    elif slider_type == "solar":
+        return """
+            QSlider::groove:horizontal {
+                border: 1px solid #dee2e6;
+                background: #f8f9fa;
+                height: 8px;
+                border-radius: 4px;
+            }
+            QSlider::handle:horizontal {
+                background: #f39c12;
+                border: 1px solid #f39c12;
+                width: 18px;
+                margin: -5px 0;
+                border-radius: 9px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #e67e22;
+            }
+        """
+    
+    return get_model3d_slider_style("building")
+
+def get_model3d_button_style(button_type="default"):
+    """Button styles for Model3D panel"""
+    
+    if button_type == "animation":
+        return """
+            QPushButton {
+                background-color: #e67e22;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 8px 12px;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #d35400;
+            }
+            QPushButton:pressed {
+                background-color: #ba4a00;
+            }
+            QPushButton:disabled {
+                background-color: #6c757d;
+                color: #adb5bd;
+            }
+        """
+    
+    elif button_type == "solar_config":
+        return """
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+            QPushButton:hover:enabled {
+                background-color: #138496;
+            }
+            QPushButton:pressed:enabled {
+                background-color: #117a8b;
+            }
+            QPushButton:disabled {
+                background-color: #6c757d;
+                color: #adb5bd;
+            }
+        """
+    
+    elif button_type == "obstacle":
+        return """
+            QPushButton {
+                background-color: #6f42c1;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+            QPushButton:hover:enabled {
+                background-color: #5a32a3;
+            }
+            QPushButton:pressed:enabled {
+                background-color: #4e2a8e;
+            }
+            QPushButton:disabled {
+                background-color: #6c757d;
+                color: #adb5bd;
+            }
+        """
+    
+    elif button_type == "export":
+        return """
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+                padding: 12px;
+                text-align: center;
+            }
+            QPushButton:hover:enabled {
+                background-color: #218838;
+            }
+            QPushButton:pressed:enabled {
+                background-color: #1e7e34;
+            }
+            QPushButton:disabled {
+                background-color: #6c757d;
+                color: #adb5bd;
+            }
+        """
+    
+    # Default button style
+    return """
+        QPushButton {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 12px;
+            padding: 8px 12px;
+        }
+        QPushButton:hover {
+            background-color: #2980b9;
+        }
+        QPushButton:pressed {
+            background-color: #21618c;
+        }
+        QPushButton:disabled {
+            background-color: #6c757d;
+            color: #adb5bd;
+        }
+    """
+
+def get_model3d_info_label_style():
+    """Info label style for Model3D panel"""
+    return """
+        QLabel {
+            color: #adb5bd;
+            font-size: 11px;
+            font-style: italic;
+        }
+    """
+
+def get_model3d_help_label_style():
+    """Help label style for Model3D panel"""
+    return """
+        QLabel {
+            color: #28a745;
+            font-size: 10px;
+        }
+    """
+
+def get_model3d_error_label_style():
+    """Error label style for Model3D panel"""
+    return """
+        QLabel {
+            color: #dc3545;
+            font-size: 10px;
+        }
+    """
+
+# ============================================================================
+# DIALOG STYLES FOR CONSISTENCY
+# ============================================================================
+
+def get_dialog_button_style(button_type="ok"):
+    """Dialog button styles matching the application design"""
+    
+    if button_type == "ok":
+        return """
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 8px 16px;
+                min-height: 40px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """
+    
+    elif button_type == "cancel":
+        return """
+            QPushButton {
+                background-color: #d9534f;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 8px 16px;
+                min-height: 40px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #c9302c;
+            }
+            QPushButton:pressed {
+                background-color: #ac2925;
+            }
+        """
+    
+    # Default button style
+    return get_dialog_button_style("ok")
+
+def get_dialog_input_style():
+    """Dialog input field styles"""
+    return """
+        QLineEdit, QSpinBox, QDoubleSpinBox {
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 4px 8px;
+            background-color: white;
+            color: #2c3e50;
+            font-size: 12px;
+        }
+        QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {
+            border-color: #3498db;
+        }
+    """
+
+def get_dialog_combo_style():
+    """Dialog ComboBox styles"""
+    return """
+        QComboBox {
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 4px 8px;
+            background-color: white;
+            color: #2c3e50;
+            font-size: 12px;
+        }
+        QComboBox:focus {
+            border-color: #3498db;
+        }
+        QComboBox::drop-down {
+            border: none;
+        }
+        QComboBox::down-arrow {
+            width: 12px;
+            height: 12px;
+        }
+    """
+
+# ============================================================================
+# EXISTING STYLES (KEPT FOR COMPATIBILITY)
+# ============================================================================
 
 def get_checkbox_style(is_dark_theme=False):
     """Enhanced checkbox style with better visibility"""
@@ -461,7 +792,7 @@ def get_text_area_style(is_dark_theme=False):
         """
 
 def get_drawing_tab_background_style(is_dark_theme=False):
-    """🎨 Drawing tab main background style - MORE SPECIFIC"""
+    """Drawing tab main background style"""
     if is_dark_theme:
         return """
             QFrame {
@@ -496,7 +827,7 @@ def get_drawing_tab_background_style(is_dark_theme=False):
         """
 
 def get_content_tabs_background_style(is_dark_theme=False):
-    """🎨 Content tabs background - specifically for drawing tab"""
+    """Content tabs background"""
     if is_dark_theme:
         return """
             QTabWidget::pane {
@@ -525,7 +856,7 @@ def get_content_tabs_background_style(is_dark_theme=False):
         """
 
 def get_canvas_area_background_style(is_dark_theme=False):
-    """🎨 Canvas drawing area background"""
+    """Canvas drawing area background"""
     if is_dark_theme:
         return """
             QWidget {
@@ -547,126 +878,65 @@ def get_primary_button_style(button_type="default", is_dark_theme=False):
     """Primary button styles for different button types"""
     
     if button_type == "snip":
-        if is_dark_theme:
-            return """
-                QPushButton {
-                    background-color: #3498db;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    font-weight: bold;
-                    font-size: 14px;
-                }
-                QPushButton:hover {
-                    background-color: #2980b9;
-                }
-                QPushButton:pressed {
-                    background-color: #21618c;
-                }
-            """
-        else:
-            return """
-                QPushButton {
-                    background-color: #3498db;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    font-weight: bold;
-                    font-size: 14px;
-                }
-                QPushButton:hover {
-                    background-color: #2980b9;
-                }
-                QPushButton:pressed {
-                    background-color: #21618c;
-                }
-            """
+        return """
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """
     
     elif button_type == "generate":
-        if is_dark_theme:
-            return """
-                QPushButton {
-                    background-color: #e74c3c;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    font-weight: bold;
-                    font-size: 14px;
-                }
-                QPushButton:hover:enabled {
-                    background-color: #c0392b;
-                }
-                QPushButton:disabled {
-                    background-color: #95a5a6;
-                    color: #7f8c8d;
-                }
-                QPushButton:enabled {
-                    background-color: #27ae60;
-                }
-                QPushButton:enabled:hover {
-                    background-color: #229954;
-                }
-            """
-        else:
-            return """
-                QPushButton {
-                    background-color: #e74c3c;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    font-weight: bold;
-                    font-size: 14px;
-                }
-                QPushButton:hover:enabled {
-                    background-color: #c0392b;
-                }
-                QPushButton:disabled {
-                    background-color: #95a5a6;
-                    color: #7f8c8d;
-                }
-                QPushButton:enabled {
-                    background-color: #27ae60;
-                }
-                QPushButton:enabled:hover {
-                    background-color: #229954;
-                }
-            """
+        return """
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover:enabled {
+                background-color: #c0392b;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
+            QPushButton:enabled {
+                background-color: #27ae60;
+            }
+            QPushButton:enabled:hover {
+                background-color: #229954;
+            }
+        """
     
     elif button_type == "export":
-        if is_dark_theme:
-            return """
-                QPushButton {
-                    background-color: #27ae60;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    font-weight: bold;
-                    font-size: 14px;
-                }
-                QPushButton:hover {
-                    background-color: #229954;
-                }
-                QPushButton:pressed {
-                    background-color: #1e8449;
-                }
-            """
-        else:
-            return """
-                QPushButton {
-                    background-color: #27ae60;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    font-weight: bold;
-                    font-size: 14px;
-                }
-                QPushButton:hover {
-                    background-color: #229954;
-                }
-                QPushButton:pressed {
-                    background-color: #1e8449;
-                }
-            """
+        return """
+            QPushButton {
+                background-color: #27ae60;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #229954;
+            }
+            QPushButton:pressed {
+                background-color: #1e8449;
+            }
+        """
     
     # Default button style
     return """

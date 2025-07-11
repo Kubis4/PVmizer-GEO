@@ -1,1145 +1,1067 @@
 #!/usr/bin/env python3
 """
-ENHANCED Model Tab - PyVista 3D Building Generator
-FIXED: Polygon shape preservation + No false validation errors
+ui/content_tabs/model_tab.py
+Model Tab with only plotter - left panel is separate
+ENHANCED with advanced solar system integration - COMPLETE VERSION
 """
-import sys
-import numpy as np
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
-                            QLabel, QFrame, QFileDialog, QMessageBox, QProgressBar)
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame
 from PyQt5.QtCore import pyqtSignal, Qt, QTimer
-from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtGui import QFont
 import math
+import numpy as np
+from datetime import datetime, timedelta
 
-# PyVista imports with fallback
+# Import PyVista components for 3D view
 try:
     import pyvista as pv
     from pyvistaqt import QtInteractor
     PYVISTA_AVAILABLE = True
-    pv.set_plot_theme("document")
+    print("✅ PyVista available for 3D visualization")
 except ImportError:
     PYVISTA_AVAILABLE = False
-    print("⚠️ PyVista not available - using fallback 3D viewer")
+    print("⚠️ PyVista not available - 3D view will be limited")
+
+# Import your advanced solar system modules
+try:
+    from solar_system.solar_calculations import SolarCalculations
+    SOLAR_CALCULATIONS_AVAILABLE = True
+    print("✅ SolarCalculations module available")
+except ImportError:
+    SOLAR_CALCULATIONS_AVAILABLE = False
+    print("⚠️ SolarCalculations module not found")
+
+try:
+    from solar_system.solar_lighting_system import SolarLightingSystem
+    SOLAR_LIGHTING_AVAILABLE = True
+    print("✅ SolarLightingSystem module available")
+except ImportError:
+    SOLAR_LIGHTING_AVAILABLE = False
+    print("⚠️ SolarLightingSystem module not found")
+
+try:
+    from solar_system.solar_simulation import AdvancedSolarVisualization
+    SOLAR_SIMULATION_AVAILABLE = True
+    print("✅ AdvancedSolarVisualization module available")
+except ImportError:
+    SOLAR_SIMULATION_AVAILABLE = False
+    print("⚠️ AdvancedSolarVisualization module not found")
+
+try:
+    from solar_system.unified_sun_system import UnifiedSunSystem
+    UNIFIED_SUN_AVAILABLE = True
+    print("✅ UnifiedSunSystem module available")
+except ImportError:
+    UNIFIED_SUN_AVAILABLE = False
+    print("⚠️ UnifiedSunSystem module not found")
 
 class ModelTab(QWidget):
-    """ENHANCED Model Tab - Polygon Shape Preserving 3D Generator"""
+    """
+    Model Tab - Contains only the 3D plotter/viewer
+    Left panel is handled separately in ui/panel/model_tab_left
+    ENHANCED with advanced solar system integration
+    """
     
     # Signals
-    model_generated = pyqtSignal(str)
-    error_occurred = pyqtSignal(str)
-    generation_progress = pyqtSignal(int)
+    building_generated = pyqtSignal(object)
+    model_updated = pyqtSignal(object)
+    view_changed = pyqtSignal(str)
+    roof_generated = pyqtSignal(object)
     
-    def __init__(self, parent=None):
+    def __init__(self, main_window, parent=None):
         super().__init__(parent)
+        self.main_window = main_window
         
-        # 3D Components
+        # Initialize state
+        self.current_building = None
+        self.current_roof = None
         self.plotter = None
         self.vtk_widget = None
-        self.current_building = None
-        self.building_meshes = []
+        self.debug_mode = True
         
-        # Building parameters
-        self.default_settings = {
-            'height': 3.0,
-            'roof_type': 'flat',
-            'roof_pitch': 30.0,
-            'scale': 0.05,
-            'wall_thickness': 0.2,
-            'foundation_height': 0.3,
-            'material_color': 'lightcoral',
-            'roof_color': 'darkred'
+        # Building meshes and materials
+        self.building_meshes = []
+        self.roof_meshes = []
+        self.panel_meshes = []
+        
+        # Solar simulation state
+        self.current_time = 12.0  # Decimal hours (noon)
+        self.current_day = 172  # Day of year (summer solstice)
+        self.latitude = 40.7128  # Default NYC
+        self.longitude = -74.0060
+        self.weather_factor = 1.0  # Clear sky
+        self.shadows_enabled = True
+        self.sunshafts_enabled = False
+        
+        # Solar panel configuration
+        self.solar_panel_config = {
+            'panel_type': 'monocrystalline',
+            'efficiency': 0.20,
+            'tilt_angle': 30.0,
+            'azimuth_angle': 180.0,  # South facing
+            'panel_width': 1.0,
+            'panel_height': 2.0,
+            'spacing': 0.1
         }
         
-        # Generation state
-        self.generation_in_progress = False
-        self.last_generation_points = []
-        self.debug_mode = True  # Enable debug output
+        # Animation state
+        self.animation_active = False
+        self.animation_timer = QTimer()
+        self.animation_timer.timeout.connect(self._animate_solar_position)
         
-        # 🔧 MINIMAL UI setup - ONLY plotter
-        self.setup_minimal_ui()
-        self.setup_3d_environment()
+        # Initialize advanced solar system modules
+        self.solar_calculations = None
+        self.solar_lighting_system = None
+        self.solar_visualization = None
+        self.unified_sun_system = None
         
-        print("✅ ENHANCED Model Tab - Polygon shape preserving generator")
-    
-    def setup_minimal_ui(self):
-        """Setup MINIMAL UI - ONLY 3D view"""
-        # Main layout - minimal margins
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)  # Minimal margins
-        layout.setSpacing(5)  # Minimal spacing
+        # Sun position and lighting
+        self.sun_position = None
+        self.sun_actor = None
+        self.shadow_actors = []
         
-        # 3D View placeholder (will be replaced in setup_3d_environment)
-        self.view_placeholder = QLabel("Initializing 3D View...")
-        self.view_placeholder.setAlignment(Qt.AlignCenter)
-        self.view_placeholder.setMinimumSize(800, 600)
-        self.view_placeholder.setStyleSheet("""
-            QLabel {
+        print("🏗️ Initializing Advanced Solar ModelTab...")
+        
+        try:
+            self.setup_ui()
+            self._initialize_solar_systems()
+            self._calculate_initial_sun_position()
+            print("✅ Advanced Solar ModelTab initialized successfully")
+        except Exception as e:
+            print(f"❌ ModelTab initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def setup_ui(self):
+        """Setup the UI with only the 3D plotter"""
+        # Main layout
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Create 3D view container
+        view_container = QFrame()
+        view_container.setFrameStyle(QFrame.StyledPanel)
+        
+        view_layout = QVBoxLayout(view_container)
+        view_layout.setContentsMargins(5, 5, 5, 5)
+        view_layout.setSpacing(5)
+        
+        # Title bar
+        title_frame = QFrame()
+        title_frame.setMaximumHeight(40)
+        title_frame.setStyleSheet("""
+            QFrame {
                 background-color: #2c3e50;
-                color: white;
-                font-size: 16px;
-                font-weight: bold;
-                border-radius: 8px;
+                border-radius: 4px;
             }
         """)
-        layout.addWidget(self.view_placeholder)
-    
-    def setup_3d_environment(self):
-        """Setup 3D visualization environment"""
+        
+        title_layout = QVBoxLayout(title_frame)
+        title_layout.setContentsMargins(10, 5, 10, 5)
+                
+        # 3D View Area
+        if PYVISTA_AVAILABLE:
+            self.setup_pyvista_view(view_layout)
+        else:
+            self.setup_fallback_3d_view(view_layout)
+        
+        main_layout.addWidget(view_container)
+        
+        print("✅ Advanced Solar ModelTab UI setup completed")
+
+    def setup_pyvista_view(self, layout):
+        """Setup PyVista 3D view with advanced solar capabilities"""
         try:
-            if not PYVISTA_AVAILABLE:
-                self.setup_fallback_3d_view()
-                return
+            # Create PyVista plotter widget
+            self.plotter = QtInteractor(layout.parent())
+            self.plotter.setMinimumHeight(500)
             
-            # Remove placeholder
-            if self.view_placeholder:
-                self.layout().removeWidget(self.view_placeholder)
-                self.view_placeholder.deleteLater()
-                self.view_placeholder = None
+            # Set up the plotter with enhanced lighting
+            self.plotter.set_background('lightblue')
+            self.plotter.show_axes()
+            self.plotter.show_grid()
             
-            # Create PyVista widget
-            self.vtk_widget = QtInteractor(self)
-            self.vtk_widget.setMinimumSize(800, 600)
+            # NO WELCOME TEXT - Keep plotter clean
             
-            # Add to layout
-            self.layout().addWidget(self.vtk_widget)
+            # Store reference to the VTK widget
+            self.vtk_widget = self.plotter.interactor
+            layout.addWidget(self.vtk_widget)
             
-            # Setup plotter
-            self.plotter = self.vtk_widget
-            
-            # Initialize 3D scene
-            self.initialize_3d_scene()
-            
-            print("✅ 3D environment setup completed with PyVista")
+            print("✅ Advanced PyVista 3D view initialized")
             
         except Exception as e:
-            print(f"❌ Error setting up 3D environment: {e}")
-            self.setup_fallback_3d_view()
-    
-    def setup_fallback_3d_view(self):
-        """Setup fallback 3D view when PyVista is not available"""
-        if self.view_placeholder:
-            self.view_placeholder.setText("""
-🏗️ 3D Model Viewer
+            print(f"❌ PyVista view setup failed: {e}")
+            import traceback
+            traceback.print_exc()
+            self.plotter = None
+            self.vtk_widget = None
+            self.setup_fallback_3d_view(layout)
+
+    def setup_fallback_3d_view(self, layout):
+        """Setup fallback 3D view placeholder"""
+        placeholder = QLabel("3D View Area")
+        placeholder.setAlignment(Qt.AlignCenter)
+        placeholder.setMinimumHeight(500)
+        placeholder.setStyleSheet("""
+            QLabel {
+                background-color: #34495e;
+                color: white;
+                border: 2px dashed #7f8c8d;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+        """)
+        
+        # Add some helpful text
+        placeholder.setText("""
+🌞 Advanced Solar Model View
 
 PyVista not available
-Install with: pip install pyvista pyvistaqt
+3D visualization limited
 
-Generated 3D models will be described here.
-            """)
-            self.view_placeholder.setStyleSheet("""
-                QLabel {
-                    background-color: #fff3cd;
-                    border: 2px dashed #856404;
-                    border-radius: 10px;
-                    color: #856404;
-                    font-size: 14px;
-                    font-weight: bold;
-                    padding: 20px;
+To enable full 3D features:
+pip install pyvista pyvistaqt
+
+Current status: Fallback mode
+        """)
+        
+        layout.addWidget(placeholder)
+        self.plotter = None
+        self.vtk_widget = None
+        
+        print("⚠️ Using fallback 3D view")
+
+    def _initialize_solar_systems(self):
+        """Initialize all solar system modules"""
+        try:
+            if not self.plotter:
+                print("⚠️ No plotter available for solar system initialization")
+                return
+            
+            # Initialize SolarCalculations (static class, no instance needed)
+            if SOLAR_CALCULATIONS_AVAILABLE:
+                self.solar_calculations = SolarCalculations
+                print("✅ SolarCalculations initialized")
+            
+            # Initialize SolarLightingSystem
+            if SOLAR_LIGHTING_AVAILABLE:
+                self.solar_lighting_system = SolarLightingSystem(self.plotter)
+                print("✅ SolarLightingSystem initialized")
+            
+            # Initialize AdvancedSolarVisualization
+            if SOLAR_SIMULATION_AVAILABLE:
+                self.solar_visualization = AdvancedSolarVisualization(self.plotter)
+                # Connect performance signal
+                self.solar_visualization.performance_updated.connect(self._on_performance_updated)
+                print("✅ AdvancedSolarVisualization initialized")
+            
+            # Initialize UnifiedSunSystem
+            if UNIFIED_SUN_AVAILABLE:
+                self.unified_sun_system = UnifiedSunSystem(self.plotter)
+                print("✅ UnifiedSunSystem initialized")
+            
+            print("✅ All available solar systems initialized")
+            
+        except Exception as e:
+            print(f"❌ Solar system initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _on_performance_updated(self, power, energy, efficiency):
+        """Handle performance updates from solar visualization"""
+        try:
+            print(f"📊 Solar performance updated: {power:.1f}kW, {energy:.1f}kWh, {efficiency:.1f}%")
+            # Update info display
+            self._update_solar_info_display()
+        except Exception as e:
+            print(f"❌ Performance update handling failed: {e}")
+
+    # ===========================================
+    # SOLAR SIMULATION METHODS (Left Panel Signals)
+    # ===========================================
+
+    def update_solar_time(self, decimal_time):
+        """Update solar time simulation - handles time_changed signal"""
+        try:
+            print(f"🌞 Updating solar time to {decimal_time}")
+            
+            # Store current time
+            self.current_time = decimal_time
+            
+            # Update all solar systems
+            self._update_all_solar_systems()
+            
+            print(f"✅ Solar time updated to {decimal_time}")
+            
+        except Exception as e:
+            print(f"❌ Solar time update failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def update_solar_day(self, day_of_year):
+        """Update solar day simulation - handles date_changed signal"""
+        try:
+            print(f"🌞 Updating solar day to {day_of_year}")
+            
+            # Store current day
+            self.current_day = day_of_year
+            
+            # Update all solar systems
+            self._update_all_solar_systems()
+            
+            print(f"✅ Solar day updated to {day_of_year}")
+            
+        except Exception as e:
+            print(f"❌ Solar day update failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def set_location(self, latitude, longitude):
+        """Set location - handles location_changed signal"""
+        try:
+            print(f"🌍 Setting location to {latitude}, {longitude}")
+            
+            # Store location
+            self.latitude = latitude
+            self.longitude = longitude
+            
+            # Update all solar systems
+            self._update_all_solar_systems()
+            
+            print(f"✅ Location set to {latitude}, {longitude}")
+            
+        except Exception as e:
+            print(f"❌ Location setting failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def set_weather_factor(self, factor):
+        """Set weather factor - handles weather_changed signal"""
+        try:
+            print(f"🌤️ Setting weather factor to {factor}")
+            
+            # Store weather factor
+            self.weather_factor = factor
+            
+            # Update solar visualization
+            if self.solar_visualization:
+                self.solar_visualization.set_weather_factor(factor)
+            
+            # Update all solar systems
+            self._update_all_solar_systems()
+            
+            print(f"✅ Weather factor set to {factor}")
+            
+        except Exception as e:
+            print(f"❌ Weather factor setting failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def toggle_solar_effects(self, shadows=None, sunshafts=None):
+        """Toggle solar effects - handles solar_effects_toggled signal"""
+        try:
+            if shadows is not None:
+                print(f"🌑 Shadows: {shadows}")
+                self.shadows_enabled = shadows
+                
+            if sunshafts is not None:
+                print(f"☀️ Sunshafts: {sunshafts}")
+                self.sunshafts_enabled = sunshafts
+            
+            # Update solar visualization
+            if self.solar_visualization:
+                self.solar_visualization.set_visual_effects(
+                    shadows=shadows,
+                    sunshafts=sunshafts
+                )
+            
+            # Update unified sun system
+            self._update_unified_sun_system()
+            
+            print("✅ Solar effects updated")
+            
+        except Exception as e:
+            print(f"❌ Solar effects toggle failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def handle_animation_toggle(self, enabled):
+        """Handle animation toggle - handles animation_toggled signal"""
+        try:
+            print(f"🎬 Animation toggled: {enabled}")
+            
+            self.animation_active = enabled
+            
+            if enabled:
+                # Start animation timer (update every 100ms)
+                self.animation_timer.start(100)
+                print("✅ Solar animation started")
+            else:
+                # Stop animation timer
+                self.animation_timer.stop()
+                print("✅ Solar animation stopped")
+                
+        except Exception as e:
+            print(f"❌ Animation toggle failed: {e}")
+
+    def handle_solar_panel_config_change(self, config):
+        """Handle solar panel configuration change - handles solar_panel_config_changed signal"""
+        try:
+            print(f"🔧 Solar panel config changed: {config}")
+            
+            # Update solar panel configuration
+            self.solar_panel_config.update(config)
+            
+            # Update solar visualization
+            if self.solar_visualization:
+                # Update panel efficiency and power
+                if 'efficiency' in config:
+                    self.solar_visualization.panel_efficiency = config['efficiency']
+                if 'power' in config:
+                    self.solar_visualization.panel_power = config['power']
+                
+                # Recreate solar panels if building exists
+                if self.current_building:
+                    self.solar_visualization.create_advanced_solar_panels()
+            
+            print("✅ Solar panel configuration updated")
+            
+        except Exception as e:
+            print(f"❌ Solar panel config change failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def handle_obstacle_placement(self, obstacle_type, position):
+        """Handle obstacle placement - handles obstacle_placement_requested signal"""
+        try:
+            print(f"🚧 Placing obstacle: {obstacle_type} at {position}")
+            
+            if not self.plotter:
+                print("❌ No plotter available for obstacle placement")
+                return
+            
+            # Create obstacle based on type
+            if obstacle_type == "tree":
+                self._place_tree_obstacle(position)
+            elif obstacle_type == "building":
+                self._place_building_obstacle(position)
+            elif obstacle_type == "chimney":
+                self._place_chimney_obstacle(position)
+            
+            # Update shadow calculations in solar visualization
+            if self.solar_visualization:
+                self.solar_visualization.update_comprehensive_shadows()
+            
+            print(f"✅ Obstacle {obstacle_type} placed at {position}")
+            
+        except Exception as e:
+            print(f"❌ Obstacle placement failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def handle_export_model_request(self):
+        """Handle export model request - handles export_model_requested signal"""
+        try:
+            print("💾 Exporting advanced solar model")
+            
+            if not self.plotter:
+                print("❌ No plotter available for export")
+                return False
+            
+            # Get solar performance data
+            power, energy, efficiency = self.get_solar_performance()
+            
+            # Export model data
+            export_data = {
+                'building': self.current_building,
+                'solar_config': self.solar_panel_config,
+                'location': {'latitude': self.latitude, 'longitude': self.longitude},
+                'time': self.current_time,
+                'day': self.current_day,
+                'weather': self.weather_factor,
+                'performance': {
+                    'power': power,
+                    'energy': energy,
+                    'efficiency': efficiency
+                },
+                'solar_systems': {
+                    'calculations_available': SOLAR_CALCULATIONS_AVAILABLE,
+                    'lighting_available': SOLAR_LIGHTING_AVAILABLE,
+                    'simulation_available': SOLAR_SIMULATION_AVAILABLE,
+                    'unified_sun_available': UNIFIED_SUN_AVAILABLE
                 }
-            """)
-    
-    def initialize_3d_scene(self):
-        """Initialize 3D scene with ground, lighting, etc."""
+            }
+            
+            # You can add actual file export logic here
+            print(f"✅ Advanced solar model export data prepared: {len(str(export_data))} bytes")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Model export failed: {e}")
+            return False
+
+    # ===========================================
+    # SOLAR SYSTEM INTEGRATION METHODS
+    # ===========================================
+
+    def _calculate_initial_sun_position(self):
+        """Calculate initial sun position using advanced solar calculations"""
+        try:
+            if SOLAR_CALCULATIONS_AVAILABLE:
+                self.sun_position = self.solar_calculations.calculate_sun_position(
+                    self.current_time,
+                    self.current_day,
+                    self.latitude
+                )
+                print(f"✅ Initial sun position calculated: {self.sun_position}")
+            else:
+                # Fallback calculation
+                self.sun_position = [100, 100, 50]
+                print("⚠️ Using fallback sun position calculation")
+                
+        except Exception as e:
+            print(f"❌ Initial sun position calculation failed: {e}")
+            self.sun_position = [100, 100, 50]
+
+    def _update_all_solar_systems(self):
+        """Update all solar systems with current parameters - FIXED"""
+        try:
+            # Get building height if available
+            building_height = 3.0  # Default
+            if self.current_building:
+                building_height = self.current_building.get('height', 3.0)
+            
+            # Calculate new sun position with building height
+            if SOLAR_CALCULATIONS_AVAILABLE:
+                self.sun_position = self.solar_calculations.calculate_sun_position(
+                    self.current_time,
+                    self.current_day,
+                    self.latitude,
+                    building_height  # Pass building height
+                )
+            
+            # Update solar lighting system
+            if self.solar_lighting_system:
+                solar_settings = {
+                    'current_hour': self.current_time,
+                    'current_day': self.current_day,
+                    'latitude': self.latitude,
+                    'longitude': self.longitude,
+                    'weather_factor': self.weather_factor
+                }
+                self.solar_lighting_system.setup_solar_lighting(self.sun_position, solar_settings)
+            
+            # Update solar visualization - FIXED METHOD CALLS
+            if self.solar_visualization:
+                self.solar_visualization.current_hour = self.current_time
+                self.solar_visualization.current_day = self.current_day
+                self.solar_visualization.latitude = self.latitude
+                self.solar_visualization.longitude = self.longitude
+                self.solar_visualization.weather_factor = self.weather_factor
+                
+                # Update sun and shadows - FIXED METHOD NAMES
+                self.solar_visualization.create_realistic_sun()  # ✅ FIXED
+                if self.shadows_enabled:
+                    self.solar_visualization.update_comprehensive_shadows()  # ✅ FIXED
+            
+            # Update unified sun system
+            self._update_unified_sun_system()
+            
+            # Update info display
+            self._update_solar_info_display()
+            
+            print("✅ All solar systems updated")
+            
+        except Exception as e:
+            print(f"❌ Solar systems update failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+
+    def _update_unified_sun_system(self):
+        """Update unified sun system"""
+        try:
+            if self.unified_sun_system and self.sun_position:
+                solar_settings = {
+                    'current_hour': self.current_time,
+                    'current_day': self.current_day,
+                    'latitude': self.latitude,
+                    'longitude': self.longitude,
+                    'weather_factor': self.weather_factor,
+                    'sunshafts_enabled': self.sunshafts_enabled
+                }
+                self.unified_sun_system.create_unified_sun(self.sun_position, solar_settings)
+                
+        except Exception as e:
+            print(f"❌ Unified sun system update failed: {e}")
+
+    def _update_solar_info_display(self):
+        """Update solar information display using advanced calculations"""
+        try:
+            # REMOVED - No text display in plotter for cleaner view
+            # Just calculate and store values internally
+            if not self.plotter:
+                return
+            
+            # Get solar metrics (still calculate but don't display)
+            power, energy, efficiency = self.get_solar_performance()
+            
+            # Get sunrise/sunset times (still calculate but don't display)
+            if SOLAR_CALCULATIONS_AVAILABLE:
+                sunrise, sunset = self.solar_calculations.get_time_range(self.latitude, self.current_day)
+            else:
+                sunrise, sunset = 6.0, 18.0
+            
+            # Calculate sun intensity (still calculate but don't display)
+            if SOLAR_CALCULATIONS_AVAILABLE and self.sun_position:
+                sun_intensity = self.solar_calculations.calculate_sun_intensity(
+                    self.sun_position, self.weather_factor
+                )
+            
+            # NO TEXT DISPLAY - Keep plotter clean
+            print(f"📊 Solar metrics calculated: {power:.1f}kW, {energy:.1f}kWh, {efficiency:.1f}%")
+            
+        except Exception as e:
+            print(f"❌ Solar info calculation failed: {e}")
+
+    def _animate_solar_position(self):
+        """Animate solar position over time"""
+        try:
+            if not self.animation_active:
+                return
+            
+            # Increment time by 0.1 hours (6 minutes)
+            self.current_time += 0.1
+            
+            # Reset at end of day
+            if self.current_time >= 24:
+                self.current_time = 0
+            
+            # Update all solar systems
+            self._update_all_solar_systems()
+            
+        except Exception as e:
+            print(f"❌ Solar animation failed: {e}")
+
+    # ===========================================
+    # OBSTACLE PLACEMENT METHODS
+    # ===========================================
+
+    def _place_tree_obstacle(self, position):
+        """Place tree obstacle at position"""
         try:
             if not self.plotter:
                 return
             
-            # Clear any existing content
-            self.plotter.clear()
+            x, y = position
             
-            # Add ground plane
-            ground = pv.Plane(center=(0, 0, -0.05), direction=(0, 0, 1), i_size=50, j_size=50)
-            self.plotter.add_mesh(
-                ground, 
-                color='lightgray', 
-                opacity=0.3, 
-                name='ground',
-                show_edges=False
-            )
+            # Create simple tree (cylinder + sphere)
+            trunk = pv.Cylinder(center=(x, y, 1), direction=(0, 0, 1), radius=0.2, height=2)
+            leaves = pv.Sphere(center=(x, y, 2.5), radius=1)
             
-            # Add coordinate axes
-            self.plotter.add_axes(
-                xlabel='X (East)', 
-                ylabel='Y (North)', 
-                zlabel='Z (Up)',
-                line_width=3,
-                labels_off=False
-            )
+            # Add to plotter
+            self.plotter.add_mesh(trunk, color='brown', name=f'tree_trunk_{x}_{y}')
+            self.plotter.add_mesh(leaves, color='green', name=f'tree_leaves_{x}_{y}')
             
-            # Set nice camera position
-            self.plotter.camera_position = 'iso'
-            self.plotter.camera.zoom(1.2)
-            
-            # Add some ambient lighting
-            self.plotter.enable_shadows()
-            
-            # Set background
-            self.plotter.background_color = 'aliceblue'
-            
-            print("✅ 3D scene initialized")
+            print(f"🌳 Tree placed at ({x}, {y})")
             
         except Exception as e:
-            print(f"❌ Error initializing 3D scene: {e}")
-    
-    def generate_building_from_canvas(self):
-        """Generate building from current canvas drawing - FIXED VALIDATION"""
-        if self.generation_in_progress:
-            print("⚠️ Generation already in progress")
-            return False
-        
+            print(f"❌ Tree placement failed: {e}")
+
+    def _place_building_obstacle(self, position):
+        """Place building obstacle at position"""
         try:
-            self.generation_in_progress = True
+            if not self.plotter:
+                return
             
-            print("🔍 Starting building generation...")
+            x, y = position
             
-            # Get main window
-            main_window = self.find_main_window()
-            if not main_window:
-                print("❌ Cannot find main window")
-                return False
+            # Create simple building (box)
+            building = pv.Box(bounds=(x-1, x+1, y-1, y+1, 0, 3))
             
-            # Get canvas points with BETTER validation
-            print("🔄 Getting canvas points...")
-            points = self.get_canvas_points(main_window)
+            # Add to plotter
+            self.plotter.add_mesh(building, color='lightgray', name=f'obstacle_building_{x}_{y}')
             
-            # 🔧 IMPROVED: More detailed point validation
-            if not points:
-                print("❌ No drawing found. Please draw a polygon on the canvas first.")
-                return False
-            
-            print(f"🔍 Found {len(points)} raw points")
-            
-            # 🔧 FIXED: Only show error if we actually don't have enough points
-            if len(points) < 3:
-                print(f"❌ Insufficient points: Found {len(points)}, need at least 3")
-                return False
-            
-            print(f"✅ Valid point count: {len(points)} points")
-            
-            # 🔧 DEBUG: Show polygon shape
-            if self.debug_mode:
-                self.debug_polygon_shape(points)
-            
-            # Get building parameters
-            print("🔄 Getting building settings...")
-            settings = self.get_building_settings(main_window)
-            
-            print(f"🏗️ Generating building from {len(points)} canvas points")
-            print(f"   Settings: {settings}")
-            
-            # Store points for regeneration
-            self.last_generation_points = points.copy()
-            
-            # Generate building
-            print("🔄 Creating 3D building...")
-            success = self.create_3d_building(points, settings)
-            
-            if success:
-                print("✅ Building generated successfully!")
-                self.model_generated.emit(f"Building with {len(points)} vertices")
-                return True
-            else:
-                print("❌ Failed to generate building geometry")
-                return False
-                
-        except Exception as e:
-            error_msg = f"Error generating building: {str(e)}"
-            print(f"❌ {error_msg}")
-            import traceback
-            traceback.print_exc()
-            return False
-        finally:
-            self.generation_in_progress = False
-    
-    def debug_polygon_shape(self, points):
-        """Debug polygon shape to understand the issue"""
-        try:
-            print("🔍 === POLYGON SHAPE DEBUG ===")
-            print(f"📊 Total points: {len(points)}")
-            
-            for i, point in enumerate(points):
-                if hasattr(point, 'x') and hasattr(point, 'y'):
-                    print(f"  Point {i}: QPointF({point.x():.2f}, {point.y():.2f})")
-                elif isinstance(point, (tuple, list)):
-                    print(f"  Point {i}: {type(point)}({point[0]:.2f}, {point[1]:.2f})")
-                else:
-                    print(f"  Point {i}: {type(point)} - {point}")
-            
-            # Calculate polygon properties
-            if len(points) >= 3:
-                # Calculate center
-                if hasattr(points[0], 'x'):
-                    center_x = sum(p.x() for p in points) / len(points)
-                    center_y = sum(p.y() for p in points) / len(points)
-                else:
-                    center_x = sum(p[0] for p in points) / len(points)
-                    center_y = sum(p[1] for p in points) / len(points)
-                
-                print(f"📍 Polygon center: ({center_x:.2f}, {center_y:.2f})")
-                
-                # Calculate approximate area
-                area = self._calculate_polygon_area(points)
-                print(f"📐 Polygon area: {area:.2f}")
-                
-                # Check polygon type
-                if len(points) == 3:
-                    print("🔺 Shape: Triangle")
-                elif len(points) == 4:
-                    print("🔶 Shape: Quadrilateral (should create 4-sided building)")
-                elif len(points) == 5:
-                    print("⬟ Shape: Pentagon")
-                elif len(points) == 6:
-                    print("⬡ Shape: Hexagon")
-                else:
-                    print(f"⬢ Shape: {len(points)}-gon")
-            
-            print("🔍 === POLYGON SHAPE DEBUG END ===")
+            print(f"🏢 Building obstacle placed at ({x}, {y})")
             
         except Exception as e:
-            print(f"❌ Debug polygon shape failed: {e}")
-    
-    def _calculate_polygon_area(self, points):
-        """Calculate polygon area using shoelace formula"""
+            print(f"❌ Building obstacle placement failed: {e}")
+
+    def _place_chimney_obstacle(self, position):
+        """Place chimney obstacle at position"""
         try:
-            if len(points) < 3:
-                return 0.0
+            if not self.plotter:
+                return
             
-            area = 0.0
-            n = len(points)
+            x, y = position
             
-            for i in range(n):
-                j = (i + 1) % n
-                
-                if hasattr(points[i], 'x'):
-                    x1, y1 = points[i].x(), points[i].y()
-                    x2, y2 = points[j].x(), points[j].y()
-                else:
-                    x1, y1 = points[i][0], points[i][1]
-                    x2, y2 = points[j][0], points[j][1]
-                
-                area += (x1 * y2 - x2 * y1)
+            # Create chimney (tall cylinder)
+            chimney = pv.Cylinder(center=(x, y, 2), direction=(0, 0, 1), radius=0.3, height=4)
             
-            return abs(area) / 2.0
+            # Add to plotter
+            self.plotter.add_mesh(chimney, color='red', name=f'chimney_{x}_{y}')
+            
+            print(f"🏭 Chimney placed at ({x}, {y})")
             
         except Exception as e:
-            print(f"❌ Area calculation failed: {e}")
-            return 0.0
-    
-    def find_main_window(self):
-        """Find the main window"""
-        widget = self
-        attempts = 0
-        while widget and attempts < 10:
-            if hasattr(widget, 'content_tabs') or hasattr(widget, 'canvas_manager'):
-                return widget
-            widget = widget.parent()
-            attempts += 1
-        return None
-    
-    def get_canvas_points(self, main_window):
-        """Get drawing points from canvas with IMPROVED validation"""
+            print(f"❌ Chimney placement failed: {e}")
+
+    # ===========================================
+    # EXISTING METHODS (Enhanced)
+    # ===========================================
+
+    def refresh_view(self):
+        """Refresh the 3D view"""
         try:
-            print("🔍 Searching for canvas points...")
+            print("🔧 Refreshing Advanced ModelTab view")
             
-            # Method 1: Direct canvas access from drawing tab
-            if hasattr(main_window, 'content_tabs'):
-                print("   Method 1: Checking content_tabs...")
-                drawing_tab = main_window.content_tabs.widget(1)  # Drawing tab
-                if drawing_tab:
-                    print(f"   Found drawing tab: {type(drawing_tab)}")
-                    
-                    # Try different canvas access methods
-                    canvas = None
-                    if hasattr(drawing_tab, 'canvas'):
-                        canvas = drawing_tab.canvas
-                        print("   Found canvas via .canvas")
-                    elif hasattr(drawing_tab, 'drawing_canvas'):
-                        canvas = drawing_tab.drawing_canvas
-                        print("   Found canvas via .drawing_canvas")
-                    elif hasattr(drawing_tab, 'canvas_widget'):
-                        canvas = drawing_tab.canvas_widget
-                        print("   Found canvas via .canvas_widget")
-                    
-                    if canvas and hasattr(canvas, 'points'):
-                        raw_points = canvas.points
-                        print(f"   Canvas has {len(raw_points) if raw_points else 0} raw points")
-                        
-                        if raw_points and len(raw_points) > 0:
-                            converted = self.convert_points_to_world_coords(raw_points)
-                            if converted and len(converted) >= 3:
-                                print(f"✅ Method 1 success: {len(converted)} points")
-                                return converted
-                            else:
-                                print(f"⚠️ Method 1: Conversion failed or insufficient points")
+            if self.plotter:
+                self.plotter.update()
+                # Reset camera if needed
+                if hasattr(self.plotter, 'reset_camera'):
+                    self.plotter.reset_camera()
+                
+                # Update solar visualization
+                self._update_all_solar_systems()
             
-            # Method 2: Canvas manager
-            if hasattr(main_window, 'canvas_manager'):
-                print("   Method 2: Checking canvas_manager...")
-                try:
-                    points = main_window.canvas_manager.get_drawing_points()
-                    if points and len(points) > 0:
-                        print(f"   Canvas manager has {len(points)} points")
-                        converted = self.convert_points_to_world_coords(points)
-                        if converted and len(converted) >= 3:
-                            print(f"✅ Method 2 success: {len(converted)} points")
-                            return converted
+            print("✅ Advanced 3D view refreshed")
+            
+        except Exception as e:
+            print(f"❌ View refresh failed: {e}")
+
+    def create_building(self, points, height=3.0, roof_type='flat', roof_pitch=30.0, scale=0.05):
+        """Create building in 3D view with advanced solar features"""
+        try:
+            print(f"🔧 Creating advanced building with {len(points)} points")
+            
+            if not points or len(points) < 3:
+                print("❌ Invalid points for building creation")
+                return False
+            
+            # Clear existing building
+            if self.plotter:
+                self.plotter.clear()
+                self.plotter.set_background('lightblue')
+                self.plotter.show_axes()
+                self.plotter.show_grid()
+            
+            # Create building data
+            building_data = {
+                'points': points,
+                'height': height,
+                'roof_type': roof_type,
+                'roof_pitch': roof_pitch,
+                'scale': scale,
+                'created_at': datetime.now()
+            }
+            
+            # Store building
+            self.current_building = building_data
+            
+            # Add building to 3D view
+            if self.plotter:
+                success = self._add_building_to_plotter(building_data)
+                if not success:
+                    print("❌ Building creation failed")
+                    return False
+            
+            # Create roof object based on type
+            try:
+                if roof_type == 'pyramid':
+                    from roofs.concrete.pyramid_roof import PyramidRoof
+                    # Convert points to proper format for roof
+                    base_points = []
+                    for point in points:
+                        if hasattr(point, 'x') and hasattr(point, 'y'):
+                            x, y = point.x() * scale, point.y() * scale
                         else:
-                            print(f"⚠️ Method 2: Conversion failed or insufficient points")
-                except Exception as e:
-                    print(f"   Method 2 failed: {e}")
+                            x, y = point[0] * scale, point[1] * scale
+                        base_points.append([x, y, 0])
+                    
+                    self.current_roof = PyramidRoof(
+                        plotter=self.plotter,
+                        base_points=base_points[:4],  # Pyramid needs 4 points
+                        apex_height=height,
+                        building_height=0  # Base at ground level
+                    )
+                    print("✅ Created PyramidRoof object with panel handler")
+                    
+                elif roof_type == 'gable':
+                    from roofs.concrete.gable_roof import GableRoof
+                    # Similar conversion for gable roof
+                    base_points = []
+                    for point in points:
+                        if hasattr(point, 'x') and hasattr(point, 'y'):
+                            x, y = point.x() * scale, point.y() * scale
+                        else:
+                            x, y = point[0] * scale, point[1] * scale
+                        base_points.append([x, y, 0])
+                    
+                    self.current_roof = GableRoof(
+                        plotter=self.plotter,
+                        base_points=base_points[:4],
+                        ridge_height=height,
+                        building_height=0
+                    )
+                    print("✅ Created GableRoof object with panel handler")
+                    
+                elif roof_type == 'flat':
+                    from roofs.concrete.flat_roof import FlatRoof
+                    # Flat roof creation
+                    base_points = []
+                    for point in points:
+                        if hasattr(point, 'x') and hasattr(point, 'y'):
+                            x, y = point.x() * scale, point.y() * scale
+                        else:
+                            x, y = point[0] * scale, point[1] * scale
+                        base_points.append([x, y, height])
+                    
+                    self.current_roof = FlatRoof(
+                        plotter=self.plotter,
+                        base_points=base_points,
+                        building_height=height
+                    )
+                    print("✅ Created FlatRoof object with panel handler")
+                    
+                else:
+                    print(f"⚠️ Roof type '{roof_type}' not implemented yet")
+                    self.current_roof = None
+                    
+            except Exception as e:
+                print(f"❌ Error creating roof object: {e}")
+                import traceback
+                traceback.print_exc()
+                self.current_roof = None
             
-            # Method 3: Widget tree search
-            if hasattr(main_window, 'content_tabs'):
-                print("   Method 3: Searching widget tree...")
-                drawing_tab = main_window.content_tabs.widget(1)
-                if drawing_tab:
-                    canvas = self.find_canvas_in_widget(drawing_tab)
-                    if canvas and hasattr(canvas, 'points'):
-                        raw_points = canvas.points
-                        print(f"   Widget tree canvas has {len(raw_points) if raw_points else 0} points")
-                        
-                        if raw_points and len(raw_points) > 0:
-                            converted = self.convert_points_to_world_coords(raw_points)
-                            if converted and len(converted) >= 3:
-                                print(f"✅ Method 3 success: {len(converted)} points")
-                                return converted
-                            else:
-                                print(f"⚠️ Method 3: Conversion failed or insufficient points")
+            # Set building in solar visualization
+            if self.solar_visualization:
+                building_mesh = self._create_building_mesh(building_data)
+                if building_mesh:
+                    self.solar_visualization.set_building(building_mesh)
             
-            print("❌ No valid canvas points found through any method")
-            return []
+            # Update all solar systems
+            self._update_all_solar_systems()
+            
+            # Emit signal
+            self.building_generated.emit(building_data)
+            
+            print("✅ Advanced building created successfully")
+            
+            return True
             
         except Exception as e:
-            print(f"❌ Error getting canvas points: {e}")
+            print(f"❌ Building creation failed: {e}")
             import traceback
             traceback.print_exc()
-            return []
-    
-    def find_canvas_in_widget(self, widget):
-        """Recursively find canvas in widget tree"""
+            return False
+
+
+    def _create_building_mesh(self, building_data):
+        """Create building mesh for solar system"""
         try:
-            # Check if this widget is a canvas
-            if hasattr(widget, 'points') and hasattr(widget, 'is_complete'):
-                return widget
+            points = building_data['points']
+            height = building_data['height']
+            scale = building_data['scale']
             
-            # Check children
-            for child in widget.findChildren(QWidget):
-                if hasattr(child, 'points') and hasattr(child, 'is_complete'):
-                    return child
+            # Convert points to 3D coordinates
+            vertices = []
+            for point in points:
+                if hasattr(point, 'x') and hasattr(point, 'y'):
+                    x, y = point.x() * scale, point.y() * scale
+                else:
+                    x, y = point[0] * scale, point[1] * scale
+                vertices.append([x, y, height])  # Top vertices
+            
+            if len(vertices) > 2:
+                # Create simple building mesh
+                building_mesh = pv.PolyData(vertices)
+                return building_mesh
             
             return None
-        except:
+            
+        except Exception as e:
+            print(f"❌ Building mesh creation failed: {e}")
             return None
-    
-    def convert_points_to_world_coords(self, canvas_points):
-        """Convert canvas points to world coordinates with BETTER validation"""
+
+    def _add_building_to_plotter(self, building_data):
+        """Add building geometry to PyVista plotter (enhanced)"""
         try:
-            if not canvas_points:
-                print("⚠️ No canvas points to convert")
-                return []
-            
-            print(f"🔄 Converting {len(canvas_points)} canvas points...")
-            world_points = []
-            
-            for i, point in enumerate(canvas_points):
-                try:
-                    if hasattr(point, 'x') and hasattr(point, 'y'):
-                        # QPointF object
-                        x = float(point.x())
-                        y = float(point.y())
-                    elif isinstance(point, (list, tuple)) and len(point) >= 2:
-                        # Tuple/list
-                        x = float(point[0])
-                        y = float(point[1])
-                    else:
-                        print(f"⚠️ Skipping unknown point format at index {i}: {type(point)}")
-                        continue
-                    
-                    world_points.append((x, y))
-                    
-                except (ValueError, AttributeError) as e:
-                    print(f"⚠️ Error converting point {i}: {e}")
-                    continue
-            
-            print(f"✅ Successfully converted {len(world_points)}/{len(canvas_points)} points")
-            
-            # 🔧 ADDED: Validate converted points
-            if len(world_points) < 3:
-                print(f"⚠️ Insufficient converted points: {len(world_points)} < 3")
-                return []
-            
-            return world_points
-            
-        except Exception as e:
-            print(f"❌ Error converting points: {e}")
-            import traceback
-            traceback.print_exc()
-            return []
-    
-    def get_building_settings(self, main_window):
-        """Get building settings from UI"""
-        settings = self.default_settings.copy()
-        
-        try:
-            # Try to get from left panel
-            if hasattr(main_window, 'left_panel'):
-                panel = main_window.left_panel
-                
-                # Try different methods
-                if hasattr(panel, 'get_building_parameters'):
-                    params = panel.get_building_parameters()
-                    settings.update(params)
-                elif hasattr(panel, 'get_building_settings'):
-                    params = panel.get_building_settings()
-                    settings.update(params)
-                
-                # Try to get scale from drawing tab
-                if hasattr(panel, 'drawing_tab'):
-                    if hasattr(panel.drawing_tab, 'get_scale_factor'):
-                        settings['scale'] = panel.drawing_tab.get_scale_factor()
-            
-            # Try to get scale from canvas
-            if hasattr(main_window, 'canvas_manager'):
-                if hasattr(main_window.canvas_manager, 'scale_factor'):
-                    settings['scale'] = main_window.canvas_manager.scale_factor
-            
-        except Exception as e:
-            print(f"⚠️ Using default settings due to error: {e}")
-        
-        return settings
-    
-    def create_3d_building(self, points, settings):
-        """Create complete 3D building from 2D points - SHAPE PRESERVING"""
-        try:
-            # 🔧 ADDED: Early validation with detailed logging
-            if not points:
-                print("❌ No points provided to create_3d_building")
-                return False
-            
-            if len(points) < 3:
-                print(f"❌ Insufficient points in create_3d_building: {len(points)} < 3")
-                return False
-            
-            print(f"✅ Starting 3D building creation with {len(points)} valid points")
-            
-            if not PYVISTA_AVAILABLE:
-                print("ℹ️ PyVista not available, using fallback description")
-                return self.create_fallback_building_description(points, settings)
-            
             if not self.plotter:
                 print("❌ No plotter available")
                 return False
             
-            # 🔧 FIXED: Ensure points are in proper format and order
-            fixed_points = self._fix_polygon_points(points)
-            if len(fixed_points) < 3:
-                print("❌ Point fixing failed")
-                return False
+            points = building_data['points']
+            height = building_data['height']
+            scale = building_data['scale']
             
-            # Convert to 3D coordinates
-            print("🔄 Converting to 3D vertices...")
-            vertices_3d = self.points_to_3d_vertices(fixed_points, settings['scale'])
-            if len(vertices_3d) < 3:
-                print(f"❌ Not enough valid 3D vertices: {len(vertices_3d)}")
-                return False
-            
-            print(f"✅ Created {len(vertices_3d)} 3D vertices")
-            
-            # Generate building mesh - SHAPE PRESERVING
-            print("🔄 Generating building mesh...")
-            building_mesh = self.generate_building_mesh_shape_preserving(
-                vertices_3d, 
-                settings['height'],
-                settings['roof_type'],
-                settings.get('roof_pitch', 30),
-                settings
-            )
-            
-            if not building_mesh:
-                print("❌ Failed to generate building mesh")
-                return False
-            
-            print("✅ Building mesh generated successfully")
-            
-            # Clear previous building
-            print("🔄 Clearing previous buildings...")
-            self.clear_existing_buildings()
-            
-            # Add building to scene
-            print("🔄 Adding building to 3D scene...")
-            self.add_building_to_scene(building_mesh, settings)
-            
-            # Store current building
-            self.current_building = building_mesh
-            self.building_meshes.append(building_mesh)
-            
-            # Update camera view
-            print("🔄 Updating camera view...")
-            self.plotter.reset_camera()
-            self.plotter.camera.zoom(0.8)
-            
-            print("✅ 3D building created and added to scene successfully")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error creating 3D building: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-    
-    def _fix_polygon_points(self, points):
-        """Fix polygon points to ensure correct shape"""
-        try:
-            if not points or len(points) < 3:
-                return []
-            
-            # Convert all points to consistent format
-            fixed_points = []
+            # Convert points to 3D coordinates
+            vertices = []
             for point in points:
                 if hasattr(point, 'x') and hasattr(point, 'y'):
-                    # QPointF object
-                    fixed_points.append((float(point.x()), float(point.y())))
-                elif isinstance(point, (list, tuple)) and len(point) >= 2:
-                    # Tuple/list format
-                    fixed_points.append((float(point[0]), float(point[1])))
+                    x, y = point.x() * scale, point.y() * scale
                 else:
-                    print(f"⚠️ Skipping invalid point: {point}")
-                    continue
+                    x, y = point[0] * scale, point[1] * scale
+                vertices.append([x, y, 0])  # Base
+                vertices.append([x, y, height])  # Top
             
-            if len(fixed_points) < 3:
-                return []
+            # Create building visualization
+            import numpy as np
             
-            # Remove duplicate points
-            unique_points = []
-            tolerance = 1e-6
-            
-            for point in fixed_points:
-                is_duplicate = False
-                for existing in unique_points:
-                    if (abs(point[0] - existing[0]) < tolerance and 
-                        abs(point[1] - existing[1]) < tolerance):
-                        is_duplicate = True
-                        break
+            if len(vertices) > 0:
+                vertices_array = np.array(vertices)
                 
-                if not is_duplicate:
-                    unique_points.append(point)
-            
-            if len(unique_points) < 3:
-                print("❌ Not enough unique points after cleanup")
-                return []
-            
-            # Ensure counter-clockwise order for correct face orientation
-            ordered_points = self._ensure_counter_clockwise(unique_points)
-            
-            print(f"🔧 Polygon processing:")
-            print(f"   Original: {len(points)} points")
-            print(f"   Fixed: {len(fixed_points)} points")
-            print(f"   Unique: {len(unique_points)} points")
-            print(f"   Final: {len(ordered_points)} points")
-            
-            return ordered_points
-            
-        except Exception as e:
-            print(f"❌ Error fixing polygon points: {e}")
-            return []
-    
-    def _ensure_counter_clockwise(self, points):
-        """Ensure points are in counter-clockwise order"""
-        try:
-            if len(points) < 3:
-                return points
-            
-            # Calculate signed area using shoelace formula
-            signed_area = 0.0
-            n = len(points)
-            
-            for i in range(n):
-                j = (i + 1) % n
-                signed_area += (points[j][0] - points[i][0]) * (points[j][1] + points[i][1])
-            
-            # If positive, points are clockwise - reverse them
-            if signed_area > 0:
-                print("🔄 Converting clockwise to counter-clockwise")
-                return list(reversed(points))
-            else:
-                print("✅ Points already counter-clockwise")
-                return points
+                # Add building points
+                self.plotter.add_points(
+                    vertices_array,
+                    color='red',
+                    point_size=8,
+                    render_points_as_spheres=True
+                )
                 
-        except Exception as e:
-            print(f"❌ Error checking point order: {e}")
-            return points
-    
-    def points_to_3d_vertices(self, points_2d, scale):
-        """Convert 2D points to 3D vertices with proper scaling"""
-        try:
-            vertices = []
+                # Add building outline
+                base_points = vertices_array[::2]  # Every other point (base)
+                if len(base_points) > 2:
+                    # Close the polygon
+                    base_points = np.vstack([base_points, base_points[0]])
+                    
+                    # Create polyline for base
+                    lines = []
+                    for i in range(len(base_points) - 1):
+                        lines.extend([2, i, i + 1])
+                    
+                    poly = pv.PolyData(base_points)
+                    poly.lines = lines
+                    
+                    building_actor = self.plotter.add_mesh(poly, color='blue', line_width=4)
+                    self.building_meshes.append(building_actor)
+                    
+                    # Add walls (vertical lines)
+                    for i in range(0, len(vertices_array), 2):
+                        if i + 1 < len(vertices_array):
+                            wall_points = np.array([vertices_array[i], vertices_array[i+1]])
+                            wall_lines = [2, 0, 1]
+                            wall_poly = pv.PolyData(wall_points)
+                            wall_poly.lines = wall_lines
+                            wall_actor = self.plotter.add_mesh(wall_poly, color='green', line_width=3)
+                            self.building_meshes.append(wall_actor)
             
-            # Calculate centroid for centering
-            if points_2d:
-                center_x = sum(p[0] for p in points_2d) / len(points_2d)
-                center_y = sum(p[1] for p in points_2d) / len(points_2d)
-            else:
-                center_x = center_y = 0
+            # NO INFO TEXT - Keep plotter clean
             
-            # Convert each point
-            for i, (x, y) in enumerate(points_2d):
-                # Center around origin and apply scale
-                world_x = (x - center_x) * scale
-                world_y = (center_y - y) * scale  # Flip Y for 3D coordinate system
-                world_z = 0.0  # Ground level
-                
-                vertices.append([world_x, world_y, world_z])
-                
-                if self.debug_mode:
-                    print(f"  Vertex {i+1}: ({x:.1f}, {y:.1f}) → ({world_x:.3f}, {world_y:.3f}, {world_z:.3f})")
+            # Reset camera to show full building
+            self.plotter.reset_camera()
             
-            return np.array(vertices)
-            
-        except Exception as e:
-            print(f"❌ Error converting to 3D vertices: {e}")
-            return np.array([])
-    
-    
-    def generate_building_mesh_shape_preserving(self, vertices_3d, height, roof_type, roof_pitch, settings):
-        """Generate building mesh - FIX TOP FACE ORDERING"""
-        try:
-            print(f"🏗️ Generating mesh preserving {len(vertices_3d)} point polygon shape")
-            
-            if len(vertices_3d) < 3:
-                print("❌ Need at least 3 vertices")
-                return None
-            
-            # Create base vertices (z=0)
-            base_vertices = vertices_3d.copy()
-            base_vertices[:, 2] = 0
-            
-            # Create top vertices (z=height)
-            top_vertices = base_vertices.copy()
-            top_vertices[:, 2] = height
-            
-            # Combine all vertices
-            all_vertices = np.vstack([base_vertices, top_vertices])
-            n_points = len(vertices_3d)
-            
-            print(f"✅ Created {len(all_vertices)} vertices for {n_points}-sided building")
-            
-            # ==========================================
-            # 🔧 CREATE FACES WITH FIXED TOP FACE
-            # ==========================================
-            
-            faces = []
-            
-            # 🔧 BOTTOM FACE - Keep simple (normal order)
-            print("🔧 Creating bottom face...")
-            bottom_indices = list(range(n_points))
-            bottom_face = [n_points] + bottom_indices
-            faces.extend(bottom_face)
-            print(f"✅ Bottom face: {n_points}-sided polygon")
-            
-            # 🔧 TOP FACE - FIXED: Reverse the vertex order for correct normal
-            print("🔧 Creating TOP face with FIXED ordering...")
-            
-            # Create top face indices in REVERSE order for correct upward normal
-            top_indices = list(range(n_points, 2 * n_points))
-            top_indices.reverse()  # 🔧 KEY FIX: Reverse top face vertices
-            
-            top_face = [n_points] + top_indices
-            faces.extend(top_face)
-            print(f"✅ TOP face: {n_points}-sided polygon (REVERSED for correct normal)")
-            
-            # 🔧 SIDE FACES - Keep original
-            print("🔧 Creating side walls...")
-            for i in range(n_points):
-                next_i = (i + 1) % n_points
-                wall_face = [4, i, next_i, next_i + n_points, i + n_points]
-                faces.extend(wall_face)
-            
-            print(f"✅ Created {n_points} side walls")
-            
-            # Create PyVista mesh
-            mesh = pv.PolyData(all_vertices, faces)
-            
-            if mesh.n_points == 0 or mesh.n_cells == 0:
-                print("❌ Generated mesh has no points/cells")
-                return None
-            
-            print(f"✅ Mesh created with FIXED top face:")
-            print(f"   Vertices: {mesh.n_points}")
-            print(f"   Cells: {mesh.n_cells}")
-            
-            return mesh
-            
-        except Exception as e:
-            print(f"❌ Error generating mesh: {e}")
-            return None
-        
-    def generate_building_mesh(self, base_vertices, height, roof_type, roof_pitch, settings):
-        """Generate complete building mesh with walls and roof"""
-        # Use the shape-preserving method
-        return self.generate_building_mesh_shape_preserving(base_vertices, height, roof_type, roof_pitch, settings)
-    
-    def create_roof_mesh(self, base_vertices, base_height, roof_type, roof_pitch):
-        """Create roof mesh based on type"""
-        try:
-            roof_type_lower = roof_type.lower()
-            
-            if 'flat' in roof_type_lower:
-                return None  # No additional roof mesh needed
-            elif 'gable' in roof_type_lower or 'pitched' in roof_type_lower:
-                return self.create_gable_roof_mesh(base_vertices, base_height, roof_pitch)
-            elif 'hip' in roof_type_lower:
-                return self.create_hip_roof_mesh(base_vertices, base_height, roof_pitch)
-            elif 'pyramid' in roof_type_lower:
-                return self.create_pyramid_roof_mesh(base_vertices, base_height, roof_pitch)
-            else:
-                print(f"⚠️ Unknown roof type: {roof_type}")
-                return None
-                
-        except Exception as e:
-            print(f"❌ Error creating roof mesh: {e}")
-            return None
-    
-    def create_gable_roof_mesh(self, base_vertices, base_height, roof_pitch):
-        """Create gable roof mesh"""
-        try:
-            # Find longest edge for ridge direction
-            n_points = len(base_vertices)
-            max_length = 0
-            ridge_edge = (0, 1)
-            
-            for i in range(n_points):
-                next_i = (i + 1) % n_points
-                length = np.linalg.norm(base_vertices[next_i] - base_vertices[i])
-                if length > max_length:
-                    max_length = length
-                    ridge_edge = (i, next_i)
-            
-            # Create ridge line
-            ridge_start = base_vertices[ridge_edge[0]]
-            ridge_end = base_vertices[ridge_edge[1]]
-            ridge_center = (ridge_start + ridge_end) / 2
-            
-            # Calculate roof height
-            building_width = max_length * 0.4  # Approximate building width
-            roof_height = building_width * np.tan(np.radians(roof_pitch))
-            
-            # Ridge vertices
-            ridge_start_top = ridge_start.copy()
-            ridge_start_top[2] = base_height + roof_height
-            ridge_end_top = ridge_end.copy()
-            ridge_end_top[2] = base_height + roof_height
-            
-            # Create roof vertices
-            roof_vertices = np.vstack([base_vertices, ridge_start_top, ridge_end_top])
-            
-            # Create roof faces
-            faces = []
-            ridge_start_idx = len(base_vertices)
-            ridge_end_idx = len(base_vertices) + 1
-            
-            # Create triangular roof faces
-            for i in range(n_points):
-                next_i = (i + 1) % n_points
-                
-                # Determine which ridge point to use
-                if i <= n_points // 2:
-                    ridge_idx = ridge_start_idx
-                else:
-                    ridge_idx = ridge_end_idx
-                
-                # Triangle face
-                face = [3, i, next_i, ridge_idx]
-                faces.extend(face)
-            
-            return pv.PolyData(roof_vertices, faces)
-            
-        except Exception as e:
-            print(f"❌ Error creating gable roof: {e}")
-            return None
-    
-    def create_pyramid_roof_mesh(self, base_vertices, base_height, roof_pitch):
-        """Create pyramid roof with apex at center"""
-        try:
-            # Calculate centroid
-            centroid = np.mean(base_vertices, axis=0)
-            
-            # Calculate roof height
-            avg_radius = np.mean([np.linalg.norm(v - centroid) for v in base_vertices])
-            roof_height = avg_radius * np.tan(np.radians(roof_pitch))
-            
-            # Create apex
-            apex = centroid.copy()
-            apex[2] = base_height + roof_height
-            
-            # Roof vertices
-            roof_vertices = np.vstack([base_vertices, apex])
-            apex_idx = len(base_vertices)
-            
-            # Create triangular faces
-            faces = []
-            n_points = len(base_vertices)
-            
-            for i in range(n_points):
-                next_i = (i + 1) % n_points
-                face = [3, i, next_i, apex_idx]
-                faces.extend(face)
-            
-            return pv.PolyData(roof_vertices, faces)
-            
-        except Exception as e:
-            print(f"❌ Error creating pyramid roof: {e}")
-            return None
-    
-    def create_hip_roof_mesh(self, base_vertices, base_height, roof_pitch):
-        """Create hip roof (simplified as pyramid for now)"""
-        return self.create_pyramid_roof_mesh(base_vertices, base_height, roof_pitch)
-    
-    def clear_existing_buildings(self):
-        """Clear existing buildings from scene"""
-        try:
-            if self.plotter:
-                # Remove building meshes
-                for i, mesh in enumerate(self.building_meshes):
-                    try:
-                        self.plotter.remove_actor(f'building_{i}')
-                    except:
-                        pass
-                
-                # Clear generic building actor
-                try:
-                    self.plotter.remove_actor('building')
-                except:
-                    pass
-            
-            self.building_meshes.clear()
-            self.current_building = None
-            
-        except Exception as e:
-            print(f"⚠️ Error clearing buildings: {e}")
-    
-    def add_building_to_scene(self, building_mesh, settings):
-        """Add building mesh to 3D scene"""
-        try:
-            if not self.plotter:
-                return
-            
-            # Add main building
-            self.plotter.add_mesh(
-                building_mesh,
-                name='building',
-                color=settings.get('material_color', 'lightcoral'),
-                show_edges=True,
-                edge_color='darkred',
-                line_width=1,
-                opacity=0.9
-            )
-            
-            print("✅ Building added to 3D scene")
-            
-        except Exception as e:
-            print(f"❌ Error adding building to scene: {e}")
-    
-    def create_fallback_building_description(self, points, settings):
-        """Create text description when PyVista not available"""
-        try:
-            # Calculate some basic properties
-            n_points = len(points)
-            
-            # Calculate area (simple polygon area)
-            area = 0
-            for i in range(n_points):
-                j = (i + 1) % n_points
-                area += points[i][0] * points[j][1]
-                area -= points[j][0] * points[i][1]
-            area = abs(area) / 2 * (settings['scale'] ** 2)
-            
-            # Calculate perimeter
-            perimeter = 0
-            for i in range(n_points):
-                j = (i + 1) % n_points
-                dx = points[j][0] - points[i][0]
-                dy = points[j][1] - points[i][1]
-                perimeter += math.sqrt(dx*dx + dy*dy) * settings['scale']
-            
-            # Volume
-            volume = area * settings['height']
-            
-            description = f"""
-🏗️ 3D BUILDING GENERATED
-📐 Vertices: {n_points}
-📏 Floor Area: {area:.2f} m²
-📏 Perimeter: {perimeter:.2f} m
-📏 Height: {settings['height']:.2f} m
-📊 Volume: {volume:.2f} m³
-🏠 Roof Type: {settings['roof_type']}
-📏 Scale: {settings['scale']:.3f} m/pixel
-
-SHAPE PRESERVED: {n_points}-sided polygon
-
-To view the 3D model, install PyVista:
-pip install pyvista pyvistaqt
-            """
-            
-            if self.view_placeholder:
-                self.view_placeholder.setText(description)
-            
+            print("✅ Advanced building added to 3D view successfully")
             return True
             
         except Exception as e:
-            print(f"❌ Error creating fallback description: {e}")
-            return False
-    
-    def regenerate_building(self):
-        """Regenerate building with last points"""
-        if self.last_generation_points:
-            main_window = self.find_main_window()
-            if main_window:
-                settings = self.get_building_settings(main_window)
-                self.create_3d_building(self.last_generation_points, settings)
-    
-    def clear_model(self):
-        """Clear all 3D models"""
-        try:
-            self.clear_existing_buildings()
-            
-            if PYVISTA_AVAILABLE and self.plotter:
-                self.initialize_3d_scene()
-            
-            print("✅ All models cleared")
-            
-        except Exception as e:
-            print(f"❌ Error clearing models: {e}")
-    
-    def export_model(self):
-        """Export current 3D model"""
-        try:
-            if not self.current_building:
-                print("❌ No model to export")
-                return
-            
-            if not PYVISTA_AVAILABLE:
-                print("❌ PyVista required for model export")
-                return
-            
-            # File dialog
-            filename, file_type = QFileDialog.getSaveFileName(
-                self,
-                "Export 3D Building Model",
-                f"building_model.stl",
-                "STL Files (*.stl);;OBJ Files (*.obj);;PLY Files (*.ply);;VTK Files (*.vtk)"
-            )
-            
-            if filename:
-                self.current_building.save(filename)
-                print(f"✅ Model exported to {filename}")
-            
-        except Exception as e:
-            error_msg = f"Export failed: {str(e)}"
-            print(f"❌ {error_msg}")
-    
-    # 🔧 ADDED: Legacy compatibility with better validation
-    def create_building(self, points, height=None, roof_type=None, roof_pitch=None, scale=None, source="legacy", emit_signal=True):
-        """Legacy method for compatibility - IMPROVED validation"""
-        try:
-            print(f"🔄 Legacy create_building called from {source}")
-            
-            # 🔧 BETTER: Validate points early
-            if not points:
-                print("❌ Legacy create_building: No points provided")
-                return False
-            
-            if len(points) < 3:
-                print(f"❌ Legacy create_building: Insufficient points {len(points)} < 3")
-                return False
-            
-            print(f"✅ Legacy create_building: {len(points)} points received")
-            
-            settings = self.default_settings.copy()
-            if height is not None:
-                settings['height'] = height
-            if roof_type is not None:
-                settings['roof_type'] = roof_type
-            if roof_pitch is not None:
-                settings['roof_pitch'] = roof_pitch
-            if scale is not None:
-                settings['scale'] = scale
-            
-            # Convert points if needed
-            if points and hasattr(points[0], 'x'):
-                print("🔄 Converting QPointF objects...")
-                points = self.convert_points_to_world_coords(points)
-                if not points or len(points) < 3:
-                    print("❌ Point conversion failed in legacy method")
-                    return False
-            
-            print(f"🔄 Creating building with settings: {settings}")
-            success = self.create_3d_building(points, settings)
-            
-            if success and emit_signal:
-                self.model_generated.emit(f"Building from {source}")
-                print(f"✅ Legacy create_building succeeded from {source}")
-            else:
-                print(f"❌ Legacy create_building failed from {source}")
-            
-            return success
-            
-        except Exception as e:
-            print(f"❌ Error in legacy create_building: {e}")
+            print(f"❌ Adding building to plotter failed: {e}")
             import traceback
             traceback.print_exc()
             return False
-    
-    def cleanup(self):
-        """Cleanup resources"""
+
+    def get_solar_performance(self):
+        """Get solar performance metrics using advanced calculations"""
+        try:
+            if self.solar_visualization:
+                return self.solar_visualization.calculate_solar_performance()
+            
+            # Fallback calculation
+            if not self.current_building:
+                return 0.0, 0.0, 0.0
+            
+            # Enhanced solar performance calculation
+            base_power = 5.0  # kW
+            base_energy = 40.0  # kWh
+            base_efficiency = 75.0  # %
+            
+            # Weather factor adjustment
+            weather_adjustment = self.weather_factor
+            
+            # Time of day adjustment
+            if 6 <= self.current_time <= 18:
+                time_adjustment = 1.0
+            else:
+                time_adjustment = 0.1
+            
+            # Sun elevation adjustment
+            if self.sun_position and self.sun_position[2] > 0:
+                elevation_adjustment = min(1.0, self.sun_position[2] / 20.0)
+            else:
+                elevation_adjustment = 0.0
+            
+            # Panel efficiency adjustment
+            panel_efficiency = self.solar_panel_config.get('efficiency', 0.20)
+            efficiency_adjustment = panel_efficiency / 0.20
+            
+            # Calculate final values
+            power = base_power * weather_adjustment * time_adjustment * elevation_adjustment * efficiency_adjustment
+            energy = base_energy * weather_adjustment * elevation_adjustment * efficiency_adjustment
+            efficiency = base_efficiency * weather_adjustment * elevation_adjustment * efficiency_adjustment
+            
+            return power, energy, efficiency
+            
+        except Exception as e:
+            print(f"❌ Solar performance calculation failed: {e}")
+            return 0.0, 0.0, 0.0
+
+    def get_time_range(self):
+        """Get time range for current location and date using advanced calculations"""
+        try:
+            if SOLAR_CALCULATIONS_AVAILABLE:
+                return self.solar_calculations.get_time_range(self.latitude, self.current_day)
+            
+            # Fallback calculation
+            return 6.0, 18.0
+            
+        except Exception as e:
+            print(f"❌ Time range calculation failed: {e}")
+            return 6.0, 18.0
+
+    def has_building(self):
+        """Check if building exists"""
+        return self.current_building is not None
+
+    def get_plotter(self):
+        """Get the 3D plotter"""
+        return self.plotter
+
+    def get_valid_plotter(self):
+        """Get a valid plotter instance"""
+        try:
+            if self.plotter and hasattr(self.plotter, 'add_mesh'):
+                return self.plotter
+            return None
+        except Exception as e:
+            print(f"❌ Error getting valid plotter: {e}")
+            return None
+
+    def reset_plotter(self, camera_position=None):
+        """Reset the plotter to clean state (enhanced)"""
         try:
             if PYVISTA_AVAILABLE and self.plotter:
-                self.plotter.close()
-            self.building_meshes.clear()
-            self.current_building = None
-            print("✅ Model Tab cleanup completed")
-        except Exception as e:
-            print(f"❌ Error during cleanup: {e}")
-
-    def refresh_view(self):
-        """Refresh the 3D view - for compatibility"""
-        try:
-            if PYVISTA_AVAILABLE and self.plotter:
-                self.plotter.render()
-                print("✅ 3D view refreshed")
-        except Exception as e:
-            print(f"⚠️ Error refreshing view: {e}")
-
-
-    def reset_plotter(self):
-        """Reset the plotter completely for a new model"""
-        try:
-            if hasattr(self, 'plotter'):
-                # Store camera position
-                camera_position = None
-                if hasattr(self.plotter, 'camera_position'):
-                    try:
-                        camera_position = self.plotter.camera_position
-                    except:
-                        pass
-                
                 # Clear all actors
-                if hasattr(self.plotter, 'clear'):
-                    self.plotter.clear()
+                self.plotter.clear()
                 
-                # Remove all actors manually
-                if hasattr(self.plotter, 'renderer') and hasattr(self.plotter.renderer, 'actors'):
-                    actors = list(self.plotter.renderer.actors.keys())
-                    for actor in actors:
-                        try:
-                            self.plotter.remove_actor(actor)
-                        except:
-                            pass
+                # Clear mesh lists
+                self.building_meshes.clear()
+                self.roof_meshes.clear()
+                self.panel_meshes.clear()
+                self.shadow_actors.clear()
                 
-                # Add axes back
-                if hasattr(self.plotter, 'add_axes'):
-                    self.plotter.add_axes()
+                # Clear solar visualization
+                if self.solar_visualization:
+                    self.solar_visualization.clear_all()
                 
-                # Restore camera if we had one
+                # Reset background and basic elements
+                self.plotter.set_background('lightblue')
+                self.plotter.show_axes()
+                self.plotter.show_grid()
+                
+                # NO WELCOME TEXT - Keep plotter clean
+                
+                # Reset camera
                 if camera_position:
                     try:
                         self.plotter.camera_position = camera_position
@@ -1157,7 +1079,7 @@ pip install pyvista pyvistaqt
                 if hasattr(self.plotter, 'render'):
                     self.plotter.render()
                 
-                print("✅ Model tab plotter reset")
+                print("✅ Advanced model tab plotter reset")
                 return True
             
             return False
@@ -1165,19 +1087,472 @@ pip install pyvista pyvistaqt
         except Exception as e:
             print(f"❌ Error resetting plotter: {e}")
             return False
-        
-    def get_plotter(self):
-        """Get the properly initialized plotter"""
+
+    def set_title(self, title):
+        """Set tab title"""
         try:
-            if hasattr(self, 'plotter'):
-                return self.plotter
-            
-            # Try other attribute names
-            for attr_name in ['pv_widget', 'pyvista_widget', 'vtk_widget']:
-                if hasattr(self, attr_name):
-                    return getattr(self, attr_name)
-            
-            return None
+            # This might be handled by the parent ContentTabWidget
+            pass
         except Exception as e:
-            print(f"❌ Error getting plotter from model tab: {e}")
-            return None
+            print(f"❌ Set title failed: {e}")
+
+    def cleanup(self):
+        """Cleanup resources (enhanced)"""
+        try:
+            # Stop animation
+            if self.animation_timer.isActive():
+                self.animation_timer.stop()
+            
+            # Clear solar visualization
+            if self.solar_visualization:
+                self.solar_visualization.clear_all()
+
+            # Clear current roof
+            if hasattr(self, 'current_roof') and self.current_roof:
+                del self.current_roof
+                self.current_roof = None
+            
+            # Clear buildings
+            self.building_meshes.clear()
+            self.roof_meshes.clear()
+            self.panel_meshes.clear()
+            self.shadow_actors.clear()
+            self.current_building = None
+            
+            # Close plotter
+            if PYVISTA_AVAILABLE and self.plotter:
+                if hasattr(self.plotter, 'close'):
+                    self.plotter.close()
+            
+            print("✅ Advanced Model Tab cleanup completed")
+        except Exception as e:
+            print(f"❌ Error during cleanup: {e}")
+
+    def visualize_sun_path(self):
+        """Visualize the sun's path across the sky"""
+        try:
+            if not self.plotter or not SOLAR_CALCULATIONS_AVAILABLE:
+                return
+            
+            # Get building height
+            building_height = 3.0
+            if self.current_building:
+                building_height = self.current_building.get('height', 3.0)
+            
+            # Calculate sun path
+            sun_path = self.solar_calculations.calculate_realistic_sun_path(
+                self.latitude, self.current_day, building_height
+            )
+            
+            if len(sun_path) > 1:
+                # Create path line
+                path_line = pv.PolyData(np.array(sun_path))
+                path_line.lines = np.hstack([[len(sun_path)] + list(range(len(sun_path)))])
+                
+                # Add to plotter
+                self.plotter.add_mesh(
+                    path_line,
+                    color='yellow',
+                    line_width=2,
+                    opacity=0.5,
+                    name='sun_path'
+                )
+                
+                # Add markers for key positions
+                key_positions = self.solar_calculations.get_cardinal_sun_positions(
+                    self.latitude, self.current_day, building_height
+                )
+                
+                for name, pos in key_positions.items():
+                    if pos[2] > 0:  # Only show if above horizon
+                        sphere = pv.Sphere(radius=0.5, center=pos)
+                        self.plotter.add_mesh(
+                            sphere,
+                            color='orange',
+                            name=f'sun_{name}'
+                        )
+            
+            print("✅ Sun path visualization added")
+            
+        except Exception as e:
+            print(f"❌ Sun path visualization failed: {e}")
+            
+    def _update_all_solar_systems(self):
+        """Update all solar systems with current parameters - FIXED FOR NOON BRIGHTNESS"""
+        try:
+            # Get building height if available
+            building_height = 3.0  # Default
+            if self.current_building:
+                building_height = self.current_building.get('height', 3.0)
+            
+            # Calculate new sun position
+            if SOLAR_CALCULATIONS_AVAILABLE:
+                self.sun_position = self.solar_calculations.calculate_sun_position(
+                    self.current_time,
+                    self.current_day,
+                    self.latitude,
+                    building_height
+                )
+                
+                # Get sunrise and sunset times
+                sunrise, sunset = self.solar_calculations.get_time_range(self.latitude, self.current_day)
+                
+                # FORCE BRIGHT BACKGROUND AT NOON
+                if 10 <= self.current_time <= 14:  # Between 10 AM and 2 PM
+                    bg_color = '#87CEEB'  # Bright sky blue
+                else:
+                    bg_color = self.solar_calculations.get_background_color(self.current_time, sunrise, sunset)
+                
+                if self.plotter:
+                    self.plotter.set_background(bg_color)
+                    print(f"🎨 Background set to {bg_color} for time {self.current_time:.1f}")
+            
+            # Handle sun visibility
+            if self.sun_position is None:
+                # It's night - hide sun
+                self._hide_sun()
+                self._set_night_lighting()
+            else:
+                # It's day - show sun
+                self._show_sun()
+                
+                # ENSURE BRIGHT LIGHTING AT NOON
+                if self.solar_lighting_system:
+                    solar_settings = {
+                        'current_hour': self.current_time,
+                        'current_day': self.current_day,
+                        'latitude': self.latitude,
+                        'longitude': self.longitude,
+                        'weather_factor': self.weather_factor
+                    }
+                    self.solar_lighting_system.setup_solar_lighting(self.sun_position, solar_settings)
+                    
+                    # ADD EXTRA BRIGHTNESS AT NOON
+                    if 11 <= self.current_time <= 13:
+                        self._add_noon_brightness()
+                
+                # Update solar visualization
+                if self.solar_visualization:
+                    self.solar_visualization.current_hour = self.current_time
+                    self.solar_visualization.current_day = self.current_day
+                    self.solar_visualization.latitude = self.latitude
+                    self.solar_visualization.longitude = self.longitude
+                    self.solar_visualization.weather_factor = self.weather_factor
+                    
+                    # Update sun and shadows
+                    self.solar_visualization.create_realistic_sun()
+                    if self.shadows_enabled:
+                        self.solar_visualization.update_comprehensive_shadows()
+                
+                # Update unified sun system
+                self._update_unified_sun_system()
+            
+            # Update info display
+            self._update_solar_info_display()
+            
+            # Don't print every update - only significant changes
+            if hasattr(self, '_last_update_hour') and abs(self._last_update_hour - self.current_time) < 0.1:
+                return  # Skip printing for minor updates
+            
+            self._last_update_hour = self.current_time
+            print(f"✅ Solar systems updated for time {self.current_time:.1f}")
+            
+        except Exception as e:
+            print(f"❌ Solar systems update failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _add_noon_brightness(self):
+        """Add extra brightness at noon"""
+        try:
+            if not self.plotter:
+                return
+                
+            # Add additional overhead light for noon
+            noon_light = pv.Light(
+                position=(0, 0, 50),
+                focal_point=(0, 0, 0),
+                color=[1.0, 1.0, 1.0],  # Pure white
+                intensity=0.5
+            )
+            self.plotter.add_light(noon_light)
+            
+            # Ensure bright ambient
+            ambient_light = pv.Light(
+                position=(10, 10, 30),
+                focal_point=(0, 0, 0),
+                color=[0.9, 0.95, 1.0],  # Slight blue tint
+                intensity=0.4
+            )
+            self.plotter.add_light(ambient_light)
+            
+        except Exception as e:
+            print(f"❌ Error adding noon brightness: {e}")
+
+
+    def _hide_sun(self):
+        """Hide sun during night time"""
+        try:
+            # List of sun-related actors to hide
+            sun_actors = [
+                'sun', 'sun_core', 'sun_glow', 'sun_corona',
+                'sunshafts', 'sunshaft_particles'
+            ]
+            
+            for actor_name in sun_actors:
+                try:
+                    self.plotter.remove_actor(actor_name)
+                except:
+                    pass
+            
+            # Also hide stored sun actor
+            if hasattr(self, 'sun_actor') and self.sun_actor:
+                try:
+                    self.plotter.remove_actor(self.sun_actor)
+                    self.sun_actor = None
+                except:
+                    pass
+            
+            print("🌙 Sun hidden (night time)")
+            
+        except Exception as e:
+            print(f"❌ Error hiding sun: {e}")
+
+    def _show_sun(self):
+        """Show sun during day time"""
+        # The sun will be recreated by the solar visualization systems
+        print("☀️ Sun visible (day time)")
+
+    def _set_night_lighting(self):
+        """Set minimal lighting for night time"""
+        try:
+            if hasattr(self.plotter, 'remove_all_lights'):
+                self.plotter.remove_all_lights()
+            
+            # Add dim ambient light for night
+            night_light = pv.Light(
+                position=(0, 0, 30),
+                focal_point=(0, 0, 0),
+                color=[0.2, 0.2, 0.4],  # Dim blue
+                intensity=0.3
+            )
+            self.plotter.add_light(night_light)
+            
+            # Add a subtle moon light from the side
+            moon_light = pv.Light(
+                position=(20, 20, 20),
+                focal_point=(0, 0, 0),
+                color=[0.8, 0.8, 1.0],  # Cool white
+                intensity=0.2
+            )
+            self.plotter.add_light(moon_light)
+            
+            print("🌙 Night lighting set")
+            
+        except Exception as e:
+            print(f"❌ Error setting night lighting: {e}")
+
+    def add_solar_panels(self, config):
+        """Add solar panels using the roof's panel handler"""
+        try:
+            print(f"🔋 Adding solar panels with config: {config}")
+            
+            if not self.plotter:
+                print("❌ No plotter available for solar panels")
+                return False
+                
+            # Check if we have a roof with panel handler
+            roof_obj = None
+            
+            # First check if we have current_roof
+            if hasattr(self, 'current_roof') and self.current_roof:
+                roof_obj = self.current_roof
+                print(f"✅ Using current_roof object")
+            else:
+                # Try to find roof from plotter actors
+                for actor_name in ['pyramid_roof', 'gable_roof', 'flat_roof', 'shed_roof']:
+                    if hasattr(self.plotter, 'actors') and actor_name in self.plotter.actors:
+                        print(f"⚠️ Found {actor_name} actor but no roof object")
+                        break
+            
+            if not roof_obj:
+                print("❌ No roof object available")
+                return False
+                
+            # Check if roof has panel handler
+            if not hasattr(roof_obj, 'panel_handler') or not roof_obj.panel_handler:
+                print("❌ Roof object has no panel handler")
+                return False
+                
+            print(f"✅ Found panel handler: {type(roof_obj.panel_handler).__name__}")
+            
+            # Update panel configuration
+            success = roof_obj.panel_handler.update_panel_config(config)
+            if not success:
+                print("❌ Failed to update panel configuration")
+                return False
+                
+            # Determine sides based on roof type
+            roof_type = getattr(roof_obj, 'roof_type', 'unknown')
+            print(f"🏠 Roof type: {roof_type}")
+            
+            if roof_type == 'pyramid':
+                # For pyramid, add to front and back by default
+                sides_to_add = ['front', 'back']
+            elif roof_type == 'gable':
+                # For gable, add to front and back
+                sides_to_add = ['front', 'back']
+            elif roof_type == 'flat':
+                # For flat, add to center
+                sides_to_add = ['center']
+            elif roof_type == 'shed':
+                # For shed, add to main side
+                sides_to_add = ['main']
+            else:
+                sides_to_add = ['front']
+                
+            print(f"📐 Will add panels to sides: {sides_to_add}")
+            
+            # Add panels to selected sides
+            total_panels = 0
+            for side in sides_to_add:
+                try:
+                    # Call add_panels which handles the placement
+                    roof_obj.panel_handler.add_panels(side)
+                    
+                    # Get count from handler
+                    side_count = roof_obj.panel_handler.panels_count_by_side.get(side, 0)
+                    total_panels += side_count
+                    
+                    print(f"✅ Side '{side}': {side_count} panels")
+                    
+                except Exception as e:
+                    print(f"⚠️ Error adding panels to {side}: {e}")
+                    
+            # Update debug display if available
+            if hasattr(roof_obj.panel_handler, 'update_debug_display_common'):
+                roof_obj.panel_handler.update_debug_display_common()
+                
+            # Store actual panel count
+            self.solar_panel_config['actual_panel_count'] = total_panels
+            
+            print(f"✅ Total panels added: {total_panels}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error adding solar panels: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def clear_solar_panels(self):
+        """Clear all solar panels from the roof"""
+        try:
+            if hasattr(self, 'current_roof') and self.current_roof:
+                if hasattr(self.current_roof, 'panel_handler') and self.current_roof.panel_handler:
+                    self.current_roof.panel_handler.clear_panels()
+                    print("✅ Solar panels cleared using panel handler")
+                    return
+                    
+            print("⚠️ No roof or panel handler available for clearing")
+            
+        except Exception as e:
+            print(f"❌ Error clearing solar panels: {e}")
+
+    def add_obstacle(self, obstacle_type, dimensions):
+        """Add obstacle to the roof"""
+        try:
+            print(f"🚧 Adding obstacle: {obstacle_type} with dimensions {dimensions}")
+            
+            if not self.plotter:
+                print("❌ No plotter available for obstacles")
+                return False
+                
+            # Check if we have a roof
+            if not hasattr(self, 'current_roof') or not self.current_roof:
+                print("❌ No roof available for obstacles")
+                return False
+                
+            # Add obstacle to roof if it has the method
+            if hasattr(self.current_roof, 'add_obstacle'):
+                success = self.current_roof.add_obstacle(obstacle_type, dimensions)
+                print(f"✅ Obstacle added via roof object")
+                return success
+            else:
+                # Fallback: add obstacle directly
+                return self._add_obstacle_fallback(obstacle_type, dimensions)
+                
+        except Exception as e:
+            print(f"❌ Error adding obstacle: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def _add_obstacle_fallback(self, obstacle_type, dimensions):
+        """Fallback method to add obstacle directly to plotter"""
+        try:
+            if not self.current_building:
+                print("❌ No building available for obstacle placement")
+                return False
+                
+            # Get building parameters
+            building_height = self.current_building.get('height', 3.0)
+            points = self.current_building.get('points', [])
+            scale = self.current_building.get('scale', 0.05)
+            
+            # Calculate building center
+            xs = []
+            ys = []
+            for point in points:
+                if hasattr(point, 'x') and hasattr(point, 'y'):
+                    x, y = point.x() * scale, point.y() * scale
+                else:
+                    x, y = point[0] * scale, point[1] * scale
+                xs.append(x)
+                ys.append(y)
+            
+            if not xs or not ys:
+                return False
+            
+            center_x = (min(xs) + max(xs)) / 2
+            center_y = (min(ys) + max(ys)) / 2
+            
+            # Extract dimensions
+            width, length, height = dimensions
+            
+            # Create obstacle based on type
+            if obstacle_type.lower() in ['chimney', 'ventilation']:
+                # Cylindrical obstacle
+                obstacle = pv.Cylinder(
+                    center=(center_x, center_y, building_height + height/2),
+                    direction=(0, 0, 1),
+                    radius=width/2,
+                    height=height
+                )
+                color = 'red' if 'chimney' in obstacle_type.lower() else 'gray'
+            else:
+                # Box obstacle
+                obstacle = pv.Box(bounds=(
+                    center_x - width/2, center_x + width/2,
+                    center_y - length/2, center_y + length/2,
+                    building_height, building_height + height
+                ))
+                color = 'darkgray'
+            
+            # Add to plotter
+            self.plotter.add_mesh(
+                obstacle,
+                color=color,
+                name=f'obstacle_{obstacle_type}_{len(self.plotter.actors)}'
+            )
+            
+            # Update shadows if solar visualization available
+            if self.solar_visualization and self.shadows_enabled:
+                self.solar_visualization.update_comprehensive_shadows()
+            
+            print(f"✅ Obstacle '{obstacle_type}' added to roof (fallback)")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error in fallback obstacle placement: {e}")
+            return False
