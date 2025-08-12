@@ -472,8 +472,7 @@ class ModificationsTab(QWidget):
             self.panel_config['panel_count'] = 10
             self._update_performance()
             QMessageBox.critical(self, "Error", f"Error opening solar panel dialog: {e}")
-
-
+    
     def _open_obstacle_dialog(self):
         """Open obstacle placement dialog"""
         try:
@@ -509,7 +508,7 @@ class ModificationsTab(QWidget):
         except Exception as e:
             print(f"❌ Error opening obstacle dialog: {e}")
             QMessageBox.critical(self, "Error", f"Error opening obstacle dialog: {e}")
-
+    
     def update_theme(self, is_dark_theme):
         """Update theme (always dark for this panel)"""
         self.apply_styles()
@@ -525,7 +524,7 @@ class ModificationsTab(QWidget):
             
         except Exception as e:
             print(f"❌ Error during cleanup: {e}")
-
+    
     def _apply_panels_to_roof(self, config):
         """Apply solar panels to the roof in the 3D model"""
         try:
@@ -563,7 +562,7 @@ class ModificationsTab(QWidget):
         except Exception as e:
             print(f"❌ Error applying panels to roof: {e}")
             return False
-
+    
     def _get_model_tab(self):
         """Get the model tab from main window"""
         try:

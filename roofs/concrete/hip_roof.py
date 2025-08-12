@@ -1,11 +1,15 @@
+#!/usr/bin/env python3
 """
-Hip roof implementation using the BaseRoof template
-Reduced from ~1000 lines to ~300 lines (70% reduction)
+roofs/concrete/hip_roof.py
+Complete HipRoof with building structure, textures, and environment like PyramidRoof
 """
 from roofs.base.base_roof import BaseRoof
+from roofs.base.resource_utils import resource_path
+from roofs.roof_annotation import RoofAnnotation
 from translations import _
 import pyvista as pv
 import numpy as np
+import os
 
 try:
     from roofs.solar_panel_handlers.solar_panel_placement_hip import SolarPanelPlacementHip
@@ -17,485 +21,530 @@ except ImportError as e:
     SolarPanelPlacementHip = None
 
 class HipRoof(BaseRoof):
-    """Hip roof implementation - now 70% smaller thanks to inheritance!"""
+    """Complete hip roof with building structure and environment"""
     
     def __init__(self, plotter=None, dimensions=(10.0, 8.0, 5.0), theme="light"):
-        # If dimensions are provided, use them; otherwise, show dialog to get them
-        if dimensions is None:
-            dimensions = self.show_input_dialog()
-            if dimensions is None:
-                return
-            
+        """Initialize hip roof with complete building"""
+        # Store properties
         self.length, self.width, self.height = dimensions
         
-        # Calculate slope angle for solar panel performance calculations
+        # Building height (walls from ground to roof)
+        self.building_height = 3.0  # 3 meters tall building
+        
+        # Calculate slope angle for solar panel performance
         self.slope_angle = np.arctan(self.height / (self.width / 2))
         
-        # Initialize texture paths
-        self.roof_texture_file = "PVmizer/textures/rooftile.jpg"
-        self.wall_texture_file = "PVmizer/textures/wall.jpg"
+        # Set texture paths using resource_path for robust loading
+        texture_base_path = "PVmizer GEO/textures"
+        
+        # Define paths for different textures
+        self.roof_texture_path = resource_path(os.path.join(texture_base_path, "rooftile.jpg"))
+        self.wall_texture_path = resource_path(os.path.join(texture_base_path, "wall.jpg"))
+        self.brick_texture_path = resource_path(os.path.join(texture_base_path, "brick.jpg"))
+        self.concrete_texture_path = resource_path(os.path.join(texture_base_path, "concrete.jpg"))
+        self.panel_texture_path = resource_path(os.path.join(texture_base_path, "solarpanel.png"))
+        
+        # Realistic colors
+        self.roof_color = "#D2691E"  # Chocolate brown for tiles
+        self.wall_color = "#DEB887"  # Burlywood for walls
+        self.concrete_color = "#808080"  # Gray for foundation
+        
+        # Solar panel parameters
+        self.panel_width = 1.0
+        self.panel_height = 1.6
+        self.panel_gap = 0.05
+        self.panel_offset = 0.05
+        self.edge_margin = 0.40
         
         # Call parent constructor
         super().__init__(plotter, dimensions, theme)
         
+        # Setup lighting
+        self._setup_lighting()
+        
         # Initialize roof using template method
         self.initialize_roof(dimensions)
-
+    
+    def _setup_lighting(self):
+        """Setup realistic lighting"""
+        try:
+            # Clear existing lights
+            self.plotter.remove_all_lights()
+            
+            # Main sunlight
+            sun = pv.Light()
+            sun.position = (20, -20, 30)
+            sun.focal_point = (0, 0, self.building_height/2)
+            sun.intensity = 0.7
+            sun.color = [1.0, 0.95, 0.8]
+            self.plotter.add_light(sun)
+            
+            # Ambient light
+            ambient = pv.Light()
+            ambient.position = (-10, 10, 20)
+            ambient.focal_point = (0, 0, self.building_height/2)
+            ambient.intensity = 0.3
+            ambient.color = [0.9, 0.9, 1.0]
+            self.plotter.add_light(ambient)
+            
+            print("✅ Lighting configured")
+        except Exception as e:
+            print(f"⚠️ Could not setup lighting: {e}")
+    
     def create_roof_geometry(self):
-        """Create the hip roof with properly mapped textures on all sides"""
-        # Clear the plotter
-        self.plotter.clear()
+        """Create hip roof at the top of the building"""
+        half_length = self.length / 2
+        half_width = self.width / 2
         
-        # Define the corners of the roof base
-        front_left = np.array([0, 0, 0])
-        front_right = np.array([self.width, 0, 0])
-        back_left = np.array([0, self.length, 0])
-        back_right = np.array([self.width, self.length, 0])
+        # Roof sits on top of building
+        roof_base_z = self.building_height
         
-        # Define the ridge points
-        ridge_front = np.array([self.width/2, self.length*0.25, self.height])
-        ridge_back = np.array([self.width/2, self.length*0.75, self.height])
+        # Define vertices with overhang
+        overhang = 0.3  # 30cm roof overhang
         
-        # Store all key points for later use
+        # Define the corners of the roof base with overhang
+        vertices = np.array([
+            [-half_width - overhang, -half_length - overhang, roof_base_z],  # front-left
+            [half_width + overhang, -half_length - overhang, roof_base_z],   # front-right
+            [half_width + overhang, half_length + overhang, roof_base_z],    # back-right
+            [-half_width - overhang, half_length + overhang, roof_base_z],   # back-left
+            [0, -half_length*0.25, roof_base_z + self.height],              # ridge-front
+            [0, half_length*0.25, roof_base_z + self.height]                # ridge-back
+        ])
+        
+        # Store key points
         self.roof_points = {
-            'front_left': front_left,
-            'front_right': front_right,
-            'back_left': back_left,
-            'back_right': back_right,
-            'ridge_front': ridge_front,
-            'ridge_back': ridge_back,
-            'peak': ridge_front  # For compatibility with solar panel placement
+            'front_left': vertices[0],
+            'front_right': vertices[1],
+            'back_right': vertices[2],
+            'back_left': vertices[3],
+            'ridge_front': vertices[4],
+            'ridge_back': vertices[5],
+            'peak': vertices[4]  # For compatibility
         }
         
-        # Create roof faces
-        self._create_hip_roof_faces()
+        # Store base points for building walls
+        self.building_base_points = np.array([
+            [-half_width, -half_length, 0],
+            [half_width, -half_length, 0],
+            [half_width, half_length, 0],
+            [-half_width, half_length, 0]
+        ])
         
-        # Add base and edges
-        self.add_base(height=1.0)
-        self.add_roof_edges()
-
-    def _create_hip_roof_faces(self):
-        """Create the four faces of the hip roof"""
-        # Roof color for fallback
-        roof_color = '#8B4513'
-        texture_scale = 1.5
+        # Create hip roof faces
+        self._create_hip_roof_faces(vertices)
         
-        # Load textures
-        roof_texture, roof_texture_exists = self.load_texture_safely(self.roof_texture_file, roof_color)
+        # Create building walls
+        self._create_building_walls()
+    
+    def _create_hip_roof_faces(self, vertices):
+        """Create the hip roof faces with proper texture"""
+        # Create each face of the hip roof
+        faces = []
         
         # Front triangular face
-        front_points = np.array([
-            self.roof_points['front_left'], 
-            self.roof_points['front_right'], 
-            self.roof_points['ridge_front']
-        ])
-        front_faces = np.array([3, 0, 1, 2])
-        front_triangle = pv.PolyData(front_points, front_faces)
-        
-        front_tcoords = np.array([
-            [0.0, 0.0],
-            [texture_scale, 0.0],
-            [texture_scale/2, texture_scale]
-        ])
-        front_triangle.active_texture_coordinates = front_tcoords
+        front_face = pv.PolyData(vertices[[0, 1, 4]], faces=[3, 0, 1, 2])
+        faces.append(front_face)
         
         # Back triangular face
-        back_points = np.array([
-            self.roof_points['back_left'], 
-            self.roof_points['back_right'], 
-            self.roof_points['ridge_back']
-        ])
-        back_faces = np.array([3, 0, 1, 2])
-        back_triangle = pv.PolyData(back_points, back_faces)
+        back_face = pv.PolyData(vertices[[2, 3, 5]], faces=[3, 0, 1, 2])
+        faces.append(back_face)
         
-        back_tcoords = np.array([
-            [0.0, 0.0],
-            [texture_scale, 0.0],
-            [texture_scale/2, texture_scale]
-        ])
-        back_triangle.active_texture_coordinates = back_tcoords
+        # Right side (two triangles)
+        right_face1 = pv.PolyData(vertices[[1, 2, 4]], faces=[3, 0, 1, 2])
+        right_face2 = pv.PolyData(vertices[[2, 5, 4]], faces=[3, 0, 1, 2])
+        faces.extend([right_face1, right_face2])
         
-        # Right side (two triangular faces)
-        right_points1 = np.array([
-            self.roof_points['front_right'], 
-            self.roof_points['back_right'], 
-            self.roof_points['ridge_front']
-        ])
-        right_faces1 = np.array([3, 0, 1, 2])
-        right_triangle1 = pv.PolyData(right_points1, right_faces1)
+        # Left side (two triangles)
+        left_face1 = pv.PolyData(vertices[[0, 4, 3]], faces=[3, 0, 1, 2])
+        left_face2 = pv.PolyData(vertices[[3, 4, 5]], faces=[3, 0, 1, 2])
+        faces.extend([left_face1, left_face2])
         
-        right_tcoords1 = np.array([
-            [0.0, 0.0],
-            [texture_scale, 0.0],
-            [texture_scale*0.25, texture_scale]
-        ])
-        right_triangle1.active_texture_coordinates = right_tcoords1
+        # Combine all faces into one mesh
+        self.roof_mesh = faces[0]
+        for face in faces[1:]:
+            self.roof_mesh = self.roof_mesh.merge(face)
         
-        right_points2 = np.array([
-            self.roof_points['back_right'], 
-            self.roof_points['ridge_back'], 
-            self.roof_points['ridge_front']
-        ])
-        right_faces2 = np.array([3, 0, 1, 2])
-        right_triangle2 = pv.PolyData(right_points2, right_faces2)
-        
-        right_tcoords2 = np.array([
-            [texture_scale, 0.0],
-            [texture_scale*0.75, texture_scale],
-            [texture_scale*0.25, texture_scale]
-        ])
-        right_triangle2.active_texture_coordinates = right_tcoords2
-        
-        # Left side (two triangular faces)
-        left_points1 = np.array([
-            self.roof_points['front_left'], 
-            self.roof_points['ridge_front'], 
-            self.roof_points['back_left']
-        ])
-        left_faces1 = np.array([3, 0, 1, 2])
-        left_triangle1 = pv.PolyData(left_points1, left_faces1)
-        
-        left_tcoords1 = np.array([
-            [0.0, 0.0],
-            [texture_scale*0.25, texture_scale],
-            [texture_scale, 0.0]
-        ])
-        left_triangle1.active_texture_coordinates = left_tcoords1
-        
-        left_points2 = np.array([
-            self.roof_points['back_left'], 
-            self.roof_points['ridge_back'], 
-            self.roof_points['ridge_front']
-        ])
-        left_faces2 = np.array([3, 0, 1, 2])
-        left_triangle2 = pv.PolyData(left_points2, left_faces2)
-        
-        left_tcoords2 = np.array([
-            [texture_scale, 0.0],
-            [texture_scale*0.75, texture_scale],
-            [texture_scale*0.25, texture_scale]
-        ])
-        left_triangle2.active_texture_coordinates = left_tcoords2
-        
-        # Apply textures to all faces
-        roof_meshes = [
-            front_triangle, back_triangle,
-            right_triangle1, right_triangle2,
-            left_triangle1, left_triangle2
-        ]
-        
-        for mesh in roof_meshes:
-            if roof_texture_exists:
-                self.plotter.add_mesh(mesh, texture=roof_texture, show_edges=False, smooth_shading=True)
-            else:
-                self.plotter.add_mesh(mesh, color=roof_texture, show_edges=True)
-
-    def add_base(self, height=1.0):
-        """Add a rectangular base (walls) under the hip roof"""
-        # Get the roof eave points
-        points = self.roof_points
-        eave_front_left = points['front_left'].copy()
-        eave_front_right = points['front_right'].copy()
-        eave_back_left = points['back_left'].copy()
-        eave_back_right = points['back_right'].copy()
-        
-        # Create base points (floor level)
-        base_front_left = eave_front_left.copy()
-        base_front_right = eave_front_right.copy()
-        base_back_left = eave_back_left.copy()
-        base_back_right = eave_back_right.copy()
-        
-        # Adjust z-coordinate for floor level
-        base_front_left[2] -= height
-        base_front_right[2] -= height
-        base_back_left[2] -= height
-        base_back_right[2] -= height
-        
-        # Store base points
-        self.base_points = {
-            'front_left': base_front_left,
-            'front_right': base_front_right,
-            'back_left': base_back_left,
-            'back_right': base_back_right
-        }
-        
-        # Create and add wall meshes
-        self._create_base_walls(eave_front_left, eave_front_right, eave_back_left, eave_back_right,
-                               base_front_left, base_front_right, base_back_left, base_back_right)
-
-    def _create_base_walls(self, eave_fl, eave_fr, eave_bl, eave_br, base_fl, base_fr, base_bl, base_br):
-        """Create the base walls of the building"""
-        # Load wall texture
-        wall_texture, wall_texture_exists = self.load_texture_safely(self.wall_texture_file, "#E8DCC9")
-        
-        # Create wall meshes
-        walls = [
-            # Front wall
-            pv.PolyData(np.array([base_fl, base_fr, eave_fr, eave_fl]), faces=[4, 0, 1, 2, 3]),
-            # Back wall  
-            pv.PolyData(np.array([base_bl, base_br, eave_br, eave_bl]), faces=[4, 0, 1, 2, 3]),
-            # Left wall
-            pv.PolyData(np.array([base_fl, base_bl, eave_bl, eave_fl]), faces=[4, 0, 1, 2, 3]),
-            # Right wall
-            pv.PolyData(np.array([base_fr, base_br, eave_br, eave_fr]), faces=[4, 0, 1, 2, 3])
-        ]
-        
-        # Floor
-        floor = pv.PolyData(np.array([base_fl, base_fr, base_br, base_bl]), faces=[4, 0, 1, 2, 3])
-        
-        # Apply textures
-        wall_color = "#E8DCC9"
-        for wall in walls:
-            wall.texture_map_to_plane(inplace=True)
-            wall.active_texture_coordinates *= np.array([2, 1])
-            
-            if wall_texture_exists:
-                self.plotter.add_mesh(wall, texture=wall_texture, show_edges=False)
-            else:
-                self.plotter.add_mesh(wall, color=wall_color, show_edges=False)
-        
-        # Add floor
-        self.plotter.add_mesh(floor, color="#8B7D6B", show_edges=False)
-
-    def add_roof_edges(self):
-        """Add edges to outline the roof structure"""
-        # Define the corners of the roof base
-        front_left = self.roof_points['front_left']
-        front_right = self.roof_points['front_right']
-        back_left = self.roof_points['back_left']
-        back_right = self.roof_points['back_right']
-        ridge_front = self.roof_points['ridge_front']
-        ridge_back = self.roof_points['ridge_back']
+        # Apply roof texture
+        self._apply_roof_texture()
         
         # Add ridge line
-        ridge_line = pv.Line(ridge_front, ridge_back)
+        ridge_line = pv.Line(self.roof_points['ridge_front'], self.roof_points['ridge_back'])
         self.plotter.add_mesh(ridge_line, color='black', line_width=3)
+    
+    def _apply_roof_texture(self):
+        """Apply texture to the roof"""
+        try:
+            # Generate texture coordinates
+            if self.roof_mesh.n_points > 0:
+                bounds = self.roof_mesh.bounds
+                texture_coords = np.zeros((self.roof_mesh.n_points, 2))
+                
+                for i in range(self.roof_mesh.n_points):
+                    point = self.roof_mesh.points[i]
+                    # Create tile pattern
+                    u = (point[0] - bounds[0]) / (bounds[1] - bounds[0]) * 10
+                    v = (point[1] - bounds[2]) / (bounds[3] - bounds[2]) * 10
+                    texture_coords[i] = [u, v]
+                
+                self.roof_mesh.active_t_coords = texture_coords
+            
+            # Try to load texture
+            roof_texture, texture_loaded = self.load_texture_safely(
+                self.roof_texture_path,
+                self.roof_color
+            )
+            
+            # Add roof to scene
+            if texture_loaded:
+                self.plotter.add_mesh(
+                    self.roof_mesh,
+                    texture=roof_texture,
+                    name="roof",
+                    smooth_shading=True,
+                    ambient=0.2,
+                    diffuse=0.8,
+                    specular=0.1
+                )
+            else:
+                self.plotter.add_mesh(
+                    self.roof_mesh,
+                    color=self.roof_color,
+                    name="roof",
+                    smooth_shading=True,
+                    ambient=0.2,
+                    diffuse=0.8,
+                    specular=0.1
+                )
+            
+            print("✅ Roof created with texture")
+            
+        except Exception as e:
+            print(f"⚠️ Error applying roof texture: {e}")
+            # Fallback to color
+            self.plotter.add_mesh(
+                self.roof_mesh,
+                color=self.roof_color,
+                name="roof",
+                smooth_shading=True
+            )
+    
+    def _create_building_walls(self):
+        """Create the building walls beneath the roof"""
+        try:
+            # Create walls from ground to roof
+            wall_vertices = []
+            wall_faces = []
+            
+            # Get base and top points
+            base_points = self.building_base_points
+            top_points = np.array([
+                [-self.width/2, -self.length/2, self.building_height],
+                [self.width/2, -self.length/2, self.building_height],
+                [self.width/2, self.length/2, self.building_height],
+                [-self.width/2, self.length/2, self.building_height]
+            ])
+            
+            # Create each wall
+            vertex_offset = 0
+            for i in range(4):
+                j = (i + 1) % 4
+                
+                # Wall vertices
+                wall_verts = [
+                    base_points[i],
+                    base_points[j],
+                    top_points[j],
+                    top_points[i]
+                ]
+                wall_vertices.extend(wall_verts)
+                
+                # Wall face
+                wall_faces.append([4, vertex_offset, vertex_offset+1, vertex_offset+2, vertex_offset+3])
+                vertex_offset += 4
+            
+            # Create wall mesh
+            wall_mesh = pv.PolyData(np.array(wall_vertices))
+            wall_mesh.faces = np.hstack(wall_faces)
+            
+            # Generate texture coordinates
+            texture_coords = []
+            for i in range(4):  # For each wall
+                texture_coords.extend([
+                    [0, 0],
+                    [3, 0],
+                    [3, 1],
+                    [0, 1]
+                ])
+            wall_mesh.active_t_coords = np.array(texture_coords)
+            
+            # Load wall texture
+            wall_texture, texture_loaded = self.load_texture_safely(
+                self.brick_texture_path if os.path.exists(resource_path(os.path.join("PVmizer GEO/textures", "brick.jpg"))) else self.wall_texture_path,
+                self.wall_color
+            )
+            
+            # Add walls
+            if texture_loaded:
+                self.plotter.add_mesh(
+                    wall_mesh,
+                    texture=wall_texture,
+                    name="building_walls",
+                    smooth_shading=True,
+                    ambient=0.25,
+                    diffuse=0.75,
+                    specular=0.05
+                )
+            else:
+                self.plotter.add_mesh(
+                    wall_mesh,
+                    color=self.wall_color,
+                    name="building_walls",
+                    smooth_shading=True,
+                    ambient=0.25,
+                    diffuse=0.75,
+                    specular=0.05
+                )
+            
+            # Add foundation
+            self._add_foundation()
+            
+            print("✅ Building base created")
+            
+        except Exception as e:
+            print(f"❌ Error creating building base: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _add_foundation(self):
+        """Add concrete foundation"""
+        try:
+            foundation_height = 0.2
+            foundation_extend = 0.15
+            
+            half_length = self.length/2 + foundation_extend
+            half_width = self.width/2 + foundation_extend
+            
+            foundation = pv.Box(bounds=(
+                -half_width, half_width,
+                -half_length, half_length,
+                -foundation_height, 0
+            ))
+            
+            self.plotter.add_mesh(
+                foundation,
+                color=self.concrete_color,
+                name="foundation",
+                smooth_shading=True,
+                ambient=0.3,
+                diffuse=0.7,
+                specular=0.02
+            )
+            
+            print("✅ Foundation added")
+            
+        except Exception as e:
+            print(f"⚠️ Could not add foundation: {e}")
+    
+    def initialize_roof(self, dimensions):
+        """Initialize roof with building and environment"""
+        # Store dimensions
+        self.dimensions = dimensions
         
-        # Add edges for better visualization
-        edges = [
-            (front_left, front_right),  # Front eave
-            (front_right, back_right),  # Right eave
-            (back_right, back_left),    # Back eave
-            (back_left, front_left),    # Left eave
-            (front_left, ridge_front),  # Front left hip
-            (front_right, ridge_front), # Front right hip
-            (back_right, ridge_back),   # Back right hip
-            (back_left, ridge_back)     # Back left hip
-        ]
+        # Create roof and building geometry
+        self.create_roof_geometry()
         
-        for start, end in edges:
-            edge = pv.Line(start, end)
-            self.plotter.add_mesh(edge, color='black', line_width=2)
-
-    def setup_roof_specific_key_bindings(self):
-        """Setup key bindings specific to hip/pyramid roof"""
-        if self.solar_panel_handler:
-            print("✅ Adding panel placement key bindings")
-            
-            # ✅ FIXED: Clear key bindings and add specific ones
-            self.plotter.clear_events_for_key("1")
-            self.plotter.clear_events_for_key("2") 
-            self.plotter.clear_events_for_key("3")
-            self.plotter.clear_events_for_key("4")
-            
-            # Add single key event per key
-            self.plotter.add_key_event("1", lambda: self.debug_add_panels("front", "1-North"))
-            self.plotter.add_key_event("2", lambda: self.debug_add_panels("right", "2-East"))
-            self.plotter.add_key_event("3", lambda: self.debug_add_panels("back", "3-South"))
-            self.plotter.add_key_event("4", lambda: self.debug_add_panels("left", "4-West"))
-            
-            self.plotter.add_key_event("c", self.safe_clear_panels)
-            self.plotter.add_key_event("C", self.safe_clear_panels)
-
-    def debug_add_panels(self, side, key_info):
-        """Debug version to see what's being called"""
-        print(f"🔍 Key pressed: {key_info} -> Adding panels to {side} side ONLY")
-        self.safe_add_panels(side)
-
-
-    def get_solar_panel_areas(self):
-        """Get valid solar panel areas for hip roof"""
-        return ["front", "right", "back", "left"]
-
-    def get_solar_panel_handler_class(self):
-        """Get the solar panel handler class for hip roof"""
-        return SolarPanelPlacementHip if SOLAR_HANDLER_AVAILABLE else None
-
+        # Initialize solar panel handler
+        self._initialize_solar_panel_handler()
+        
+        # Create annotations
+        try:
+            annotation_params = self._get_annotation_params()
+            self.annotator = RoofAnnotation(
+                self.plotter,
+                *annotation_params,
+                self.theme
+            )
+            self.annotator.add_annotations()
+            print("✅ Annotations added")
+        except Exception as e:
+            print(f"⚠️ Could not add annotations: {e}")
+            self.annotator = None
+        
+        # Setup key bindings
+        try:
+            self.setup_key_bindings()
+            self._setup_environment_key_bindings()
+            print("✅ Key bindings configured (t=tree, p=pole, a=points, e=clear)")
+        except Exception as e:
+            print(f"⚠️ Error setting up key bindings: {e}")
+        
+        # Set camera view
+        try:
+            self.set_default_camera_view()
+            print("✅ Camera positioned")
+        except Exception as e:
+            print(f"⚠️ Could not set camera view: {e}")
+        
+        print(f"🏠 {self.__class__.__name__} complete with building and environment")
+    
     def calculate_camera_position(self):
-        """Calculate camera position for hip roof"""
-        position = (self.width*2.0, -self.length*1.2, self.height*2.0)
-        focal_point = (self.width/2, self.length/2, self.height/2)
+        """Calculate optimal camera position"""
+        total_height = self.building_height + self.height
+        position = (self.width*2.0, -self.length*2.0, total_height*1.3)
+        focal_point = (0, 0, total_height*0.4)
         up_vector = (0, 0, 1)
         return position, focal_point, up_vector
-
-    def _get_annotation_params(self):
-        """Get parameters for RoofAnnotation"""
-        return (self.length, self.width, self.height, self.slope_angle)
-
-    def add_attachment_points(self):
-        """Generate attachment points for hip roof obstacle placement"""
+    
+    def setup_roof_specific_key_bindings(self):
+        """Setup hip roof key bindings"""
+        if self.solar_panel_handler:
+            print("✅ Adding panel key bindings (1-4 for sides)")
+            self.plotter.add_key_event("1", lambda: self.safe_add_panels("front"))
+            self.plotter.add_key_event("2", lambda: self.safe_add_panels("right"))
+            self.plotter.add_key_event("3", lambda: self.safe_add_panels("back"))
+            self.plotter.add_key_event("4", lambda: self.safe_add_panels("left"))
+    
+    def safe_add_panels(self, side):
+        """Safely add panels"""
         try:
-            # Initialize obstacle properties if not already done
+            if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
+                self.solar_panel_handler.add_panels(side)
+        except Exception as e:
+            print(f"Error adding panels to {side}: {e}")
+    
+    def get_solar_panel_areas(self):
+        """Get valid panel areas"""
+        return ["front", "right", "back", "left"]
+    
+    def get_solar_panel_handler_class(self):
+        """Get panel handler class"""
+        return SolarPanelPlacementHip if SOLAR_HANDLER_AVAILABLE else None
+    
+    def _get_annotation_params(self):
+        """Get annotation parameters"""
+        return (self.width, self.length, self.height, self.slope_angle, False)  # False for non-pyramid
+    
+    def add_attachment_points(self):
+        """Generate attachment points for obstacles on roof"""
+        try:
             if not hasattr(self, 'obstacle_count'):
                 self.obstacle_count = 0
                 self.obstacles = []
-                
-            # Initialize selected_obstacle_type if not defined
+            
             if not hasattr(self, 'selected_obstacle_type'):
                 self.selected_obstacle_type = "Chimney"
-                
-            # Check if we've reached the maximum limit
+            
             if self.obstacle_count >= 6:
                 self.update_instruction(_('obstacle_max_reached'))
                 return False
-                
-            # Clear existing attachment points if any
+            
             if hasattr(self, 'attachment_point_actor') and self.attachment_point_actor:
                 self.plotter.remove_actor(self.attachment_point_actor)
                 self.attachment_point_actor = None
-                
-            # Reset attachment points data for this session
+            
             self.attachment_points = []
             self.attachment_points_occupied = {}
             self.face_normals = {}
-                
-            # Flag to track if we've placed an obstacle in this session
             self.obstacle_placed_this_session = False
-                
-            # Use a moderate offset for attachment points
-            offset_distance = 0.15  # 15cm offset
-                
-            # Get roof points from stored geometry
+            
+            offset_distance = 0.15
             points = self.roof_points
-                
-            # Extract key points from the roof
-            peak = points['ridge_front']  # Use ridge_front as peak
+            
+            ridge_front = points['ridge_front']
+            ridge_back = points['ridge_back']
             front_left = points['front_left']
             front_right = points['front_right']
             back_left = points['back_left']
             back_right = points['back_right']
-            ridge_back = points['ridge_back']
-                
-            # Calculate face normals for each face of the hip roof
-            # Front face normal (triangular face)
+            
+            # Calculate face normals for hip roof
+            # Front face
             v1_front = front_right - front_left
-            v2_front = peak - front_left
+            v2_front = ridge_front - front_left
             front_normal = np.cross(v1_front, v2_front)
             front_normal = front_normal / np.linalg.norm(front_normal)
             if front_normal[2] < 0:
                 front_normal = -front_normal
-                    
-            # Right face normal (quadrilateral face)
-            v1_right = peak - front_right
-            v2_right = back_right - front_right
-            right_normal = np.cross(v1_right, v2_right)
-            right_normal = right_normal / np.linalg.norm(right_normal)
-            if right_normal[2] < 0:
-                right_normal = -right_normal
-                    
-            # Back face normal (triangular face)
+            
+            # Back face
             v1_back = back_left - back_right
             v2_back = ridge_back - back_right
             back_normal = np.cross(v1_back, v2_back)
             back_normal = back_normal / np.linalg.norm(back_normal)
             if back_normal[2] < 0:
                 back_normal = -back_normal
-                    
-            # Left face normal (quadrilateral face)
+            
+            # Right faces
+            v1_right = ridge_front - front_right
+            v2_right = back_right - front_right
+            right_normal = np.cross(v1_right, v2_right)
+            right_normal = right_normal / np.linalg.norm(right_normal)
+            if right_normal[2] < 0:
+                right_normal = -right_normal
+            
+            # Left faces
             v1_left = ridge_back - back_left
             v2_left = front_left - back_left
             left_normal = np.cross(v1_left, v2_left)
             left_normal = left_normal / np.linalg.norm(left_normal)
             if left_normal[2] < 0:
                 left_normal = -left_normal
-                    
-            # Store face info for later reference when placing obstacles
+            
             self.roof_face_info = {
                 'front': {
                     'normal': front_normal,
-                    'points': [front_left, front_right, peak]
-                },
-                'right': {
-                    'normal': right_normal,
-                    'points': [front_right, back_right, ridge_back, peak]
+                    'points': [front_left, front_right, ridge_front]
                 },
                 'back': {
                     'normal': back_normal,
                     'points': [back_right, back_left, ridge_back]
                 },
+                'right': {
+                    'normal': right_normal,
+                    'points': [front_right, back_right, ridge_back, ridge_front]
+                },
                 'left': {
                     'normal': left_normal,
-                    'points': [back_left, front_left, peak, ridge_back]
+                    'points': [back_left, front_left, ridge_front, ridge_back]
                 }
             }
-                
+            
             point_index = 0
-                
-            # Helper function to check if a point is inside a triangular face
-            def is_point_in_triangle(point, vertices):
-                # Barycentric coordinate method
-                v0 = vertices[2] - vertices[0]
-                v1 = vertices[1] - vertices[0]
-                v2 = point - vertices[0]
-                    
-                dot00 = np.dot(v0, v0)
-                dot01 = np.dot(v0, v1)
-                dot02 = np.dot(v0, v2)
-                dot11 = np.dot(v1, v1)
-                dot12 = np.dot(v1, v2)
-                    
-                inv_denom = 1.0 / (dot00 * dot11 - dot01 * dot01)
-                u = (dot11 * dot02 - dot01 * dot12) * inv_denom
-                v = (dot00 * dot12 - dot01 * dot02) * inv_denom
-                    
-                return (u >= 0) and (v >= 0) and (u + v <= 1)
-
+            
             # Generate points for each face
             for face_name, face_info in self.roof_face_info.items():
                 normal = face_info['normal']
                 face_points = face_info['points']
                 
                 if len(face_points) == 3:  # Triangular face
-                    for u in np.linspace(0.1, 0.9, 5):
-                        for v in np.linspace(0.1, 0.9, 5):
-                            if u + v <= 1:  # Stay within triangle
-                                # Barycentric coordinates for triangle
+                    for u in np.linspace(0.2, 0.8, 4):
+                        for v in np.linspace(0.2, 0.8, 4):
+                            if u + v <= 0.9:
                                 point = (1-u-v)*face_points[0] + u*face_points[1] + v*face_points[2]
-                                # Add offset in normal direction
                                 offset_point = point + normal * offset_distance
-                                # Safety check
-                                if offset_point[2] < point[2]:
-                                    offset_point[2] = point[2] + 0.1
                                 self.attachment_points.append(offset_point)
-                                # Store the normal and face info for this point
                                 self.face_normals[point_index] = {
-                                    'normal': normal, 
-                                    'face': face_name, 
+                                    'normal': normal,
+                                    'face': face_name,
                                     'roof_point': point
                                 }
                                 point_index += 1
-                                
                 else:  # Quadrilateral face
-                    for u in np.linspace(0.1, 0.9, 5):
-                        for v in np.linspace(0.1, 0.9, 5):
-                            # Bilinear interpolation for quad
+                    for u in np.linspace(0.2, 0.8, 4):
+                        for v in np.linspace(0.2, 0.8, 4):
                             point = (1-u)*(1-v)*face_points[0] + u*(1-v)*face_points[1] + \
-                                    (1-u)*v*face_points[3] + u*v*face_points[2]
-                            # Add offset in normal direction
+                                   u*v*face_points[2] + (1-u)*v*face_points[3]
                             offset_point = point + normal * offset_distance
-                            # Safety check
-                            if offset_point[2] < point[2]:
-                                offset_point[2] = point[2] + 0.1
                             self.attachment_points.append(offset_point)
-                            # Store the normal and face info for this point
                             self.face_normals[point_index] = {
-                                'normal': normal, 
-                                'face': face_name, 
+                                'normal': normal,
+                                'face': face_name,
                                 'roof_point': point
                             }
                             point_index += 1
             
-            # Initialize tracking dictionary for attachment points
+            # Initialize tracking dictionary
             for i, point in enumerate(self.attachment_points):
                 self.attachment_points_occupied[i] = {
                     'position': point,
@@ -510,7 +559,6 @@ class HipRoof(BaseRoof):
             if self.attachment_points:
                 points = pv.PolyData(np.array(self.attachment_points))
                 
-                # Add points to plotter
                 self.attachment_point_actor = self.plotter.add_points(
                     points,
                     color='black',
@@ -519,7 +567,6 @@ class HipRoof(BaseRoof):
                     pickable=True
                 )
                 
-                # Enable point picking
                 self.plotter.enable_point_picking(
                     callback=self.attachment_point_clicked,
                     show_message=False,
@@ -527,7 +574,6 @@ class HipRoof(BaseRoof):
                     tolerance=0.05
                 )
                 
-                # Update instruction
                 if not hasattr(self, 'placement_instruction') or not self.placement_instruction:
                     remaining = 6 - self.obstacle_count
                     display_name = self.get_translated_obstacle_name(self.selected_obstacle_type)
@@ -535,93 +581,118 @@ class HipRoof(BaseRoof):
                         _('click_to_place') + f" {display_name} " +
                         f"({self.obstacle_count}/6, {remaining} " + _('remaining') + ")"
                     )
-
+            
             return True
-        
+            
         except Exception as e:
             print(f"Error adding attachment points: {e}")
             import traceback
             traceback.print_exc()
             return False
-
-    def attachment_point_clicked(self, point, *args):
-        """Handle click on attachment point - place ONE obstacle only"""
-        # Check if we already placed an obstacle this session
-        if hasattr(self, 'obstacle_placed_this_session') and self.obstacle_placed_this_session:
-            self.update_instruction(_('obstacle_already_placed'))
-            return
-        
-        # Check if obstacle type is selected
-        if not hasattr(self, 'selected_obstacle_type') or not self.selected_obstacle_type:
-            self.update_instruction(_('select_obstacle_type'))
-            return
-        
-        # Find the closest attachment point
-        closest_point_idx, closest_point = self.find_closest_attachment_point(point)
-        
-        # Safety check for valid point index
-        if closest_point_idx is None:
-            return
-        
-        # Check if this point is already occupied by a previous obstacle
-        if self.is_point_occupied(closest_point):
-            self.update_instruction(_('point_occupied'))
-            return
-        
-        # Get the normal vector and roof point for this attachment point
-        normal_vector = None
-        roof_point = None
-        face = None
-        
-        if closest_point_idx in self.attachment_points_occupied:
-            normal_vector = self.attachment_points_occupied[closest_point_idx].get('normal')
-            roof_point = self.attachment_points_occupied[closest_point_idx].get('roof_point')
-            face = self.attachment_points_occupied[closest_point_idx].get('face')
-        
-        # Place the obstacle with orientation info
-        obstacle = self.place_obstacle_at_point(
-            closest_point, 
-            self.selected_obstacle_type,
-            normal_vector=normal_vector,
-            roof_point=roof_point,
-            face=face
-        )
-        
-        # Add to obstacles list
-        self.obstacles.append(obstacle)
-        
-        # Increment obstacle count
-        self.obstacle_count += 1
-        
-        # Mark that we've placed an obstacle this session
-        self.obstacle_placed_this_session = True
-        
-        # Disable further picking until "Add Obstacle" is pressed again
-        self.plotter.disable_picking()
-        
-        # Remove attachment points
-        if hasattr(self, 'attachment_point_actor') and self.attachment_point_actor:
-            self.plotter.remove_actor(self.attachment_point_actor)
-            self.attachment_point_actor = None
-        
-        # Update solar panels if they exist
-        if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
-            # For Hip roof, we might have multiple active sides
-            if hasattr(self.solar_panel_handler, 'active_sides'):
-                active_sides = list(self.solar_panel_handler.active_sides)
-                # Refresh panels on all active sides to account for the new obstacle
-                for side in active_sides:
-                    self.solar_panel_handler.remove_panels_from_side(side)
-                    self.solar_panel_handler.add_panels(side)
-        
-        # Update instruction
-        remaining = 6 - self.obstacle_count
-        if remaining > 0:
-            display_name = self.get_translated_obstacle_name(self.selected_obstacle_type)
-            self.update_instruction(
-                f"{display_name} " + _('placed') + 
-                f" ({self.obstacle_count}/6, {remaining} " + _('remaining') + "). " +
-                _('press_add_obstacle')
+    
+    def attachment_point_clicked(self, point_index_or_coords):
+        """Handle clicking on attachment point"""
+        try:
+            if isinstance(point_index_or_coords, np.ndarray):
+                point_index = self.find_closest_attachment_point_index(point_index_or_coords)
+            else:
+                point_index = point_index_or_coords
+            
+            if hasattr(self, 'obstacle_placed_this_session') and self.obstacle_placed_this_session:
+                self.update_instruction(_('obstacle_already_placed'))
+                return
+            
+            if point_index is None or point_index not in self.attachment_points_occupied:
+                self.update_instruction(_("Invalid attachment point selected"))
+                return
+            
+            if self.attachment_points_occupied[point_index]['occupied']:
+                self.update_instruction(_("This point already has an obstacle"))
+                return
+            
+            point_data = self.attachment_points_occupied[point_index]
+            position = point_data['position']
+            normal = point_data['normal']
+            face = point_data['face']
+            roof_point = point_data['roof_point']
+            
+            if hasattr(self, 'selected_obstacle_type'):
+                obstacle_type = self.selected_obstacle_type
+            else:
+                obstacle_type = "Chimney"
+            
+            obstacle = self.place_obstacle_at_point(
+                position,
+                obstacle_type,
+                normal_vector=normal,
+                roof_point=roof_point,
+                face=face
             )
-        else:
-            self.update_instruction(_('obstacle_max_reached') + " (6/6)")
+            
+            if obstacle:
+                if not hasattr(self, 'obstacles'):
+                    self.obstacles = []
+                self.obstacles.append(obstacle)
+                
+                self.obstacle_count += 1
+                
+                self.attachment_points_occupied[point_index]['occupied'] = True
+                self.attachment_points_occupied[point_index]['obstacle'] = obstacle
+                
+                self.obstacle_placed_this_session = True
+                
+                if hasattr(self, 'attachment_point_actor') and self.attachment_point_actor:
+                    self.plotter.remove_actor(self.attachment_point_actor)
+                    self.attachment_point_actor = None
+                
+                try:
+                    self.plotter.disable_picking()
+                except:
+                    pass
+                
+                remaining = 6 - self.obstacle_count
+                if remaining > 0:
+                    display_name = self.get_translated_obstacle_name(self.selected_obstacle_type)
+                    self.update_instruction(
+                        f"{display_name} " + _('placed') +
+                        f" ({self.obstacle_count}/6, {remaining} " + _('remaining') + "). " +
+                        _('press_add_obstacle')
+                    )
+                else:
+                    self.update_instruction(_('obstacle_max_reached') + " (6/6)")
+                
+                if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
+                    if hasattr(self.solar_panel_handler, 'active_sides'):
+                        active_sides = list(self.solar_panel_handler.active_sides)
+                        for side in active_sides:
+                            self.solar_panel_handler.remove_panels_from_side(side)
+                            self.solar_panel_handler.add_panels(side)
+            else:
+                self.update_instruction(_("Failed to add obstacle. Try a different location."))
+                
+        except Exception as e:
+            print(f"Error in attachment point callback: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def find_closest_attachment_point_index(self, clicked_position):
+        """Find closest attachment point"""
+        try:
+            if not hasattr(self, 'attachment_points_occupied') or not self.attachment_points_occupied:
+                return None
+            
+            min_distance = float('inf')
+            closest_index = None
+            
+            for idx, point_data in self.attachment_points_occupied.items():
+                point = point_data['position']
+                distance = np.linalg.norm(point - clicked_position)
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_index = idx
+            
+            return closest_index
+        except Exception as e:
+            print(f"Error finding closest attachment point: {e}")
+            return None

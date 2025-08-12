@@ -1,12 +1,11 @@
 from .base.base_panel_handler import BasePanelHandler
 from .utils.solar_panel_utils import PanelGeometry
 from .utils.panel_performance import PerformanceCalculator
-from roofs.roof_annotation import RoofAnnotation
 import numpy as np
 import pyvista as pv
 
 class SolarPanelPlacementFlat(BasePanelHandler):
-    """Handler for placing solar panels on flat roofs - FIXED FLICKERING ONLY"""
+    """Handler for placing solar panels on flat roofs - FIXED WITHOUT DUPLICATE ANNOTATIONS"""
     
     def __init__(self, roof):
         super().__init__(roof, "flat")
@@ -19,23 +18,13 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         # Get base height from roof
         self.base_height = getattr(roof, 'base_height', 0.0)
         
-        # ✅ ADD ROOF ANNOTATION INTEGRATION
-        self.annotator = RoofAnnotation(
-            self.plotter,
-            self.roof.width,
-            self.roof.length, 
-            self.roof.height,
-            slope_angle=0,  # Flat roof
-            theme=getattr(roof, 'theme', 'light'),
-            center_origin=False,
-            base_height=self.base_height
-        )
-        self.annotator.add_annotations()
+        # ❌ REMOVED: Don't create annotations here - the roof already has them!
+        # The roof itself handles all annotations
         
         # Calculate initial row spacing
         self.calculate_row_spacing()
         
-        print(f"✅ Flat roof solar panel handler initialized with annotations")
+        print(f"✅ Flat roof solar panel handler initialized")
     
     def calculate_row_spacing(self):
         """Calculate optimal row spacing based on tilt angle"""
@@ -94,8 +83,8 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         # Store count and update display
         self.panels_count_by_side[area] = panels_placed
         
-        # ✅ UPDATE ROOF ANNOTATION
-        self._update_roof_annotation(area, panels_placed)
+        # ✅ UPDATE ROOF INFO (not annotations)
+        self._update_roof_info(area, panels_placed)
         
         return panels_placed
 
@@ -184,7 +173,6 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         
         print(f"🔶 Updated {boundary_actors_created} boundary actors for {self.current_area}")
 
-
     def clear_panels(self):
         """Clear all panels and reset tracking - ENHANCED"""
         print("🧹 Clearing all flat roof panels...")
@@ -228,7 +216,6 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         self.plotter.update()
         
         print("✅ All flat roof panels and boundaries cleared")
-
     
     def _get_area_bounds(self, area, roof_length, roof_width, safe_edge_offset):
         """Calculate area boundaries based on selection - YOUR ORIGINAL LOGIC"""
@@ -327,7 +314,6 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         
         return panels_placed
     
-    
     def _create_instanced_panels(self, positions):
         """Create instanced panels at all positions - YOUR ORIGINAL LOGIC"""
         # Create template panel
@@ -360,26 +346,20 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         
         # Add to scene
         actor = self.add_mesh_with_texture(panels_glyph)
+        self.panel_actors.append(actor)
         return actor
     
-    def _update_roof_annotation(self, area, panel_count):
-        """Update roof annotations with panel information"""
+    def _update_roof_info(self, area, panel_count):
+        """Update roof information without creating new annotations"""
         try:
-            # Update the roof annotation with current panel info
-            if hasattr(self, 'annotator'):
-                # You can add custom annotation updates here if needed
-                # For now, the basic roof annotations (dimensions, cardinal points) are already added
-                pass
-            
-            # If the roof has a specific annotation update method, call it
+            # If the roof has a specific update method, call it
             if hasattr(self.roof, 'update_panels_debug_info'):
                 self.roof.update_panels_debug_info(area)
             
-            print(f"✅ Updated roof annotation for {area} area with {panel_count} panels")
+            print(f"✅ Updated roof info for {area} area with {panel_count} panels")
             
         except Exception as e:
-            print(f"⚠️ Error updating roof annotation: {e}")
-    
+            print(f"⚠️ Error updating roof info: {e}")
     
     def update_panel_config(self, config):
         """Update panel configuration with re-placement"""

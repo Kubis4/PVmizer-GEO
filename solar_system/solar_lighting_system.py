@@ -1,113 +1,122 @@
 #!/usr/bin/env python3
 """
-solar_lighting_system.py - OPTIMIZED VERSION
-Solar lighting and atmosphere system - BETTER PERFORMANCE
+solar_lighting_system.py - SIMPLIFIED WORKING VERSION
+Based on the successful working example
 """
 import pyvista as pv
-from solar_system.solar_calculations import SolarCalculations
+import numpy as np
 
 class SolarLightingSystem:
-    """Handle solar lighting - OPTIMIZED for performance"""
-    
+    """Simplified solar lighting that works like the example"""
+
     def __init__(self, plotter):
         self.plotter = plotter
         self.sun_light = None
         self.ambient_light = None
-    
-    def setup_solar_lighting(self, sun_pos, solar_settings):
-        """Setup OPTIMIZED solar lighting system"""
+        self.fill_light = None
+
+    def setup_solar_lighting(self, sun_pos, solar_settings=None):
+        """Setup lighting exactly like working example"""
         try:
-            if not self.plotter:
-                return
+            # Clear existing lights
+            self.plotter.remove_all_lights()
             
-            # Remove existing lights
-            if hasattr(self.plotter, 'remove_all_lights'):
-                self.plotter.remove_all_lights()
-            
-            # If sun position is None, it's night
-            if sun_pos is None:
+            if sun_pos is None or (len(sun_pos) > 2 and sun_pos[2] <= 0):
+                # Night lighting
                 self.setup_night_lighting()
                 return
             
-            # Calculate lighting parameters
-            sun_intensity = SolarCalculations.calculate_sun_intensity(
-                sun_pos, solar_settings.get('weather_factor', 1.0)
-            )
-            sun_color = SolarCalculations.calculate_sun_color(sun_pos)
-            
-            # Get current hour for intensity adjustment
-            current_hour = solar_settings.get('current_hour', 12)
-            
-            # 1. Main sun light - BRIGHTER AT NOON
+            # Main sun light (strong directional)
             self.sun_light = pv.Light(
                 position=sun_pos,
                 focal_point=(0, 0, 0),
-                color=sun_color,
-                intensity=2.0 * sun_intensity  # Increased base intensity
+                light_type='scenelight',
+                intensity=1.8
             )
+            self.sun_light.color = [1.0, 0.95, 0.8]
             self.plotter.add_light(self.sun_light)
             
-            # 2. Ambient sky light - BRIGHTER FOR DAY
-            ambient_intensity = 0.3 if 6 <= current_hour <= 18 else 0.1
+            # Ambient light for overall illumination
             self.ambient_light = pv.Light(
                 position=(0, 0, 30),
                 focal_point=(0, 0, 0),
-                color=[0.8, 0.9, 1.0],  # Sky blue tint
-                intensity=ambient_intensity
+                light_type='scenelight',
+                intensity=0.4
             )
+            self.ambient_light.color = [0.9, 0.9, 1.0]
             self.plotter.add_light(self.ambient_light)
             
-            # 3. Fill light for better visibility
-            if 9 <= current_hour <= 15:  # Midday hours
-                fill_light = pv.Light(
-                    position=(-sun_pos[0], -sun_pos[1], sun_pos[2]),
-                    focal_point=(0, 0, 0),
-                    color=[0.9, 0.9, 1.0],
-                    intensity=0.3
-                )
-                self.plotter.add_light(fill_light)
-            
-            print(f"✅ Solar lighting set: intensity={sun_intensity:.2f}, hour={current_hour:.1f}")
-            
-        except Exception as e:
-            print(f"❌ Error setting up solar lighting: {e}")
-
-    
-    def update_background_color(self, solar_settings):
-        """Update background color - FIXED FOR NOON"""
-        try:
-            current_hour = solar_settings.get('current_hour', 12)
-            
-            # FORCE BRIGHT COLORS DURING DAY
-            if 6 <= current_hour <= 8:
-                self.plotter.background_color = '#FFE4B5'  # Morning
-            elif 8 < current_hour <= 16:  # Extended bright period
-                self.plotter.background_color = '#87CEEB'  # Bright sky blue
-            elif 16 < current_hour <= 18:
-                self.plotter.background_color = '#FFD4A3'  # Afternoon
-            elif 18 < current_hour <= 20:
-                self.plotter.background_color = '#FF8C42'  # Sunset
+            # Fill light from opposite side
+            if len(sun_pos) >= 3:
+                fill_pos = (-sun_pos[0]*0.3, -sun_pos[1]*0.3, sun_pos[2]*0.5)
             else:
-                self.plotter.background_color = '#191970'  # Night
+                fill_pos = (-sun_pos[0]*0.3, -sun_pos[1]*0.3, 10)
                 
-        except Exception as e:
-            print(f"❌ Error updating background color: {e}")
-
-    
-    def setup_night_lighting(self):
-        """Setup minimal night lighting - OPTIMIZED"""
-        try:
-            if hasattr(self.plotter, 'remove_all_lights'):
-                self.plotter.remove_all_lights()
-            
-            night_light = pv.Light(
-                position=(0, 0, 15),  # Closer
+            self.fill_light = pv.Light(
+                position=fill_pos,
                 focal_point=(0, 0, 0),
-                color=[0.3, 0.3, 0.5],
-                intensity=0.15  # Reduced for performance
+                light_type='scenelight',
+                intensity=0.3
             )
+            self.fill_light.color = [0.85, 0.9, 1.0]
+            self.plotter.add_light(self.fill_light)
             
-            self.plotter.add_light(night_light)
+            print("💡 Solar lighting configured")
             
         except Exception as e:
-            print(f"❌ Error setting up night lighting: {e}")
+            print(f"Error in solar lighting: {e}")
+            self.setup_fallback_lighting()
+
+    def setup_night_lighting(self):
+        """Simple night lighting"""
+        try:
+            moon = pv.Light(
+                position=(10, 10, 20),
+                focal_point=(0, 0, 0),
+                light_type='scenelight',
+                intensity=0.3
+            )
+            moon.color = [0.7, 0.7, 0.9]
+            self.plotter.add_light(moon)
+            
+            print("🌙 Night lighting active")
+            
+        except Exception as e:
+            print(f"Error in night lighting: {e}")
+
+    def setup_fallback_lighting(self):
+        """Fallback lighting"""
+        try:
+            light = pv.Light(
+                position=(15, 15, 20),
+                focal_point=(0, 0, 0),
+                light_type='scenelight',
+                intensity=1.0
+            )
+            self.plotter.add_light(light)
+            
+        except:
+            pass
+
+    def update_sun_position(self, sun_pos):
+        """Update sun light position"""
+        if self.sun_light and sun_pos:
+            self.sun_light.position = sun_pos
+            print(f"☀️ Sun light updated to position {sun_pos}")
+
+    def update_background_color(self, solar_settings):
+        """Update background based on time"""
+        try:
+            hour = solar_settings.get('current_hour', 12)
+            
+            if hour < 6 or hour > 20:
+                self.plotter.set_background('#1a1a3a', top='#0a0a1f')
+            elif hour < 8:
+                self.plotter.set_background('#ff6b4a', top='#ffa366')
+            elif hour < 18:
+                self.plotter.set_background('skyblue', top='white')
+            else:
+                self.plotter.set_background('#ff8c42', top='#ff6b4a')
+                
+        except:
+            self.plotter.set_background('skyblue', top='white')

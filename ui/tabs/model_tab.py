@@ -1353,90 +1353,37 @@ Current status: Fallback mode
             print(f"❌ Error setting night lighting: {e}")
 
     def add_solar_panels(self, config):
-        """Add solar panels using the roof's panel handler"""
+        """Add solar panels to the current roof with the given configuration"""
         try:
-            print(f"🔋 Adding solar panels with config: {config}")
-            
-            if not self.plotter:
-                print("❌ No plotter available for solar panels")
+            # Check if we have a roof
+            if not hasattr(self, 'current_roof') or not self.current_roof:
+                print("❌ No roof available for solar panel placement")
                 return False
-                
-            # Check if we have a roof with panel handler
-            roof_obj = None
             
-            # First check if we have current_roof
-            if hasattr(self, 'current_roof') and self.current_roof:
-                roof_obj = self.current_roof
-                print(f"✅ Using current_roof object")
-            else:
-                # Try to find roof from plotter actors
-                for actor_name in ['pyramid_roof', 'gable_roof', 'flat_roof', 'shed_roof']:
-                    if hasattr(self.plotter, 'actors') and actor_name in self.plotter.actors:
-                        print(f"⚠️ Found {actor_name} actor but no roof object")
-                        break
-            
-            if not roof_obj:
-                print("❌ No roof object available")
+            # Check if the roof has a solar panel handler
+            if not hasattr(self.current_roof, 'solar_panel_handler') or not self.current_roof.solar_panel_handler:
+                print("❌ Current roof doesn't have a solar panel handler")
                 return False
-                
-            # Check if roof has panel handler
-            if not hasattr(roof_obj, 'panel_handler') or not roof_obj.panel_handler:
-                print("❌ Roof object has no panel handler")
-                return False
-                
-            print(f"✅ Found panel handler: {type(roof_obj.panel_handler).__name__}")
             
-            # Update panel configuration
-            success = roof_obj.panel_handler.update_panel_config(config)
+            # Update the solar panel handler configuration
+            success = self.current_roof.solar_panel_handler.update_panel_config(config)
             if not success:
                 print("❌ Failed to update panel configuration")
                 return False
-                
-            # Determine sides based on roof type
-            roof_type = getattr(roof_obj, 'roof_type', 'unknown')
-            print(f"🏠 Roof type: {roof_type}")
             
-            if roof_type == 'pyramid':
-                # For pyramid, add to front and back by default
-                sides_to_add = ['front', 'back']
-            elif roof_type == 'gable':
-                # For gable, add to front and back
-                sides_to_add = ['front', 'back']
-            elif roof_type == 'flat':
-                # For flat, add to center
-                sides_to_add = ['center']
-            elif roof_type == 'shed':
-                # For shed, add to main side
-                sides_to_add = ['main']
-            else:
-                sides_to_add = ['front']
-                
-            print(f"📐 Will add panels to sides: {sides_to_add}")
+            print(f"✅ Solar panel configuration updated successfully")
             
-            # Add panels to selected sides
-            total_panels = 0
-            for side in sides_to_add:
-                try:
-                    # Call add_panels which handles the placement
-                    roof_obj.panel_handler.add_panels(side)
-                    
-                    # Get count from handler
-                    side_count = roof_obj.panel_handler.panels_count_by_side.get(side, 0)
-                    total_panels += side_count
-                    
-                    print(f"✅ Side '{side}': {side_count} panels")
-                    
-                except Exception as e:
-                    print(f"⚠️ Error adding panels to {side}: {e}")
-                    
-            # Update debug display if available
-            if hasattr(roof_obj.panel_handler, 'update_debug_display_common'):
-                roof_obj.panel_handler.update_debug_display_common()
-                
-            # Store actual panel count
-            self.solar_panel_config['actual_panel_count'] = total_panels
+            # For pyramid roof, we need to trigger panel placement on at least one side
+            # You can modify this to add panels to specific sides based on your requirements
+            if hasattr(self.current_roof, 'get_solar_panel_areas'):
+                areas = self.current_roof.get_solar_panel_areas()
+                if areas and len(areas) > 0:
+                    # Add panels to the first side (front) by default
+                    # You can modify this logic as needed
+                    default_side = areas[0]  # This will be "front" for pyramid
+                    print(f"🔧 Adding panels to default side: {default_side}")
+                    self.current_roof.solar_panel_handler.add_panels(default_side)
             
-            print(f"✅ Total panels added: {total_panels}")
             return True
             
         except Exception as e:
@@ -1444,6 +1391,7 @@ Current status: Fallback mode
             import traceback
             traceback.print_exc()
             return False
+
 
     def clear_solar_panels(self):
         """Clear all solar panels from the roof"""
