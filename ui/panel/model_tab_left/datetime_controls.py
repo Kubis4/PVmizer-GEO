@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ui/panel/model_tab_left/datetime_controls.py
-Fixed version with actual sun movement during animation
+COMPLETE with enhanced solar simulation integration
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QGroupBox, QPushButton, QSpinBox, QComboBox)
@@ -9,6 +9,7 @@ from PyQt5.QtCore import pyqtSignal, Qt, QDate, QTimer, QRect, QPointF
 from PyQt5.QtGui import QFont, QPainter, QPen, QBrush, QColor, QPainterPath
 import math
 import calendar
+import time
 
 try:
     from styles.ui_styles import (
@@ -35,7 +36,7 @@ except ImportError:
 
 
 class ArcSlider(QWidget):
-    """Custom arc slider widget for sun position"""
+    """Arc slider for time control with proper opaque background"""
     
     valueChanged = pyqtSignal(int)
     
@@ -52,7 +53,23 @@ class ArcSlider(QWidget):
         self._is_southern_hemisphere = False
         
         self._dragging = False
+        self._last_update = 0
+        self._update_interval = 0.016  # ~60fps updates for smoothness
+        
+        # Enable mouse tracking for smoother interaction
         self.setMouseTracking(True)
+        
+        # Set solid background via stylesheet
+        self.setStyleSheet("""
+            ArcSlider {
+                background-color: #34495e;
+                border: 1px solid #2c3e50;
+                border-radius: 6px;
+            }
+        """)
+        
+        # Set proper background
+        self.setAutoFillBackground(True)
         
     def set_sun_times(self, sunrise_minutes, sunset_minutes):
         """Set sunrise and sunset times in minutes"""
@@ -66,22 +83,34 @@ class ArcSlider(QWidget):
         self.update()
         
     def setValue(self, value):
-        """Set the current value"""
+        """Set value with smart throttling"""
+        import time
+        current_time = time.time()
+        
+        # Allow immediate updates when dragging, throttle during animation
+        if current_time - self._last_update < self._update_interval and not self._dragging:
+            return
+            
         if value != self._value:
             self._value = max(self._minimum, min(self._maximum, value))
             self.valueChanged.emit(self._value)
             self.update()
+            self._last_update = current_time
             
     def value(self):
         """Get the current value"""
         return self._value
     
     def paintEvent(self, event):
-        """Paint the arc slider"""
+        """Paint with proper opaque background"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Calculate dimensions
+        # Fill entire widget with solid background color
+        widget_rect = self.rect()
+        painter.fillRect(widget_rect, QColor("#34495e"))
+        
+        # Cache frequently used values
         width = self.width()
         height = self.height()
         center_x = width // 2
@@ -89,11 +118,11 @@ class ArcSlider(QWidget):
         radius = min(width // 2 - 30, height - 40)
         
         # Draw horizon line
-        painter.setPen(QPen(QColor("#34495e"), 2))
+        painter.setPen(QPen(QColor("#2c3e50"), 2))
         painter.drawLine(20, center_y, width - 20, center_y)
         
         # Draw arc background
-        painter.setPen(QPen(QColor("#34495e"), 8))
+        painter.setPen(QPen(QColor("#2c3e50"), 8))
         painter.drawArc(center_x - radius, center_y - radius, 
                        radius * 2, radius * 2, 
                        0, 180 * 16)
@@ -109,12 +138,12 @@ class ArcSlider(QWidget):
                            radius * 2, radius * 2,
                            int(start_angle * 16), int(span_angle * 16))
         
-        # Draw sun position
+        # Calculate sun position
         angle = self._angle_from_time(self._value)
         sun_x = center_x + radius * math.cos(math.radians(angle))
         sun_y = center_y - radius * math.sin(math.radians(angle))
         
-        # Draw sun
+        # Draw sun or moon
         if self._sunrise <= self._value <= self._sunset:
             # Daytime - yellow sun
             painter.setBrush(QBrush(QColor("#f1c40f")))
@@ -127,15 +156,16 @@ class ArcSlider(QWidget):
             painter.drawEllipse(QPointF(sun_x, sun_y), 10, 10)
         
         # Draw direction labels
-        painter.setPen(QPen(QColor("#ffffff"), 1))
+        painter.setPen(QPen(QColor("#ecf0f1"), 1))
         font = QFont()
         font.setPointSize(10)
+        font.setBold(True)
         painter.setFont(font)
         
         # East
         painter.drawText(QRect(10, center_y - 20, 40, 20), 
                         Qt.AlignCenter, "E")
-        # North/South (depending on hemisphere)
+        # North/South
         middle_label = "N" if self._is_southern_hemisphere else "S"
         painter.drawText(QRect(center_x - 20, 5, 40, 20), 
                         Qt.AlignCenter, middle_label)
@@ -172,21 +202,47 @@ class ArcSlider(QWidget):
         if event.button() == Qt.LeftButton:
             self._dragging = True
             new_value = self._point_to_time(event.pos())
-            self.setValue(new_value)
+            self._value = new_value
+            self.valueChanged.emit(self._value)
+            self.update()
             
     def mouseMoveEvent(self, event):
-        """Handle mouse move"""
+        """Handle mouse movement"""
         if self._dragging:
             new_value = self._point_to_time(event.pos())
-            self.setValue(new_value)
+            if abs(new_value - self._value) > 2:
+                self._value = new_value
+                self.valueChanged.emit(self._value)
+                self.update()
             
     def mouseReleaseEvent(self, event):
         """Handle mouse release"""
         self._dragging = False
+    
+    def wheelEvent(self, event):
+        """Handle wheel for fine control"""
+        delta = event.angleDelta().y()
+        step = 15 if delta > 0 else -15
+        new_value = max(0, min(1440, self._value + step))
+        self.setValue(new_value)
+        event.accept()
+        
+    def keyPressEvent(self, event):
+        """Handle keyboard input"""
+        if event.key() == Qt.Key_Left:
+            self.setValue(max(0, self._value - 30))
+        elif event.key() == Qt.Key_Right:
+            self.setValue(min(1440, self._value + 30))
+        elif event.key() == Qt.Key_Home:
+            self.setValue(self._sunrise)
+        elif event.key() == Qt.Key_End:
+            self.setValue(self._sunset)
+        else:
+            super().keyPressEvent(event)
 
 
 class DateTimeControls(QWidget):
-    """Date and time control with working sun animation"""
+    """Date and time control with enhanced solar simulation integration"""
     
     # Signals
     time_changed = pyqtSignal(float)  # Decimal time (0-24)
@@ -200,17 +256,23 @@ class DateTimeControls(QWidget):
         self.animation_timer = QTimer()
         self.animation_timer.timeout.connect(self._animate_time)
         
-        # Animation settings - 20 minutes per step
-        self.animation_step_minutes = 10  # 20 minutes per step
-        self.animation_interval_ms = 500  # Update every 200ms
+        # Animation settings
+        self.animation_step_minutes = 15
+        self.animation_interval_ms = 200
         
-        # Reference to solar visualization
+        # Reference to solar systems
         self.solar_viz = None
+        self.solar_simulation = None  # NEW: Enhanced solar simulation
         self.model_tab = None
         
         # Default location (Nitra, Slovakia)
         self.latitude = 48.3061
         self.longitude = 18.0764
+        
+        # Performance optimization
+        self._last_update = 0
+        self._update_throttle = 0.1
+        self._last_sun_update = 0
         
         # Control references
         self.group_box = None
@@ -230,12 +292,12 @@ class DateTimeControls(QWidget):
         self.apply_styling()
         
     def setup_ui(self):
-        """Setup the date/time UI with proper styling"""
+        """Setup the date/time UI"""
         # Main layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Main group box - LIGHT BLUE BACKGROUND
+        # Main group box
         self.group_box = QGroupBox("📅 Date & Time Control")
         layout.addWidget(self.group_box)
         
@@ -270,7 +332,7 @@ class DateTimeControls(QWidget):
         date_layout.addStretch()
         group_layout.addLayout(date_layout)
         
-        # Time display container - DARK BLUE BACKGROUND
+        # Time display container
         self.time_container = QWidget()
         time_layout = QVBoxLayout(self.time_container)
         time_layout.setSpacing(5)
@@ -323,7 +385,7 @@ class DateTimeControls(QWidget):
         group_layout.addWidget(self.day_length_label)
         
         # Animation control button
-        self.animation_btn = QPushButton("▶️ Animate Sun (20min steps)")
+        self.animation_btn = QPushButton("▶️ Animate Sun (15min steps)")
         self.animation_btn.setCheckable(True)
         self.animation_btn.clicked.connect(self._on_animation_button_clicked)
         group_layout.addWidget(self.animation_btn)
@@ -334,12 +396,12 @@ class DateTimeControls(QWidget):
         self._update_hemisphere()
     
     def apply_styling(self):
-        """Apply custom styling with inverted colors"""
+        """Apply custom styling"""
         try:
-            # Group box style - LIGHT BLUE BACKGROUND
+            # Group box style
             self.group_box.setStyleSheet("""
                 QGroupBox {
-                    background-color: #34495e;  /* Light blue (actually darker) */
+                    background-color: #34495e;
                     border: 2px solid #3498db;
                     border-radius: 8px;
                     margin-top: 10px;
@@ -356,10 +418,10 @@ class DateTimeControls(QWidget):
                 }
             """)
             
-            # Time container style - DARK BLUE BACKGROUND
+            # Time container style
             self.time_container.setStyleSheet("""
                 QWidget {
-                    background-color: #2c3e50;  /* Dark blue */
+                    background-color: #2c3e50;
                     border-radius: 8px;
                     padding: 5px;
                 }
@@ -476,50 +538,60 @@ class DateTimeControls(QWidget):
         except Exception as e:
             print(f"⚠️ Error applying styling: {e}")
     
+    def set_solar_viz(self, solar_viz):
+        """Set reference to solar visualization"""
+        self.solar_viz = solar_viz
+    
+    def set_solar_simulation(self, solar_sim):
+        """NEW: Set reference to enhanced solar simulation"""
+        self.solar_simulation = solar_sim
+    
+    def set_model_tab(self, model_tab):
+        """Set reference to model tab"""
+        self.model_tab = model_tab
+        # Try to get solar simulation from model tab
+        if model_tab:
+            if hasattr(model_tab, 'solar_simulation'):
+                self.solar_simulation = model_tab.solar_simulation
+            if hasattr(model_tab, 'solar_visualization'):
+                self.solar_viz = model_tab.solar_visualization
+    
     def _on_animation_button_clicked(self):
         """Handle animation button click"""
         checked = self.animation_btn.isChecked()
         self._on_animation_toggled(checked)
     
     def _on_animation_toggled(self, checked):
-        """Handle animation toggle - DO NOT USE ANIMATION MODE"""
-        print(f"🎬 Animation button toggled: {checked}")
+        """Handle animation toggle"""
         self.animation_active = checked
         
         # Try to get references if not set
-        if not self.solar_viz or not self.model_tab:
+        if not self.solar_viz and not self.solar_simulation:
             self._find_references()
         
         if checked:
-            print(f"▶️ Starting animation with {self.animation_step_minutes}-minute steps...")
-            
-            # DO NOT START ANIMATION MODE - WE WANT THE SUN TO MOVE!
-            # Just start the timer
-            
+            print(f"▶️ Starting animation ({self.animation_step_minutes}min steps)")
             self.animation_btn.setText("⏸️ Stop Animation")
             self.animation_timer.start(self.animation_interval_ms)
-            print(f"✅ Animation started: {self.animation_step_minutes} min/step, {self.animation_interval_ms}ms interval")
         else:
             print("⏸️ Stopping animation...")
-            
-            self.animation_btn.setText("▶️ Animate Sun (20min steps)")
+            self.animation_btn.setText("▶️ Animate Sun (15min steps)")
             self.animation_timer.stop()
-            print("✅ Animation stopped")
         
-        # Emit signal
         self.animation_toggled.emit(checked)
     
     def _find_references(self):
-        """Find solar visualization and model tab references"""
+        """Find solar system references"""
         try:
-            # Try to find model tab through main window
             if hasattr(self.main_window, 'content_tabs'):
                 for i in range(self.main_window.content_tabs.count()):
                     tab = self.main_window.content_tabs.widget(i)
+                    if hasattr(tab, 'solar_simulation'):
+                        self.solar_simulation = tab.solar_simulation
                     if hasattr(tab, 'solar_visualization'):
                         self.solar_viz = tab.solar_visualization
+                    if hasattr(tab, 'model_tab'):
                         self.model_tab = tab
-                        print("✅ Found solar visualization and model tab references")
                         return
             
             # Alternative: Try through parent hierarchy
@@ -527,58 +599,123 @@ class DateTimeControls(QWidget):
             while parent:
                 if hasattr(parent, 'model_tab'):
                     self.model_tab = parent.model_tab
+                    if hasattr(parent.model_tab, 'solar_simulation'):
+                        self.solar_simulation = parent.model_tab.solar_simulation
                     if hasattr(parent.model_tab, 'solar_visualization'):
                         self.solar_viz = parent.model_tab.solar_visualization
-                        print("✅ Found references through parent")
-                        return
+                    return
                 parent = parent.parent()
                 
-            print("⚠️ Could not find solar visualization or model tab")
-            
         except Exception as e:
-            print(f"⚠️ Error finding references: {e}")
+            pass
     
     def _animate_time(self):
-        """Animate time and actually move the sun"""
+        """Animation step with enhanced solar updates"""
         if not self.animation_active:
             return
         
-        # Get current time in minutes
+        # Get current time
         current_minutes = self.arc_slider.value()
         
-        # Advance by 20 minutes
+        # Advance time
         new_minutes = (current_minutes + self.animation_step_minutes) % 1440
         
-        # Update arc slider (this will trigger _on_time_changed)
+        # Update arc slider
         self.arc_slider.setValue(new_minutes)
         
         # Calculate decimal hour
         decimal_hour = new_minutes / 60.0
         
-        # IMPORTANT: Update the sun directly without animation mode
-        if self.solar_viz:
-            # Set time and force visual update
-            self.solar_viz.current_hour = decimal_hour
-            self.solar_viz.create_realistic_sun()
-            self.solar_viz.calculate_solar_performance()
-        elif self.model_tab:
-            # Fallback to model tab update
-            self.model_tab.update_solar_time(decimal_hour)
+        # Update both solar systems
+        self._update_solar_systems(decimal_hour)
         
-        # Debug output every hour
-        if new_minutes % 60 == 0:
+        # Progress logging
+        if new_minutes % 180 == 0:  # Every 3 hours
             hours = new_minutes // 60
-            print(f"⏰ Animation time: {hours:02d}:00 - Sun is moving!")
+            print(f"🌞 {hours:02d}:00")
     
-    def set_solar_viz(self, solar_viz):
-        """Set reference to solar visualization"""
-        self.solar_viz = solar_viz
-        print("✅ Solar visualization reference set")
+    def _on_time_changed(self, value):
+        """ENHANCED: Time change handler with proper solar updates"""
+        decimal_hour = value / 60.0
+        
+        hours = int(decimal_hour)
+        minutes = int((decimal_hour - hours) * 60)
+        self.time_label.setText(f"{hours:02d}:{minutes:02d}")
+        
+        # Calculate sun position
+        self._calculate_sun_position()
+        
+        # Update both solar systems
+        self._update_solar_systems(decimal_hour)
+        
+        # Emit signal
+        self.time_changed.emit(decimal_hour)
     
-    def set_model_tab(self, model_tab):
-        """Set reference to model tab"""
-        self.model_tab = model_tab
-        print("✅ Model tab reference set")
+    def _update_solar_systems(self, decimal_hour):
+        """NEW: Update both solar visualization and simulation"""
+        try:
+            # Update enhanced solar simulation
+            if self.solar_simulation:
+                self.solar_simulation.set_time(decimal_hour)
+                
+                # Update building lighting if roof exists
+                if self.model_tab and hasattr(self.model_tab, 'current_roof'):
+                    roof = self.model_tab.current_roof
+                    if roof:
+                        # Link solar simulation to roof if not already done
+                        if not hasattr(roof, 'solar_simulation') or roof.solar_simulation != self.solar_simulation:
+                            roof.set_solar_simulation(self.solar_simulation)
+                        
+                        # Update lighting for current rotation
+                        if hasattr(roof, 'rotation_angle'):
+                            self.solar_simulation.update_for_building_rotation(roof.rotation_angle)
+            
+            # Update legacy solar visualization
+            if self.solar_viz:
+                self.solar_viz.current_hour = decimal_hour
+                
+                # Legacy sun position update
+                sun_pos = self.solar_viz.calculate_sun_position() if hasattr(self.solar_viz, 'calculate_sun_position') else None
+                if sun_pos and hasattr(self.solar_viz, 'model_tab'):
+                    if hasattr(self.solar_viz.model_tab, 'unified_sun_system'):
+                        solar_settings = {
+                            'sunshafts_enabled': True,
+                            'weather_factor': getattr(self.solar_viz, 'weather_factor', 1.0),
+                            'current_hour': decimal_hour
+                        }
+                        self.solar_viz.model_tab.unified_sun_system.create_unified_sun(sun_pos, solar_settings)
+                        
+                        # Update building lighting
+                        if hasattr(self.solar_viz.model_tab, 'current_roof'):
+                            roof = self.solar_viz.model_tab.current_roof
+                            if hasattr(roof, 'set_sun_position_for_lighting'):
+                                roof.set_sun_position_for_lighting(sun_pos)
+                                
+        except Exception as e:
+            print(f"⚠️ Error updating solar systems: {e}")
+    
+    def _on_date_changed(self):
+        """Handle date change"""
+        month = self.month_combo.currentIndex() + 1
+        max_day = calendar.monthrange(QDate.currentDate().year(), month)[1]
+        
+        if self.day_spin.value() > max_day:
+            self.day_spin.setValue(max_day)
+        
+        self.day_spin.setMaximum(max_day)
+        
+        day_of_year = self._get_day_of_year()
+        
+        self._update_sun_times()
+        self._calculate_sun_position()
+        
+        # Update both solar systems
+        if self.solar_simulation:
+            self.solar_simulation.set_date(day_of_year)
+        if self.solar_viz:
+            self.solar_viz.current_day = day_of_year
+        
+        self.date_changed.emit(day_of_year)
     
     def _update_hemisphere(self):
         """Update hemisphere display based on latitude"""
@@ -588,6 +725,10 @@ class DateTimeControls(QWidget):
     def _calculate_sun_position(self):
         """Calculate sun azimuth and elevation"""
         try:
+            current_time = time.time()
+            if current_time - self._last_update < self._update_throttle:
+                return
+            
             decimal_hour = self.arc_slider.value() / 60.0
             day_of_year = self._get_day_of_year()
             
@@ -615,8 +756,9 @@ class DateTimeControls(QWidget):
             self.azimuth_label.setText(f"↻ {azimuth_deg:.0f}°")
             self.elevation_label.setText(f"↑ {elevation_deg:.0f}°")
             
+            self._last_update = current_time
+            
         except Exception as e:
-            print(f"Error calculating sun position: {e}")
             self.azimuth_label.setText("↻ --°")
             self.elevation_label.setText("↑ --°")
     
@@ -627,36 +769,6 @@ class DateTimeControls(QWidget):
         year = QDate.currentDate().year()
         date = QDate(year, month, day)
         return date.dayOfYear()
-    
-    def _on_time_changed(self, value):
-        """Handle time slider change"""
-        decimal_hour = value / 60.0
-        
-        hours = int(decimal_hour)
-        minutes = int((decimal_hour - hours) * 60)
-        self.time_label.setText(f"{hours:02d}:{minutes:02d}")
-        
-        self._calculate_sun_position()
-        
-        # Emit signal for sun update
-        self.time_changed.emit(decimal_hour)
-    
-    def _on_date_changed(self):
-        """Handle date change"""
-        month = self.month_combo.currentIndex() + 1
-        max_day = calendar.monthrange(QDate.currentDate().year(), month)[1]
-        
-        if self.day_spin.value() > max_day:
-            self.day_spin.setValue(max_day)
-        
-        self.day_spin.setMaximum(max_day)
-        
-        day_of_year = self._get_day_of_year()
-        
-        self._update_sun_times()
-        self._calculate_sun_position()
-        
-        self.date_changed.emit(day_of_year)
     
     def _update_sun_times(self):
         """Update sunrise and sunset time displays"""
@@ -687,7 +799,6 @@ class DateTimeControls(QWidget):
                 self.day_length_label.setText(f"☀️ {hours}h {minutes}m")
                 
             except Exception as e:
-                print(f"Error updating sun times: {e}")
                 sunrise_minutes = 360
                 sunset_minutes = 1080
                 self.sunrise_label.setText("🌅 06:00")
@@ -703,6 +814,13 @@ class DateTimeControls(QWidget):
         self._update_sun_times()
         self._calculate_sun_position()
         self._update_hemisphere()
+        
+        # Update both solar systems
+        if self.solar_simulation:
+            self.solar_simulation.set_location(latitude, longitude)
+        if self.solar_viz:
+            self.solar_viz.latitude = latitude
+            self.solar_viz.longitude = longitude
     
     def set_time(self, hour):
         """Set time to specific hour"""

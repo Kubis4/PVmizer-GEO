@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 roofs/base/base_roof.py
-Complete BaseRoof without automatic annotation creation
+COMPLETE FIXED: BaseRoof with proper lighting for walls and all elements
 """
 from abc import ABC, abstractmethod
 import pyvista as pv
@@ -17,36 +17,37 @@ from roofs.roof_obstacle import RoofObstacle
 from .resource_utils import resource_path
 
 class BaseRoof(ABC):
-    """
-    Base class for all roof types - annotations handled by subclasses
-    """
+    """Base class with proper lighting for sun system compatibility"""
     
     def __init__(self, plotter=None, dimensions=None, theme="light"):
-        """
-        Template method for roof initialization without annotations
-        """
+        """Initialize roof with sun-compatible lighting"""
         print("\nDEBUG: BaseRoof.__init__ starting")
         print(f"DEBUG: Called from: {self.__class__.__name__}")
-        # Store basic properties FIRST
+        
+        # Store basic properties
         self.theme = theme
-        self.base_height = 3.0  # Standard house height (3 meters)
-        self.ground_size = 30.0  # Larger ground plane (30x30 meters)
+        self.base_height = 3.0
+        self.ground_size = 30.0
         self.house_walls = []
         self.ground_mesh = None
-        self.environment_obstacles = []  # Trees, poles, etc.
-        self.environment_attachment_points = []  # Points for placing trees/poles
-        self.tree_type_index = 0  # Track which tree type to spawn next
+        self.environment_obstacles = []
+        self.environment_attachment_points = []
+        self.tree_type_index = 0
         
-        # Setup plotter with validation
+        # Building rotation tracking
+        self.building_rotation_angle = 0
+        
+        # Setup plotter
         self._setup_plotter(plotter)
+        
+        # Try to find and register with sun system
+        self.sun_system = None
+        self._find_sun_system()
         
         # Clear existing key bindings
         if self.plotter:
             self.clear_key_bindings()
-            print("✅ Cleared existing key bindings before setup")
-
-        # Set theme-appropriate background
-        self.set_plotter_background()
+            print("✅ Cleared existing key bindings")
         
         # Initialize common properties
         self.attachment_points = []
@@ -57,76 +58,107 @@ class BaseRoof(ABC):
         self.selected_obstacle_type = None
         self.obstacle_dimensions = None
         self.enable_help_system = False
-        self.annotator = None  # Will be set by subclasses if needed
+        self.annotator = None
         
         # Setup textures
         self._setup_textures()
         
-        # Create ground with grass.png texture
-        self._create_grass_ground()
+        # Create grass ground with proper lighting
+        self._create_sun_compatible_grass_ground()
         
         # Create environment attachment points
         self._create_environment_attachment_points()
         
         # Store base points for building creation
-        self.base_points = None  # Will be set by concrete roof classes
+        self.base_points = None
         
-        # Add axes to the plotter
+        # Add axes
         try:
             self.plotter.add_axes()
-            print(f"✅ {self.__class__.__name__}: Axes added successfully")
+            print(f"✅ Axes added")
         except Exception as e:
-            print(f"⚠️ {self.__class__.__name__}: Could not add axes: {e}")
+            print(f"⚠️ Could not add axes: {e}")
 
         print("DEBUG: BaseRoof.__init__ completed")
-        print(f"DEBUG: Has initialize_roof been called? {hasattr(self, 'dimensions')}")
-    def set_plotter_background(self):
-        """Set the plotter background based on current theme"""
-        if hasattr(self, 'theme') and self.theme == "dark":
-            self.plotter.set_background("darkgrey")
-        else:
-            self.plotter.set_background("lightgrey")
-
+    
     def _setup_plotter(self, plotter):
-        """Setup plotter with proper type checking and validation"""
+        """Setup plotter with validation"""
         if plotter:
-            # Check if it's a QtInteractor
             if hasattr(plotter, 'plotter') and hasattr(plotter.plotter, 'add_mesh'):
                 self.plotter = plotter.plotter
                 self.external_plotter = True
-                print(f"✅ {self.__class__.__name__}: Using QtInteractor.plotter")
-            # Check if it's already a PyVista plotter
+                print(f"✅ Using QtInteractor.plotter")
             elif hasattr(plotter, 'add_mesh'):
                 self.plotter = plotter
                 self.external_plotter = True
-                print(f"✅ {self.__class__.__name__}: Using PyVista plotter directly")
+                print(f"✅ Using PyVista plotter directly")
             else:
-                print(f"⚠️ {self.__class__.__name__}: Unknown plotter type: {type(plotter)}, creating new one")
+                print(f"⚠️ Unknown plotter type, creating new one")
                 self.plotter = pv.Plotter()
                 self.external_plotter = False
         else:
             self.plotter = pv.Plotter()
             self.external_plotter = False
         
-        # Validate the plotter has required methods
+        # Validate required methods
         required_methods = ['add_mesh', 'clear', 'render', 'add_key_event']
         plotter_valid = True
         for method in required_methods:
             if not hasattr(self.plotter, method):
-                print(f"❌ {self.__class__.__name__}: Plotter missing method: {method}")
+                print(f"❌ Plotter missing method: {method}")
                 plotter_valid = False
                 break
         
         if not plotter_valid:
-            print(f"❌ {self.__class__.__name__}: Creating new plotter due to validation failure")
+            print(f"❌ Creating new plotter due to validation failure")
             self.plotter = pv.Plotter()
             self.external_plotter = False
         
-        print(f"✅ {self.__class__.__name__} plotter initialized: {type(self.plotter)}")
+        print(f"✅ Plotter initialized: {type(self.plotter)}")
+    
+    def _find_sun_system(self):
+        """Try to find the sun system through various paths"""
+        try:
+            # Method 1: Through plotter parent chain
+            if hasattr(self.plotter, 'parent'):
+                parent = self.plotter.parent()
+                # Check each level of parent hierarchy
+                current = parent
+                for _ in range(5):  # Check up to 5 levels
+                    if current:
+                        if hasattr(current, 'enhanced_sun_system'):
+                            self.sun_system = current.enhanced_sun_system
+                            print("✅ Found sun system via parent chain")
+                            return
+                        if hasattr(current, 'parent'):
+                            current = current.parent()
+                        else:
+                            break
+            
+            # Method 2: Through plotter's internal parent
+            if hasattr(self.plotter, '_parent'):
+                if hasattr(self.plotter._parent, 'enhanced_sun_system'):
+                    self.sun_system = self.plotter._parent.enhanced_sun_system
+                    print("✅ Found sun system via _parent")
+                    return
+            
+            # Method 3: Through interactor
+            if hasattr(self.plotter, 'iren'):
+                if hasattr(self.plotter.iren, '_parent'):
+                    if hasattr(self.plotter.iren._parent, 'enhanced_sun_system'):
+                        self.sun_system = self.plotter.iren._parent.enhanced_sun_system
+                        print("✅ Found sun system via interactor")
+                        return
+            
+            print("⚠️ No sun system found - shadows may not work")
+            
+        except Exception as e:
+            print(f"⚠️ Error finding sun system: {e}")
+            self.sun_system = None
 
     def _setup_textures(self):
-        """Setup texture paths for realistic rendering - UPDATED PATH"""
-        texture_dir = resource_path("PVmizer GEO/textures")  # Updated path
+        """Setup texture paths"""
+        texture_dir = resource_path("PVmizer GEO/textures")
         
         # House textures
         self.wall_texture_file = os.path.join(texture_dir, "wall.jpg")
@@ -134,100 +166,189 @@ class BaseRoof(ABC):
         self.roof_tile_texture_file = os.path.join(texture_dir, "roof_tiles.jpg")
         
         # Environment textures
-        self.grass_texture_file = os.path.join(texture_dir, "grass.png")  # STAYS .png
+        self.grass_texture_file = os.path.join(texture_dir, "grass.png")
         self.concrete_texture_file = os.path.join(texture_dir, "concrete.jpg")
         
-        # Tree textures - .jpg format
+        # Tree textures
         self.leaf_texture_file = os.path.join(texture_dir, "leaf.jpg")
         self.pine_texture_file = os.path.join(texture_dir, "pine.jpg")
         self.leaf_bark_texture_file = os.path.join(texture_dir, "leaf_stomp.jpg")
         self.pine_bark_texture_file = os.path.join(texture_dir, "pine_stomp.jpg")
         
-        # Default colors if textures not found
-        self.default_wall_color = "#D4A373"
-        self.default_roof_color = "#8B4513"
-        self.default_grass_color = "#228B22"
-        self.default_concrete_color = "#808080"
-        self.default_leaf_color = "#388E3C"
-        self.default_pine_color = "#0F4F2F"
-        self.default_bark_color = "#5D4037"
+        # Default colors
+        self.default_wall_color = "#F5E6D3"      
+        self.default_roof_color = "#C08040"      
+        self.default_grass_color = "#6BCD6B"     
+        self.default_concrete_color = "#D0D0D0"  
+        self.default_leaf_color = "#85D685"      
+        self.default_pine_color = "#5A9A5A"      
+        self.default_bark_color = "#B08060"
 
-    def _create_grass_ground(self):
-        """Create grass ground plane using grass.png texture (512x512)"""
+    def add_sun_compatible_mesh(self, mesh, **kwargs):
+        """Add mesh with proper lighting parameters for sun system"""
+        # FORCE proper lighting parameters
+        kwargs['lighting'] = True
+        kwargs['smooth_shading'] = True
+        
+        # Set material properties with higher ambient for walls
+        if 'wall' in kwargs.get('name', '').lower():
+            kwargs.setdefault('ambient', 0.4)  # Higher for walls
+        else:
+            kwargs.setdefault('ambient', 0.3)
+        
+        kwargs.setdefault('diffuse', 0.8)
+        kwargs.setdefault('specular', 0.2)
+        kwargs.setdefault('specular_power', 10)
+        
+        # Add mesh
+        actor = self.plotter.add_mesh(mesh, **kwargs)
+        
+        # Register with sun system for shadows if available
+        if self.sun_system and hasattr(self.sun_system, 'register_scene_object'):
+            name = kwargs.get('name', 'unnamed')
+            self.sun_system.register_scene_object(mesh, name, cast_shadow=True)
+        
+        return actor
+
+    def _create_sun_compatible_grass_ground(self):
+        """Create grass ground with proper lighting"""
         try:
-            # Create a larger ground plane BELOW everything
             ground_size = self.ground_size
-            z_level = -0.1  # Place ground slightly below z=0
+            z_level = -0.1
             
-            # Create ground mesh with more detail for better texture mapping
-            resolution = 50  # Higher resolution for better texture appearance
+            # Create ground mesh
+            resolution = 80
             x = np.linspace(-ground_size/2, ground_size/2, resolution)
             y = np.linspace(-ground_size/2, ground_size/2, resolution)
             x, y = np.meshgrid(x, y)
             
-            # Add very subtle terrain variation
+            # Subtle terrain variation
             z = np.ones_like(x) * z_level
-            z += np.random.normal(0, 0.005, z.shape)  # Very subtle variation
+            z += np.random.normal(0, 0.001, z.shape)
             
-            # Create the mesh
+            # Create mesh
             points = np.c_[x.ravel(), y.ravel(), z.ravel()]
             self.ground_mesh = pv.PolyData(points)
             self.ground_mesh = self.ground_mesh.delaunay_2d()
             
-            # Generate texture coordinates for grass.png (512x512)
-            # Scale texture to repeat appropriately for ground size
-            texture_scale = 8.0  # Each texture covers about 3.75m x 3.75m
+            # Compute normals for proper lighting
+            self.ground_mesh.compute_normals(inplace=True, auto_orient_normals=True)
+            
+            # Generate texture coordinates
+            texture_scale = 8.0
             texture_coords = np.zeros((self.ground_mesh.n_points, 2))
             for i in range(self.ground_mesh.n_points):
                 point = self.ground_mesh.points[i]
-                # Map to UV coordinates with proper scaling
                 u = (point[0] + ground_size/2) / ground_size * texture_scale
                 v = (point[1] + ground_size/2) / ground_size * texture_scale
                 texture_coords[i] = [u, v]
             
             self.ground_mesh.active_t_coords = texture_coords
             
-            # Load and apply grass.png texture
+            # Load texture
             grass_texture, texture_loaded = self.load_texture_safely(
                 self.grass_texture_file, 
                 self.default_grass_color
             )
             
+            # Add with proper lighting
             if texture_loaded:
-                self.plotter.add_mesh(
+                self.add_sun_compatible_mesh(
                     self.ground_mesh,
                     texture=grass_texture,
-                    name="ground_plane",
-                    smooth_shading=True,
-                    ambient=0.3,
-                    diffuse=0.7,
-                    specular=0.05
+                    name="ground_plane"
                 )
-                print(f"✅ Ground plane created with grass.png texture")
             else:
-                self.plotter.add_mesh(
+                self.add_sun_compatible_mesh(
                     self.ground_mesh,
                     color=self.default_grass_color,
-                    name="ground_plane",
-                    smooth_shading=True,
-                    ambient=0.3,
-                    diffuse=0.7,
-                    specular=0.05
+                    name="ground_plane"
                 )
-                print(f"✅ Ground plane created with default color (grass.png not found)")
+            
+            print(f"✅ Sun-compatible grass ground created")
             
         except Exception as e:
-            print(f"❌ Error creating ground plane: {e}")
+            print(f"❌ Error creating grass ground: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def create_building_walls(self, base_points, height):
+        """Create building walls with FIXED LIGHTING"""
+        try:
+            print(f"🏗️ Creating {len(base_points)} walls with height {height}")
+            
+            # Load wall texture
+            wall_texture, wall_loaded = self.load_texture_safely(
+                self.brick_texture_file,
+                "#8B4513"
+            )
+            
+            # Clear existing walls
+            for wall in self.house_walls:
+                try:
+                    self.plotter.remove_actor(wall)
+                except:
+                    pass
+            self.house_walls.clear()
+            
+            # Create each wall with PROPER LIGHTING
+            for i in range(len(base_points)):
+                next_i = (i + 1) % len(base_points)
+                
+                # Wall vertices (counter-clockwise for outward normals)
+                wall_verts = np.array([
+                    [base_points[i][0], base_points[i][1], 0],
+                    [base_points[next_i][0], base_points[next_i][1], 0],
+                    [base_points[next_i][0], base_points[next_i][1], height],
+                    [base_points[i][0], base_points[i][1], height]
+                ])
+                
+                # Create wall mesh
+                wall = pv.PolyData(wall_verts)
+                wall.faces = np.array([4, 0, 1, 2, 3])
+                
+                # CRITICAL: Compute normals for proper lighting
+                wall.compute_normals(inplace=True, auto_orient_normals=True)
+                
+                # Add wall with FORCED LIGHTING
+                wall_actor = self.plotter.add_mesh(
+                    wall,
+                    texture=wall_texture if wall_loaded else None,
+                    color="#8B4513" if not wall_loaded else None,
+                    name=f'building_wall_{i}',
+                    lighting=True,  # FORCE lighting
+                    smooth_shading=True,
+                    ambient=0.4,  # HIGH ambient for visibility
+                    diffuse=0.8,
+                    specular=0.15,
+                    specular_power=10
+                )
+                
+                if wall_actor:
+                    self.house_walls.append(wall_actor)
+                    
+                    # Register with sun system
+                    if self.sun_system:
+                        self.sun_system.register_scene_object(
+                            wall, f'building_wall_{i}', cast_shadow=True
+                        )
+            
+            # Store base points for later use
+            self.base_points = base_points
+            
+            print(f"✅ Created {len(self.house_walls)} walls with proper lighting")
+            
+        except Exception as e:
+            print(f"❌ Error creating walls: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _create_environment_attachment_points(self):
-        """Create attachment points around the building for trees and poles"""
+        """Create attachment points around the building"""
         try:
-            # Create a grid of points around the building
-            building_buffer = 7.0  # Keep obstacles at least 7m from building center
-            
-            # Create points in a ring around the building
-            angles = np.linspace(0, 2*np.pi, 12, endpoint=False)  # 12 points in a circle
-            radius = building_buffer + 3.0  # Place 3m outside building buffer
+            building_buffer = 7.0
+            angles = np.linspace(0, 2*np.pi, 12, endpoint=False)
+            radius = building_buffer + 3.0
             
             for angle in angles:
                 x = radius * np.cos(angle)
@@ -238,7 +359,7 @@ class BaseRoof(ABC):
                     'obstacle': None
                 })
             
-            # Add some points further out
+            # Add outer points
             outer_radius = building_buffer + 6.0
             outer_angles = np.linspace(np.pi/8, 2*np.pi, 8, endpoint=False)
             
@@ -251,13 +372,13 @@ class BaseRoof(ABC):
                     'obstacle': None
                 })
             
-            print(f"✅ Created {len(self.environment_attachment_points)} environment attachment points")
+            print(f"✅ Created {len(self.environment_attachment_points)} attachment points")
             
         except Exception as e:
-            print(f"❌ Error creating environment attachment points: {e}")
+            print(f"❌ Error creating attachment points: {e}")
 
     def show_environment_attachment_points(self):
-        """Visualize the environment attachment points"""
+        """Visualize attachment points"""
         try:
             points = []
             for point_data in self.environment_attachment_points:
@@ -276,34 +397,26 @@ class BaseRoof(ABC):
                     name="env_attachment_points"
                 )
                 
-                print(f"✅ Showing {len(points)} available attachment points")
+                print(f"✅ Showing {len(points)} available points")
                 
         except Exception as e:
-            print(f"❌ Error showing attachment points: {e}")
+            print(f"❌ Error showing points: {e}")
 
     def hide_environment_attachment_points(self):
-        """Hide the environment attachment points"""
+        """Hide attachment points"""
         try:
             self.plotter.remove_actor("env_attachment_points")
         except:
             pass
 
     def add_environment_obstacle_at_point(self, obstacle_type, point_index=None):
-        """
-        Add environmental obstacle at specific attachment point
-        
-        Args:
-            obstacle_type: 'tree' or 'pole'
-            point_index: Index of attachment point, or None for random available point
-        """
+        """Add environmental obstacle"""
         try:
-            # Find available point
             if point_index is None:
-                # Find random available point
                 available_points = [i for i, p in enumerate(self.environment_attachment_points) 
                                   if not p['occupied']]
                 if not available_points:
-                    print("⚠️ No available attachment points")
+                    print("⚠️ No available points")
                     return False
                 
                 import random
@@ -315,78 +428,118 @@ class BaseRoof(ABC):
             
             point_data = self.environment_attachment_points[point_index]
             if point_data['occupied']:
-                print(f"⚠️ Point {point_index} is already occupied")
+                print(f"⚠️ Point {point_index} is occupied")
                 return False
             
             position = point_data['position']
             
             if obstacle_type == 'tree':
-                # Cycle through different tree types
                 tree_types = ['deciduous', 'pine', 'oak']
                 tree_type = tree_types[self.tree_type_index % len(tree_types)]
                 self.tree_type_index += 1
-                obstacle = self._add_realistic_tree(position[:2], tree_type)
+                obstacle = self._add_clean_tree(position[:2], tree_type)
             elif obstacle_type == 'pole':
-                obstacle = self._add_pole(position[:2])
+                obstacle = self._add_clean_pole(position[:2])
             else:
                 print(f"⚠️ Unknown obstacle type: {obstacle_type}")
                 return False
             
-            # Mark point as occupied
             point_data['occupied'] = True
             point_data['obstacle'] = obstacle
             
             return True
             
         except Exception as e:
-            print(f"❌ Error adding environment obstacle: {e}")
+            print(f"❌ Error adding obstacle: {e}")
             return False
 
-    def _add_realistic_tree(self, position, tree_type='deciduous'):
-        """Add a realistic tree with textures"""
+    def _generate_sphere_texture_coordinates(self, mesh, center, radius):
+        """Generate texture coordinates for spheres"""
+        try:
+            points = mesh.points
+            texture_coords = np.zeros((points.shape[0], 2))
+            
+            for i, point in enumerate(points):
+                dx = point[0] - center[0]
+                dy = point[1] - center[1]
+                dz = point[2] - center[2]
+                
+                length = np.sqrt(dx*dx + dy*dy + dz*dz)
+                if length > 0:
+                    dx /= length
+                    dy /= length
+                    dz /= length
+                
+                theta = np.arctan2(dy, dx)
+                phi = np.arccos(np.clip(dz, -1.0, 1.0))
+                
+                u = (theta + np.pi) / (2 * np.pi)
+                v = phi / np.pi
+                
+                texture_coords[i] = [u * 4, v * 4]
+            
+            return texture_coords
+            
+        except Exception as e:
+            print(f"❌ Error generating texture coordinates: {e}")
+            return np.zeros((points.shape[0], 2))
+
+    def _add_clean_tree(self, position, tree_type='deciduous'):
+        """Add tree with proper lighting"""
         try:
             x, y = position
             
+            # Create trunk
             if tree_type == 'pine':
-                # Create pine tree
                 trunk_height = 2.5
                 trunk_radius = 0.3
-                
-                trunk = pv.Cylinder(
-                    center=(x, y, trunk_height/2),
-                    direction=(0, 0, 1),
-                    radius=trunk_radius,
-                    height=trunk_height,
-                    resolution=20
+            elif tree_type == 'oak':
+                trunk_height = 3.0
+                trunk_radius = 0.4
+            else:  # deciduous
+                trunk_height = 3.5
+                trunk_radius = 0.35
+            
+            trunk = pv.Cylinder(
+                center=(x, y, trunk_height/2),
+                direction=(0, 0, 1),
+                radius=trunk_radius,
+                height=trunk_height,
+                resolution=20
+            )
+            trunk.compute_normals(inplace=True, auto_orient_normals=True)
+            
+            bark_texture, bark_loaded = self.load_texture_safely(
+                self.leaf_bark_texture_file if tree_type != 'pine' else self.pine_bark_texture_file,
+                self.default_bark_color
+            )
+            
+            # Add trunk
+            if bark_loaded:
+                self.add_sun_compatible_mesh(
+                    trunk,
+                    texture=bark_texture,
+                    name=f"{tree_type}_trunk_{len(self.environment_obstacles)}"
                 )
-                
-                # Texture coordinates for trunk
-                trunk_texture_coords = np.zeros((trunk.n_points, 2))
-                for i in range(trunk.n_points):
-                    point = trunk.points[i]
-                    angle = np.arctan2(point[1] - y, point[0] - x)
-                    u = (angle + np.pi) / (2 * np.pi)
-                    v = (point[2] / trunk_height)
-                    trunk_texture_coords[i] = [u * 2, v * 3]
-                
-                trunk.active_t_coords = trunk_texture_coords
-                
-                bark_texture, bark_loaded = self.load_texture_safely(
-                    self.pine_bark_texture_file,
-                    "#4A3C28"
+            else:
+                self.add_sun_compatible_mesh(
+                    trunk,
+                    color=self.default_bark_color,
+                    name=f"{tree_type}_trunk_{len(self.environment_obstacles)}"
                 )
-                
-                # Create layered pine crown
-                crown_parts = []
+            
+            # Create crown
+            if tree_type == 'pine':
+                # Pine layers
                 layers = [
-                    (0.5, 2.2, 0.8),
-                    (1.2, 1.9, 0.8),
-                    (1.9, 1.6, 0.8),
-                    (2.6, 1.3, 0.7),
-                    (3.2, 1.0, 0.7),
-                    (3.8, 0.7, 0.6),
-                    (4.3, 0.4, 0.5),
+                    (0.5, 2.2, 0.8), (1.2, 1.9, 0.8), (1.9, 1.6, 0.8),
+                    (2.6, 1.3, 0.7), (3.2, 1.0, 0.7)
                 ]
+                
+                pine_texture, pine_loaded = self.load_texture_safely(
+                    self.pine_texture_file,
+                    self.default_pine_color
+                )
                 
                 for layer_idx, (h_offset, radius, thickness) in enumerate(layers):
                     layer = pv.Cylinder(
@@ -397,241 +550,61 @@ class BaseRoof(ABC):
                         resolution=30,
                         capping=True
                     )
-                    crown_parts.append(layer)
-                
-                crown = crown_parts[0]
-                for part in crown_parts[1:]:
-                    crown = crown + part
-                
-                crown_texture_coords = np.zeros((crown.n_points, 2))
-                for i in range(crown.n_points):
-                    point = crown.points[i]
-                    dx = point[0] - x
-                    dy = point[1] - y
-                    dist = np.sqrt(dx*dx + dy*dy)
-                    angle = np.arctan2(dy, dx)
-                    height = point[2] - trunk_height
+                    layer.compute_normals(inplace=True, auto_orient_normals=True)
                     
-                    u = (angle + np.pi) / (2 * np.pi) * 3
-                    v = height / 5.0
-                    
-                    crown_texture_coords[i] = [u, v]
-                
-                crown.active_t_coords = crown_texture_coords
-                
-                pine_texture, pine_loaded = self.load_texture_safely(
-                    self.pine_texture_file,
-                    self.default_pine_color
-                )
-                
-                # Add trunk
-                if bark_loaded:
-                    self.plotter.add_mesh(
-                        trunk,
-                        texture=bark_texture,
-                        name=f"pine_trunk_{len(self.environment_obstacles)}",
-                        smooth_shading=True,
-                        ambient=0.3,
-                        diffuse=0.7,
-                        specular=0.05
-                    )
-                else:
-                    self.plotter.add_mesh(
-                        trunk,
-                        color="#4A3C28",
-                        name=f"pine_trunk_{len(self.environment_obstacles)}",
-                        smooth_shading=True
-                    )
-                
-                # Add crown
-                if pine_loaded:
-                    self.plotter.add_mesh(
-                        crown,
-                        texture=pine_texture,
-                        name=f"pine_crown_{len(self.environment_obstacles)}",
-                        smooth_shading=True,
-                        ambient=0.25,
-                        diffuse=0.75,
-                        specular=0.1
-                    )
-                else:
-                    self.plotter.add_mesh(
-                        crown,
-                        color=self.default_pine_color,
-                        name=f"pine_crown_{len(self.environment_obstacles)}",
-                        smooth_shading=True
-                    )
+                    if pine_loaded:
+                        self.add_sun_compatible_mesh(
+                            layer,
+                            texture=pine_texture,
+                            name=f"pine_crown_{len(self.environment_obstacles)}_layer_{layer_idx}"
+                        )
+                    else:
+                        self.add_sun_compatible_mesh(
+                            layer,
+                            color=self.default_pine_color,
+                            name=f"pine_crown_{len(self.environment_obstacles)}_layer_{layer_idx}"
+                        )
                 
                 tree_height = trunk_height + 5
                 
-            elif tree_type == 'oak':
-                # Oak tree
-                trunk_height = 3.0
-                trunk_radius = 0.4
-                
-                trunk = pv.Cylinder(
-                    center=(x, y, trunk_height/2),
-                    direction=(0, 0, 1),
-                    radius=trunk_radius,
-                    height=trunk_height,
-                    resolution=20
-                )
-                
-                trunk_texture_coords = np.zeros((trunk.n_points, 2))
-                for i in range(trunk.n_points):
-                    point = trunk.points[i]
-                    angle = np.arctan2(point[1] - y, point[0] - x)
-                    u = (angle + np.pi) / (2 * np.pi)
-                    v = point[2] / trunk_height
-                    trunk_texture_coords[i] = [u * 3, v * 4]
-                
-                trunk.active_t_coords = trunk_texture_coords
-                
-                bark_texture, bark_loaded = self.load_texture_safely(
-                    self.leaf_bark_texture_file,
-                    "#3E2723"
-                )
+            else:  # deciduous or oak
+                crown_height = trunk_height + (2 if tree_type == 'oak' else 1.5)
+                crown_radius = 3.5 if tree_type == 'oak' else 2.5
                 
                 crown = pv.Sphere(
-                    center=(x, y, trunk_height + 2),
-                    radius=3.5,
-                    theta_resolution=30,
-                    phi_resolution=30
+                    center=(x, y, crown_height),
+                    radius=crown_radius,
+                    theta_resolution=35,
+                    phi_resolution=35
                 )
                 
-                crown_texture_coords = np.zeros((crown.n_points, 2))
-                for i in range(crown.n_points):
-                    point = crown.points[i]
-                    theta = np.arctan2(point[1] - y, point[0] - x)
-                    phi = np.arccos(np.clip((point[2] - trunk_height - 2) / 3.5, -1, 1))
-                    u = (theta + np.pi) / (2 * np.pi)
-                    v = phi / np.pi
-                    crown_texture_coords[i] = [u * 8, v * 8]
-                
-                crown.active_t_coords = crown_texture_coords
+                texture_coords = self._generate_sphere_texture_coordinates(
+                    crown, (x, y, crown_height), crown_radius
+                )
+                crown.active_t_coords = texture_coords
+                crown.compute_normals(inplace=True, auto_orient_normals=True)
                 
                 leaf_texture, leaf_loaded = self.load_texture_safely(
                     self.leaf_texture_file,
-                    "#2E7D32"
+                    "#7EA040" if tree_type == 'oak' else self.default_leaf_color
                 )
-                
-                if bark_loaded:
-                    self.plotter.add_mesh(
-                        trunk,
-                        texture=bark_texture,
-                        name=f"oak_trunk_{len(self.environment_obstacles)}",
-                        smooth_shading=True
-                    )
-                else:
-                    self.plotter.add_mesh(
-                        trunk,
-                        color="#3E2723",
-                        name=f"oak_trunk_{len(self.environment_obstacles)}",
-                        smooth_shading=True
-                    )
                 
                 if leaf_loaded:
-                    self.plotter.add_mesh(
+                    self.add_sun_compatible_mesh(
                         crown,
                         texture=leaf_texture,
-                        name=f"oak_crown_{len(self.environment_obstacles)}",
-                        smooth_shading=True,
-                        opacity=0.95
+                        name=f"{tree_type}_crown_{len(self.environment_obstacles)}",
+                        opacity=1.0
                     )
                 else:
-                    self.plotter.add_mesh(
+                    self.add_sun_compatible_mesh(
                         crown,
-                        color="#2E7D32",
-                        name=f"oak_crown_{len(self.environment_obstacles)}",
-                        smooth_shading=True,
-                        opacity=0.95
+                        color="#7EA040" if tree_type == 'oak' else self.default_leaf_color,
+                        name=f"{tree_type}_crown_{len(self.environment_obstacles)}",
+                        opacity=1.0
                     )
                 
-                tree_height = trunk_height + 5.5
-                
-            else:  # deciduous
-                trunk_height = 3.5
-                trunk_radius = 0.35
-                
-                trunk = pv.Cylinder(
-                    center=(x, y, trunk_height/2),
-                    direction=(0, 0, 1),
-                    radius=trunk_radius,
-                    height=trunk_height,
-                    resolution=20
-                )
-                
-                trunk_texture_coords = np.zeros((trunk.n_points, 2))
-                for i in range(trunk.n_points):
-                    point = trunk.points[i]
-                    angle = np.arctan2(point[1] - y, point[0] - x)
-                    u = (angle + np.pi) / (2 * np.pi)
-                    v = point[2] / trunk_height
-                    trunk_texture_coords[i] = [u * 2, v * 3]
-                
-                trunk.active_t_coords = trunk_texture_coords
-                
-                bark_texture, bark_loaded = self.load_texture_safely(
-                    self.leaf_bark_texture_file,
-                    "#5D4037"
-                )
-                
-                crown = pv.Sphere(
-                    center=(x, y, trunk_height + 1.5),
-                    radius=2.5,
-                    theta_resolution=25,
-                    phi_resolution=25
-                )
-                
-                crown_texture_coords = np.zeros((crown.n_points, 2))
-                for i in range(crown.n_points):
-                    point = crown.points[i]
-                    theta = np.arctan2(point[1] - y, point[0] - x)
-                    phi = np.arccos(np.clip((point[2] - trunk_height - 1.5) / 2.5, -1, 1))
-                    u = (theta + np.pi) / (2 * np.pi)
-                    v = phi / np.pi
-                    crown_texture_coords[i] = [u * 6, v * 6]
-                
-                crown.active_t_coords = crown_texture_coords
-                
-                leaf_texture, leaf_loaded = self.load_texture_safely(
-                    self.leaf_texture_file,
-                    self.default_leaf_color
-                )
-                
-                if bark_loaded:
-                    self.plotter.add_mesh(
-                        trunk,
-                        texture=bark_texture,
-                        name=f"tree_trunk_{len(self.environment_obstacles)}",
-                        smooth_shading=True
-                    )
-                else:
-                    self.plotter.add_mesh(
-                        trunk,
-                        color="#5D4037",
-                        name=f"tree_trunk_{len(self.environment_obstacles)}",
-                        smooth_shading=True
-                    )
-                
-                if leaf_loaded:
-                    self.plotter.add_mesh(
-                        crown,
-                        texture=leaf_texture,
-                        name=f"tree_crown_{len(self.environment_obstacles)}",
-                        smooth_shading=True,
-                        opacity=0.92
-                    )
-                else:
-                    self.plotter.add_mesh(
-                        crown,
-                        color=self.default_leaf_color,
-                        name=f"tree_crown_{len(self.environment_obstacles)}",
-                        smooth_shading=True,
-                        opacity=0.92
-                    )
-                
-                tree_height = trunk_height + 4
+                tree_height = trunk_height + (5.5 if tree_type == 'oak' else 4)
             
             obstacle_data = {
                 'type': f'tree_{tree_type}',
@@ -640,21 +613,19 @@ class BaseRoof(ABC):
             }
             
             self.environment_obstacles.append(obstacle_data)
-            
-            print(f"✅ Added {tree_type} tree at position ({x:.1f}, {y:.1f})")
+            print(f"✅ Added {tree_type} tree at ({x:.1f}, {y:.1f})")
             return obstacle_data
             
         except Exception as e:
             print(f"❌ Error adding tree: {e}")
-            import traceback
-            traceback.print_exc()
             return None
-    
-    def _add_pole(self, position):
-        """Add a utility pole with concrete texture"""
+
+    def _add_clean_pole(self, position):
+        """Add utility pole with proper lighting"""
         try:
             x, y = position
             
+            # Create pole
             pole_height = 7.0
             pole_radius = 0.15
             pole = pv.Cylinder(
@@ -664,22 +635,28 @@ class BaseRoof(ABC):
                 height=pole_height,
                 resolution=12
             )
-            
-            pole_texture_coords = np.zeros((pole.n_points, 2))
-            for i in range(pole.n_points):
-                point = pole.points[i]
-                angle = np.arctan2(point[1] - y, point[0] - x)
-                u = (angle + np.pi) / (2 * np.pi)
-                v = point[2] / pole_height
-                pole_texture_coords[i] = [u, v * 5]
-            
-            pole.active_t_coords = pole_texture_coords
+            pole.compute_normals(inplace=True, auto_orient_normals=True)
             
             concrete_texture, concrete_loaded = self.load_texture_safely(
                 self.concrete_texture_file,
                 self.default_concrete_color
             )
             
+            # Add pole
+            if concrete_loaded:
+                self.add_sun_compatible_mesh(
+                    pole,
+                    texture=concrete_texture,
+                    name=f"pole_{len(self.environment_obstacles)}"
+                )
+            else:
+                self.add_sun_compatible_mesh(
+                    pole,
+                    color="#A0A0A0",
+                    name=f"pole_{len(self.environment_obstacles)}"
+                )
+            
+            # Create crossbeam
             beam_width = 2.0
             beam_thickness = 0.1
             beam = pv.Box(bounds=(
@@ -687,30 +664,13 @@ class BaseRoof(ABC):
                 y - beam_thickness/2, y + beam_thickness/2,
                 pole_height - 1.0, pole_height - 0.7
             ))
+            beam.compute_normals(inplace=True, auto_orient_normals=True)
             
-            if concrete_loaded:
-                self.plotter.add_mesh(
-                    pole,
-                    texture=concrete_texture,
-                    name=f"pole_{len(self.environment_obstacles)}",
-                    metallic=0.3,
-                    roughness=0.8
-                )
-            else:
-                self.plotter.add_mesh(
-                    pole,
-                    color="#4B4B4B",
-                    name=f"pole_{len(self.environment_obstacles)}",
-                    metallic=0.8,
-                    roughness=0.3
-                )
-            
-            self.plotter.add_mesh(
+            # Add beam
+            self.add_sun_compatible_mesh(
                 beam,
-                color="#654321",
-                name=f"pole_beam_{len(self.environment_obstacles)}",
-                metallic=0.1,
-                roughness=0.9
+                color="#B85432",
+                name=f"pole_beam_{len(self.environment_obstacles)}"
             )
             
             obstacle_data = {
@@ -720,8 +680,7 @@ class BaseRoof(ABC):
             }
             
             self.environment_obstacles.append(obstacle_data)
-            
-            print(f"✅ Added utility pole at position ({x:.1f}, {y:.1f})")
+            print(f"✅ Added utility pole at ({x:.1f}, {y:.1f})")
             return obstacle_data
             
         except Exception as e:
@@ -734,18 +693,22 @@ class BaseRoof(ABC):
             for i in range(len(self.environment_obstacles)):
                 obstacle = self.environment_obstacles[i]
                 if obstacle['type'].startswith('tree'):
+                    # Remove tree parts
                     tree_type = obstacle['type'].split('_')[1] if '_' in obstacle['type'] else 'tree'
-                    try:
-                        self.plotter.remove_actor(f"{tree_type}_trunk_{i}")
-                        self.plotter.remove_actor(f"{tree_type}_crown_{i}")
-                        self.plotter.remove_actor(f"tree_trunk_{i}")
-                        self.plotter.remove_actor(f"tree_crown_{i}")
-                        self.plotter.remove_actor(f"oak_trunk_{i}")
-                        self.plotter.remove_actor(f"oak_crown_{i}")
-                        self.plotter.remove_actor(f"pine_trunk_{i}")
-                        self.plotter.remove_actor(f"pine_crown_{i}")
-                    except:
-                        pass
+                    for prefix in ['tree', 'deciduous', 'oak', 'pine']:
+                        try:
+                            self.plotter.remove_actor(f"{prefix}_trunk_{i}")
+                            self.plotter.remove_actor(f"{prefix}_crown_{i}")
+                        except:
+                            pass
+                    
+                    # Remove pine layers
+                    for layer_idx in range(10):
+                        try:
+                            self.plotter.remove_actor(f"pine_crown_{i}_layer_{layer_idx}")
+                        except:
+                            pass
+                            
                 elif obstacle['type'] == 'pole':
                     try:
                         self.plotter.remove_actor(f"pole_{i}")
@@ -760,15 +723,13 @@ class BaseRoof(ABC):
                 point['obstacle'] = None
             
             self.tree_type_index = 0
-            
             print("✅ Cleared all environment obstacles")
             
         except Exception as e:
-            print(f"❌ Error clearing environment obstacles: {e}")
+            print(f"❌ Error clearing obstacles: {e}")
 
-    # ==================== TEXTURE METHODS ====================
     def load_texture_safely(self, filename, default_color="#A9A9A9"):
-        """Safely load a texture with fallback to color if loading fails"""
+        """Safely load texture with fallback"""
         base_filename = os.path.basename(filename)
         
         possible_paths = [
@@ -786,23 +747,19 @@ class BaseRoof(ABC):
                     print(f"✅ Loaded texture: {base_filename}")
                     return texture, True
                 except Exception as e:
-                    print(f"Error loading texture from {path}: {e}")
+                    print(f"Error loading texture: {e}")
         
-        print(f"⚠️ Texture not found: {base_filename}, using default color")
+        print(f"⚠️ Using default color for {base_filename}")
         return default_color, False
 
-    # ==================== THEME METHODS ====================
     def set_theme(self, theme):
-        """Update the roof's theme and refresh visuals"""
+        """Update the roof's theme"""
         self.theme = theme
-        self.set_plotter_background()
-        
         if hasattr(self, 'annotator') and self.annotator:
             self.annotator.set_theme(theme)
 
-    # ==================== CAMERA METHODS ====================
     def reset_camera(self):
-        """Reset camera to default position focusing on roof and house"""
+        """Reset camera to default position"""
         try:
             position, focal_point, up_vector = self.calculate_camera_position()
             
@@ -831,12 +788,11 @@ class BaseRoof(ABC):
             print(f"❌ Camera reset failed: {e}")
             position, focal_point, up_vector = self.calculate_camera_position()
             self.plotter.camera_position = [position, focal_point, up_vector]
-        
+    
     def set_default_camera_view(self):
         """Set camera to the default position"""
         self.reset_camera()
 
-    # ==================== SCREENSHOT METHODS ====================
     def set_screenshot_directory(self, directory):
         """Set the directory where screenshots will be saved"""
         self.screenshot_directory = directory
@@ -871,50 +827,30 @@ class BaseRoof(ABC):
                     self.plotter.remove_actor(message_actor)
                     self.plotter.render()
                 except:
-                    pass  
+                    pass
             
             QTimer.singleShot(3000, remove_message)
             print(f"Screenshot saved to {filepath}")
             
         except Exception as e:
             print(f"Error saving screenshot: {e}")
-            
-            error_actor = self.plotter.add_text(
-                _('screenshot_error'),  
-                position="lower_right",
-                font_size=12,
-                color="red",
-                shadow=True
-            )
-            
-            def remove_error():
-                try:
-                    self.plotter.remove_actor(error_actor)
-                    self.plotter.render()
-                except:
-                    pass
-            
-            QTimer.singleShot(3000, remove_error)
 
-    # ==================== SOLAR PANEL METHODS ====================
     def _initialize_solar_panel_handler(self):
-        """Initialize the solar panel handler for this roof type"""
+        """Initialize the solar panel handler"""
         try:
             handler_class = self.get_solar_panel_handler_class()
             if handler_class:
                 self.solar_panel_handler = handler_class(self)
-                print(f"✅ {self.__class__.__name__}: Solar panel handler initialized successfully")
+                print(f"✅ Solar panel handler initialized")
             else:
-                print(f"⚠️ {self.__class__.__name__}: Solar panel handler class not available")
+                print(f"⚠️ Solar panel handler class not available")
                 self.solar_panel_handler = None
         except Exception as e:
-            print(f"❌ {self.__class__.__name__}: Failed to initialize solar panel handler: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ Failed to initialize solar panel handler: {e}")
             self.solar_panel_handler = None
 
     def safe_add_panels(self, area):
-        """Safely add panels with error checking"""
+        """Safely add panels"""
         if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
             try:
                 self.solar_panel_handler.add_panels(area)
@@ -922,10 +858,10 @@ class BaseRoof(ABC):
             except Exception as e:
                 print(f"❌ Error adding panels to {area}: {e}")
         else:
-            print(f"⚠️ Cannot add {area} panels - solar panel handler not available")
+            print(f"⚠️ Cannot add {area} panels - handler not available")
 
     def safe_clear_panels(self):
-        """Safely clear panels with error checking"""
+        """Safely clear panels"""
         if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
             try:
                 self.solar_panel_handler.clear_panels()
@@ -933,7 +869,7 @@ class BaseRoof(ABC):
             except Exception as e:
                 print(f"❌ Error clearing panels: {e}")
         else:
-            print("⚠️ Cannot clear panels - solar panel handler not available")
+            print("⚠️ Cannot clear panels - handler not available")
 
     def update_panel_config(self, panel_config):
         """Update solar panel configuration"""
@@ -949,19 +885,16 @@ class BaseRoof(ABC):
                             
             except Exception as e:
                 print(f"Error updating panel configuration: {e}")
-                import traceback
-                traceback.print_exc()
                 return False
         return False
 
     def update_texts(self):
-        """Update all text elements with current language"""
+        """Update all text elements"""
         self.plotter.update()
 
-    # ==================== KEY BINDING METHODS ====================
     def setup_key_bindings(self):
-        """Set up key bindings for roof visualization"""
-        print(f"🎮 Setting up key bindings. Solar handler available: {self.solar_panel_handler is not None}")
+        """Set up key bindings"""
+        print(f"🎮 Setting up key bindings...")
         
         self.setup_roof_specific_key_bindings()
         
@@ -975,7 +908,7 @@ class BaseRoof(ABC):
         print("✅ Key bindings setup completed")
 
     def _setup_environment_key_bindings(self):
-        """Setup key bindings for environment obstacles"""
+        """Setup environment key bindings"""
         def add_tree():
             self.add_environment_obstacle_at_point('tree')
             
@@ -996,50 +929,34 @@ class BaseRoof(ABC):
         print("✅ Environment key bindings: t=tree, p=pole, a=points, e=clear")
 
     def clear_key_bindings(self):
-        """Clear all existing key bindings from the plotter"""
+        """Clear all existing key bindings"""
         try:
             cleared_count = 0
             
             if hasattr(self.plotter, 'clear_events'):
                 self.plotter.clear_events()
                 cleared_count += 1
-                print("✅ Cleared via clear_events()")
             
             if hasattr(self.plotter, '_key_press_event_callbacks'):
-                callback_count = len(self.plotter._key_press_event_callbacks)
                 self.plotter._key_press_event_callbacks.clear()
                 cleared_count += 1
-                print(f"✅ Cleared {callback_count} callbacks from _key_press_event_callbacks")
             
             if hasattr(self.plotter, 'iren'):
                 if hasattr(self.plotter.iren, '_key_press_event_callbacks'):
-                    callback_count = len(self.plotter.iren._key_press_event_callbacks)
                     self.plotter.iren._key_press_event_callbacks.clear()
                     cleared_count += 1
-                    print(f"✅ Cleared {callback_count} callbacks from iren._key_press_event_callbacks")
                 
                 if hasattr(self.plotter.iren, 'RemoveObservers'):
                     self.plotter.iren.RemoveObservers('KeyPressEvent')
                     cleared_count += 1
-                    print("✅ Removed VTK KeyPressEvent observers")
-            
-            if hasattr(self.plotter, 'renderer'):
-                if hasattr(self.plotter.renderer, '_key_press_event_callbacks'):
-                    callback_count = len(self.plotter.renderer._key_press_event_callbacks)
-                    self.plotter.renderer._key_press_event_callbacks.clear()
-                    cleared_count += 1
-                    print(f"✅ Cleared {callback_count} callbacks from renderer")
             
             print(f"✅ Key bindings cleared using {cleared_count} methods")
             
         except Exception as e:
             print(f"⚠️ Error clearing key bindings: {e}")
-            import traceback
-            traceback.print_exc()
 
-    # ==================== OBSTACLE METHODS ====================
     def add_obstacle(self, obstacle_type, dimensions=None):
-        """Add a roof obstacle of the specified type with optional dimensions"""
+        """Add a roof obstacle"""
         try:
             if obstacle_type == _('chimney'):
                 internal_type = "Chimney"
@@ -1078,7 +995,7 @@ class BaseRoof(ABC):
             return False
 
     def get_translated_obstacle_name(self, obstacle_type):
-        """Get the translated name for display based on internal type"""
+        """Get translated name"""
         if obstacle_type == "Chimney":
             return _('chimney')
         elif obstacle_type == "Roof Window":
@@ -1089,7 +1006,7 @@ class BaseRoof(ABC):
             return obstacle_type
 
     def clear_obstacles(self):
-        """Remove all obstacles from the roof"""
+        """Remove all obstacles"""
         if hasattr(self, 'obstacles') and self.obstacles:
             for obstacle in self.obstacles:
                 if hasattr(obstacle, 'actor') and obstacle.actor:
@@ -1106,7 +1023,7 @@ class BaseRoof(ABC):
             self.update_instruction(_('obstacle_removed') + " (0/6)")
 
     def update_instruction(self, message):
-        """Update the instruction text in the plotter"""
+        """Update instruction text"""
         if hasattr(self, 'placement_instruction') and self.placement_instruction:
             self.plotter.remove_actor(self.placement_instruction)
         
@@ -1118,7 +1035,7 @@ class BaseRoof(ABC):
         )
 
     def add_obstacle_button_clicked(self):
-        """Handle 'Add Obstacle' button click"""
+        """Handle obstacle button click"""
         if hasattr(self, 'obstacle_count') and self.obstacle_count >= 6:
             self.update_instruction(_('obstacle_max_reached'))
             return False
@@ -1128,7 +1045,7 @@ class BaseRoof(ABC):
         return True
 
     def on_obstacle_selected(self, obstacle_type, dimensions):
-        """Callback when obstacle type and dimensions are selected"""
+        """Callback when obstacle selected"""
         if obstacle_type is None or dimensions is None:
             return
             
@@ -1137,7 +1054,7 @@ class BaseRoof(ABC):
         self.add_attachment_points()
 
     def is_point_occupied(self, point):
-        """Check if a point is already occupied by an obstacle"""
+        """Check if point is occupied"""
         if not hasattr(self, 'obstacles') or not self.obstacles:
             return False
             
@@ -1151,7 +1068,7 @@ class BaseRoof(ABC):
         return False
 
     def place_obstacle_at_point(self, point, obstacle_type, normal_vector=None, roof_point=None, face=None):
-        """Place an obstacle at the specified point with the stored dimensions"""
+        """Place obstacle at point"""
         dimensions = None
         if hasattr(self, 'obstacle_dimensions'):
             dimensions = self.obstacle_dimensions
@@ -1171,7 +1088,7 @@ class BaseRoof(ABC):
         return obstacle
 
     def find_closest_attachment_point(self, click_point):
-        """Find the closest attachment point to the clicked position"""
+        """Find closest attachment point"""
         if not hasattr(self, 'attachment_points_occupied') or not self.attachment_points_occupied:
             return None, None
             
@@ -1192,9 +1109,8 @@ class BaseRoof(ABC):
         
         return closest_idx, closest_point
 
-    # ==================== CLEANUP METHODS ====================
     def cleanup(self):
-        """Cleanup method to be called when roof is being replaced"""
+        """Cleanup method"""
         try:
             self.clear_key_bindings()
             
@@ -1203,12 +1119,20 @@ class BaseRoof(ABC):
             
             print(f"✅ {self.__class__.__name__} cleanup completed")
         except Exception as e:
-            print(f"❌ Error during {self.__class__.__name__} cleanup: {e}")
+            print(f"❌ Error during cleanup: {e}")
+
+    def update_lighting_for_building_rotation(self, rotation_angle):
+        """Update for building rotation"""
+        self.building_rotation_angle = rotation_angle
+        print(f"🔄 Building rotation updated to: {rotation_angle}°")
+        
+        if hasattr(self.plotter, 'render'):
+            self.plotter.render()
 
     # ==================== ABSTRACT METHODS ====================
     @abstractmethod
     def create_roof_geometry(self):
-        """Create the specific roof geometry - must be implemented by subclasses"""
+        """Create the specific roof geometry"""
         pass
         
     @abstractmethod
@@ -1233,45 +1157,39 @@ class BaseRoof(ABC):
 
     @abstractmethod
     def _get_annotation_params(self):
-        """Get parameters for RoofAnnotation - roof specific"""
+        """Get parameters for RoofAnnotation"""
         pass
 
     @abstractmethod
     def add_attachment_points(self):
-        """Generate attachment points for obstacle placement - roof specific"""
+        """Generate attachment points for obstacle placement"""
         pass
 
     # ==================== TEMPLATE METHOD ====================
     def initialize_roof(self, dimensions):
-        """
-        Template method that orchestrates roof creation WITHOUT annotations
-        Subclasses handle their own annotations
-        """
+        """Initialize roof with proper lighting"""
         # Store dimensions
         self.dimensions = dimensions
         
-        # Create roof-specific geometry FIRST (this sets roof_points)
+        # Create roof-specific geometry
         self.create_roof_geometry()
         
         # Initialize solar panel handler
         self._initialize_solar_panel_handler()
         
-        # NOTE: Annotations are NOT created here
-        # Each roof subclass should create its own annotations as needed
-        
         # Setup key bindings
         try:
             self.setup_key_bindings()
             self._setup_environment_key_bindings()
-            print(f"✅ {self.__class__.__name__}: Key bindings set up successfully")
+            print(f"✅ Key bindings set up")
         except Exception as e:
-            print(f"⚠️ {self.__class__.__name__}: Error setting up key bindings: {e}")
+            print(f"⚠️ Error setting up key bindings: {e}")
         
         # Set default camera view
         try:
             self.set_default_camera_view()
-            print(f"✅ {self.__class__.__name__}: Camera view set successfully")
+            print(f"✅ Camera view set")
         except Exception as e:
-            print(f"⚠️ {self.__class__.__name__}: Could not set camera view: {e}")
+            print(f"⚠️ Could not set camera view: {e}")
 
-        print(f"🏠 {self.__class__.__name__} initialized (annotations handled by subclass)")
+        print(f"🏠 {self.__class__.__name__} initialized with sun-compatible lighting")
