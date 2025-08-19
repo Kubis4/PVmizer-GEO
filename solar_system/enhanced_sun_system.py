@@ -76,6 +76,11 @@ class EnhancedRealisticSunSystem(QObject):
         """Set the center position of the building for shadow calculations"""
         self.building_center = np.array(center)
         self._invalidate_shadow_cache()
+        print(f"🏗️ Building center set to: {self.building_center}")
+        
+        # Force immediate shadow update if sun exists
+        if hasattr(self, 'sun_position') and self.sun_position is not None:
+            self._force_shadow_update()
     
     def set_building_dimensions(self, width, length, height, roof_height=0):
         """Set building dimensions for accurate shadow calculation"""
@@ -84,6 +89,11 @@ class EnhancedRealisticSunSystem(QObject):
         self.building_height = height
         self.roof_height = roof_height
         self._invalidate_shadow_cache()
+        print(f"🏗️ Building dimensions: {width}x{length}x{height} (roof: {roof_height})")
+        
+        # Force immediate shadow update if sun exists
+        if hasattr(self, 'sun_position') and self.sun_position is not None:
+            self._force_shadow_update()
     
     def set_quality_level(self, quality):
         """Set rendering quality level"""
@@ -130,6 +140,8 @@ class EnhancedRealisticSunSystem(QObject):
                 self.time_of_day = solar_settings.get('current_hour', 12.0)
                 self.weather_factor = solar_settings.get('weather_factor', 1.0)
             
+            print(f"🌞 Creating sun at elevation {self.sun_elevation:.1f}°, position {self.sun_position}")
+            
             # Clear previous elements
             self._clear_sun_elements()
             
@@ -137,7 +149,13 @@ class EnhancedRealisticSunSystem(QObject):
             if self.sun_elevation > 0:
                 self._create_sun_sphere()
                 self._create_sun_lighting()
-                self._create_building_shadows()
+                
+                # Always try to create shadows if elevation is sufficient
+                if self.sun_elevation > 5:
+                    self._create_building_shadows()
+                    print(f"✅ Shadows created for elevation {self.sun_elevation:.1f}°")
+                else:
+                    print(f"⚠️ Sun too low for shadows: {self.sun_elevation:.1f}°")
                 
                 if self.rays_enabled:
                     self._create_sun_rays()
@@ -146,6 +164,11 @@ class EnhancedRealisticSunSystem(QObject):
                     self._create_atmospheric_effects()
             else:
                 self._create_night_lighting()
+                print("🌙 Night lighting created")
+            
+            # Force render to show changes immediately
+            if hasattr(self.plotter, 'render'):
+                self.plotter.render()
             
             # Emit update signal
             self.sun_updated.emit({
@@ -156,86 +179,138 @@ class EnhancedRealisticSunSystem(QObject):
                 'weather': self.weather_factor
             })
             
+            print(f"✅ Sun system updated successfully")
+            
         except Exception as e:
             logger.error(f"Error creating sun: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             self.updating = False
     
     def _create_sun_sphere(self):
-        """Create the sun sphere with appropriate size and glow"""
+        """Create the sun sphere with debug cone to show direction"""
         try:
-            # Calculate sun size based on distance and time of day
-            base_radius = 4.0
-            distance_factor = np.linalg.norm(self.sun_position) / 100.0
-            time_factor = 1.0 + 0.3 * abs(np.cos(np.pi * (self.time_of_day - 12) / 12))
+            # Much smaller sun with minimal visual impact
+            base_radius = 1.5
+            distance_factor = np.linalg.norm(self.sun_position) / 200.0
             
-            sun_radius = base_radius * distance_factor * time_factor
-            sun_radius = np.clip(sun_radius, 2.0, 8.0)
+            sun_radius = base_radius * distance_factor
+            sun_radius = np.clip(sun_radius, 0.8, 2.5)
             
-            # Create sun sphere
+            # Create simple sun sphere
             sun_sphere = pv.Sphere(
                 radius=sun_radius,
                 center=self.sun_position,
-                phi_resolution=20,
-                theta_resolution=20
+                phi_resolution=8,
+                theta_resolution=8
             )
             
-            # Calculate sun color based on elevation and time
-            sun_color = self._calculate_sun_color()
+            # Simple, non-glaring sun color
+            sun_color = [1.0, 0.9, 0.7]
             
             self.sun_actor = self.plotter.add_mesh(
                 sun_sphere,
                 color=sun_color,
-                opacity=0.9,
+                opacity=0.8,
                 lighting=False,
                 name='sun_sphere'
             )
             
+            # Add debug cone to show sun direction
+            self._create_sun_debug_cone()
+            
+            print(f"✅ Sun sphere and debug cone created")
+            
         except Exception as e:
             logger.error(f"Error creating sun sphere: {e}")
     
+    def _create_sun_debug_cone(self):
+        """Create a debug cone showing sun light direction"""
+        try:
+            # Calculate cone direction (from sun to building center)
+            direction = self.building_center - self.sun_position
+            direction_length = np.linalg.norm(direction)
+            
+            if direction_length > 0:
+                direction_normalized = direction / direction_length
+                
+                # Create cone showing light direction
+                cone_height = min(direction_length * 0.7, 15.0)
+                cone_radius = cone_height * 0.2
+                
+                # Position cone starting from sun
+                cone_center = self.sun_position + direction_normalized * (cone_height / 2)
+                
+                debug_cone = pv.Cone(
+                    center=cone_center,
+                    direction=direction_normalized,
+                    height=cone_height,
+                    radius=cone_radius,
+                    resolution=12
+                )
+                
+                # Add cone with semi-transparent yellow
+                cone_actor = self.plotter.add_mesh(
+                    debug_cone,
+                    color='yellow',
+                    opacity=0.3,
+                    lighting=False,
+                    name='sun_debug_cone'
+                )
+                
+                if cone_actor:
+                    # Store as sun actor for cleanup
+                    if not hasattr(self, 'debug_actors'):
+                        self.debug_actors = []
+                    self.debug_actors.append(cone_actor)
+                    print(f"✅ Debug cone created showing sun direction")
+                
+        except Exception as e:
+            logger.error(f"Error creating debug cone: {e}")
+    
     def _calculate_sun_color(self):
-        """Calculate sun color based on elevation and atmospheric conditions"""
-        # Base colors for different times
+        """Calculate sun color with reduced intensity to minimize glare"""
+        # More subtle base colors
         if self.sun_elevation > 60:
-            # High sun - white/yellow
-            base_color = np.array([1.0, 1.0, 0.9])
+            # High sun - soft white/yellow
+            base_color = np.array([1.0, 0.95, 0.8])  # Less intense
         elif self.sun_elevation > 30:
-            # Medium sun - yellow
-            base_color = np.array([1.0, 0.95, 0.7])
+            # Medium sun - warm yellow
+            base_color = np.array([1.0, 0.9, 0.6])   # Less intense
         elif self.sun_elevation > 10:
-            # Low sun - orange
-            base_color = np.array([1.0, 0.7, 0.4])
+            # Low sun - soft orange
+            base_color = np.array([1.0, 0.8, 0.5])   # Less intense
         else:
-            # Very low sun - red/orange
-            base_color = np.array([1.0, 0.5, 0.2])
+            # Very low sun - muted red/orange
+            base_color = np.array([0.9, 0.6, 0.3])   # Much less intense
         
-        # Apply weather factor
-        weather_adjustment = 0.8 + 0.2 * self.weather_factor
+        # Apply weather factor with reduced impact
+        weather_adjustment = 0.7 + 0.2 * self.weather_factor  # Reduced intensity
         return base_color * weather_adjustment
     
     def _create_sun_lighting(self):
-        """Create realistic sun lighting"""
+        """Create balanced sun lighting for roof visibility"""
         try:
             # Remove existing lights
             self.plotter.remove_all_lights()
             self.current_lights.clear()
             
-            # Calculate light intensity based on sun elevation and weather
-            base_intensity = 1.0
-            elevation_factor = np.sin(np.radians(max(5, self.sun_elevation)))
-            weather_factor = 0.3 + 0.7 * self.weather_factor
+            # Calculate balanced light intensity
+            base_intensity = 1.2  # Slightly increased for better roof visibility
+            elevation_factor = np.sin(np.radians(max(5, self.sun_elevation))) * 0.3
+            weather_factor = 0.4 + 0.4 * self.weather_factor  # More balanced range
             
-            light_intensity = base_intensity * elevation_factor * weather_factor
-            light_intensity = np.clip(light_intensity, 0.1, 2.0)
+            light_intensity = base_intensity + elevation_factor + weather_factor
+            light_intensity = np.clip(light_intensity, 0.8, 2.2)  # Good range for visibility
             
-            # Main sun light
+            # Main sun light with warm color
             sun_light = pv.Light(
                 position=tuple(self.sun_position),
                 focal_point=tuple(self.building_center),
                 light_type='scenelight',
                 intensity=light_intensity,
-                color=self._calculate_sun_color(),
+                color=[1.0, 0.95, 0.85],  # Warm white light
                 positional=True,
                 cone_angle=120,
                 show_actor=False
@@ -244,33 +319,30 @@ class EnhancedRealisticSunSystem(QObject):
             self.plotter.add_light(sun_light)
             self.current_lights.append(sun_light)
             
-            # Add ambient light for realism
-            ambient_intensity = 0.3 * weather_factor
+            # Balanced ambient light for proper shadow contrast
+            ambient_intensity = 0.35 * self.weather_factor
             ambient_light = pv.Light(
                 light_type='cameralight',
                 intensity=ambient_intensity,
-                color=[0.8, 0.9, 1.0]  # Slightly blue ambient
+                color=[0.85, 0.9, 1.0]  # Cool ambient
             )
             
             self.plotter.add_light(ambient_light)
             self.current_lights.append(ambient_light)
             
+            print(f"✅ Balanced lighting created (main: {light_intensity:.2f}, ambient: {ambient_intensity:.2f})")
+            
         except Exception as e:
             logger.error(f"Error creating sun lighting: {e}")
     
     def _create_building_shadows(self):
-        """Create realistic building shadows"""
+        """Create realistic building shadows with proper grass placement"""
         try:
-            if self.sun_elevation <= 5:  # No shadows for very low sun
+            if self.sun_elevation <= 5:
+                print(f"⚠️ No shadows - sun elevation too low: {self.sun_elevation}°")
                 return
             
-            # Check cache first
-            cache_key = self._get_shadow_cache_key()
-            if cache_key in self.shadow_cache and self.quality_level != 'ultra':
-                cached_shadows = self.shadow_cache[cache_key]
-                for shadow_data in cached_shadows:
-                    self._add_cached_shadow(shadow_data)
-                return
+            print(f"🌑 Creating shadows - elevation: {self.sun_elevation}°, center: {self.building_center}")
             
             # Calculate shadow parameters
             shadow_length = self._calculate_shadow_length()
@@ -278,82 +350,142 @@ class EnhancedRealisticSunSystem(QObject):
             shadow_width = self._calculate_shadow_width()
             shadow_opacity = self._calculate_shadow_opacity()
             
-            # Create main building shadow
+            print(f"🌑 Shadow params - Length: {shadow_length:.1f}, Width: {shadow_width:.1f}, Opacity: {shadow_opacity:.2f}")
+            print(f"🌑 Shadow direction: [{shadow_direction[0]:.2f}, {shadow_direction[1]:.2f}]")
+            
+            # Create multiple shadow layers for better visibility
             shadows_created = []
+            
+            # Main building shadow - positioned correctly on grass
             main_shadow = self._create_main_building_shadow(
                 shadow_length, shadow_direction, shadow_width, shadow_opacity
             )
             if main_shadow:
                 shadows_created.append(main_shadow)
+                print("✅ Main building shadow created")
             
-            # Create additional shadows for complex geometry
+            # Additional shadow for roof overhang
             if self.roof_height > 0:
                 roof_shadow = self._create_roof_shadow(
                     shadow_length, shadow_direction, shadow_width, shadow_opacity
                 )
                 if roof_shadow:
                     shadows_created.append(roof_shadow)
+                    print("✅ Roof shadow created")
             
-            # Cache shadows for performance
-            if shadows_created and self.quality_level != 'ultra':
-                self.shadow_cache[cache_key] = shadows_created
+            # Create a subtle ground shadow for better visibility
+            ground_shadow = self._create_ground_contact_shadow(shadow_direction, shadow_opacity)
+            if ground_shadow:
+                shadows_created.append(ground_shadow)
+                print("✅ Ground contact shadow created")
+            
+            print(f"✅ Created {len(shadows_created)} shadows total")
+            
+            # Force render to show shadows immediately
+            if hasattr(self.plotter, 'render'):
+                self.plotter.render()
             
         except Exception as e:
             logger.error(f"Error creating building shadows: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _create_main_building_shadow(self, length, direction, width, opacity):
-        """Create the main building shadow"""
+        """Create highly visible building shadow on grass with debug info"""
         try:
-            # Calculate shadow center (preserving original offset logic)
-            shadow_offset_distance = length * 0.4  # Original offset calculation
+            # Calculate shadow center - ensure it's visible on grass
+            shadow_offset_distance = length * 0.6  # Increased for better visibility
             shadow_center = self.building_center.copy()
             shadow_center[0] += direction[0] * shadow_offset_distance
             shadow_center[1] += direction[1] * shadow_offset_distance
-            shadow_center[2] = self.shadow_level
+            shadow_center[2] = -0.045  # Slightly below grass for guaranteed visibility
             
-            # Create shadow plane
+            print(f"🌑 SHADOW DEBUG:")
+            print(f"   Building center: {self.building_center}")
+            print(f"   Shadow direction: {direction}")
+            print(f"   Shadow offset: {shadow_offset_distance:.1f}")
+            print(f"   Shadow center: [{shadow_center[0]:.2f}, {shadow_center[1]:.2f}, {shadow_center[2]:.3f}]")
+            print(f"   Shadow size: {length:.1f} x {width:.1f}")
+            print(f"   Shadow opacity: {opacity:.2f}")
+            
+            # Create larger, more visible shadow
             shadow_plane = pv.Plane(
                 center=shadow_center,
                 direction=(0, 0, 1),
-                i_size=length,
-                j_size=width,
-                i_resolution=max(20, self.shadow_resolution),
-                j_resolution=max(15, int(self.shadow_resolution * 0.75))
+                i_size=length * 1.5,  # Much larger
+                j_size=width * 1.5,
+                i_resolution=50,  # High resolution
+                j_resolution=40
             )
             
-            # Apply shadow shape (more realistic building outline)
-            shadow_points = self._create_building_shadow_shape(shadow_plane, direction)
-            if shadow_points is not None:
-                shadow_plane = shadow_points
+            # Ensure proper normals
+            shadow_plane.compute_normals(inplace=True, auto_orient_normals=True)
             
-            # Rotate shadow to match sun direction
+            # Rotate shadow
             shadow_angle = np.degrees(np.arctan2(direction[1], direction[0]))
             shadow_plane.rotate_z(shadow_angle, inplace=True)
             
-            # Add shadow to scene with darker color
+            # Add shadow with maximum contrast
             shadow_actor = self.plotter.add_mesh(
                 shadow_plane,
-                color='#000000',  # Pure black for darker shadows
-                opacity=opacity,
+                color='#000000',  # Pure black
+                opacity=0.9,  # Very high opacity
                 lighting=False,
                 name='main_building_shadow'
             )
             
             if shadow_actor:
                 self.shadow_actors.append(shadow_actor)
+                print(f"✅ HIGHLY VISIBLE shadow created at {shadow_center}")
+                
+                # Create debug marker at shadow center
+                self._create_shadow_debug_marker(shadow_center)
+                
                 return {
                     'type': 'main_shadow',
                     'center': shadow_center,
                     'length': length,
                     'width': width,
-                    'opacity': opacity,
+                    'opacity': 0.9,
                     'angle': shadow_angle
                 }
+            else:
+                print(f"❌ Failed to create shadow actor")
             
         except Exception as e:
             logger.error(f"Error creating main building shadow: {e}")
+            import traceback
+            traceback.print_exc()
         
         return None
+    
+    def _create_shadow_debug_marker(self, shadow_center):
+        """Create a debug marker to show exactly where shadow should be"""
+        try:
+            # Create small red sphere at shadow center
+            marker = pv.Sphere(
+                radius=0.5,
+                center=shadow_center,
+                phi_resolution=8,
+                theta_resolution=8
+            )
+            
+            marker_actor = self.plotter.add_mesh(
+                marker,
+                color='red',
+                opacity=1.0,
+                lighting=False,
+                name='shadow_debug_marker'
+            )
+            
+            if marker_actor:
+                if not hasattr(self, 'debug_actors'):
+                    self.debug_actors = []
+                self.debug_actors.append(marker_actor)
+                print(f"✅ Debug marker placed at shadow center")
+            
+        except Exception as e:
+            logger.error(f"Error creating shadow debug marker: {e}")
     
     def _create_roof_shadow(self, length, direction, width, opacity):
         """Create roof shadow overlay"""
@@ -472,46 +604,63 @@ class EnhancedRealisticSunSystem(QObject):
         except Exception as e:
             logger.error(f"Error creating single ray: {e}")
     
-    def _create_atmospheric_effects(self):
-        """Create atmospheric haze and glow effects"""
+    def _create_ground_contact_shadow(self, direction, opacity):
+        """Create a subtle shadow directly under the building for better ground contact"""
         try:
-            if self.atmosphere_density <= 0:
-                return
+            # Create a shadow directly under the building
+            contact_shadow_center = self.building_center.copy()
+            contact_shadow_center[2] = self.shadow_level + 0.002  # Slightly above main shadow
             
-            # Create atmospheric glow around sun
-            glow_radius = 15.0 * (1.0 + self.atmosphere_density)
+            # Smaller shadow directly under building
+            contact_width = self.building_width * 0.8
+            contact_length = self.building_length * 0.8
             
-            atmosphere_sphere = pv.Sphere(
-                radius=glow_radius,
-                center=self.sun_position,
-                phi_resolution=self.atmosphere_resolution,
-                theta_resolution=self.atmosphere_resolution
+            contact_shadow = pv.Plane(
+                center=contact_shadow_center,
+                direction=(0, 0, 1),
+                i_size=contact_length,
+                j_size=contact_width,
+                i_resolution=20,
+                j_resolution=20
             )
             
-            # Atmospheric color based on sun elevation
-            if self.sun_elevation > 30:
-                atm_color = [1.0, 1.0, 0.9]
-            elif self.sun_elevation > 10:
-                atm_color = [1.0, 0.8, 0.6]
-            else:
-                atm_color = [1.0, 0.6, 0.4]
+            # Ensure proper normals
+            contact_shadow.compute_normals(inplace=True, auto_orient_normals=True)
             
-            atm_opacity = 0.05 + 0.1 * self.atmosphere_density * self.weather_factor
-            atm_opacity = np.clip(atm_opacity, 0.02, 0.15)
-            
-            atmosphere_actor = self.plotter.add_mesh(
-                atmosphere_sphere,
-                color=atm_color,
-                opacity=atm_opacity,
+            # Add with reduced opacity
+            contact_opacity = opacity * 0.6
+            contact_actor = self.plotter.add_mesh(
+                contact_shadow,
+                color='#1a1a1a',  # Dark gray
+                opacity=contact_opacity,
                 lighting=False,
-                name='atmosphere_glow'
+                name='ground_contact_shadow'
             )
             
-            if atmosphere_actor:
-                self.atmosphere_actors.append(atmosphere_actor)
-            
+            if contact_actor:
+                self.shadow_actors.append(contact_actor)
+                print(f"✅ Ground contact shadow created with opacity {contact_opacity:.2f}")
+                
+                return {
+                    'type': 'contact_shadow',
+                    'center': contact_shadow_center,
+                    'width': contact_width,
+                    'length': contact_length,
+                    'opacity': contact_opacity
+                }
+            else:
+                print("❌ Failed to create ground contact shadow")
+                
         except Exception as e:
-            logger.error(f"Error creating atmospheric effects: {e}")
+            logger.error(f"Error creating ground contact shadow: {e}")
+        
+        return None
+    
+    def _create_atmospheric_effects(self):
+        """Disable atmospheric effects to eliminate yellow flare"""
+        # Completely disable atmospheric effects to remove flare
+        print("🚫 Atmospheric effects disabled to remove flare")
+        return
     
     def _create_night_lighting(self):
         """Create subtle night lighting"""
@@ -580,12 +729,15 @@ class EnhancedRealisticSunSystem(QObject):
     
     def _calculate_shadow_opacity(self):
         """Calculate shadow opacity - much darker shadows"""
-        base_opacity = 0.7  # Much darker base
-        elevation_factor = np.sin(np.radians(max(5, self.sun_elevation))) * 0.2
-        weather_factor = 0.1 + 0.3 * self.weather_factor
+        base_opacity = 0.8  # Even darker base
+        elevation_factor = np.sin(np.radians(max(5, self.sun_elevation))) * 0.15
+        weather_factor = 0.05 + 0.2 * self.weather_factor
         
         opacity = base_opacity + elevation_factor + weather_factor
-        return np.clip(opacity, 0.6, 0.95)  # Much darker range
+        final_opacity = np.clip(opacity, 0.7, 0.98)  # Much darker range
+        
+        print(f"🌑 Shadow opacity calculation: base={base_opacity}, elevation_factor={elevation_factor:.2f}, weather_factor={weather_factor:.2f}, final={final_opacity:.2f}")
+        return final_opacity
     
     def _get_shadow_cache_key(self):
         """Generate cache key for shadow optimization"""
@@ -619,12 +771,68 @@ class EnhancedRealisticSunSystem(QObject):
         except Exception as e:
             logger.error(f"Error adding cached shadow: {e}")
     
+    def _force_shadow_update(self):
+        """Force immediate shadow update with enhanced debugging"""
+        try:
+            print("🔄 Forcing shadow update...")
+            
+            # Clear existing shadows
+            for actor in self.shadow_actors:
+                try:
+                    self.plotter.remove_actor(actor)
+                except:
+                    pass
+            self.shadow_actors.clear()
+            
+            # Clear cache to force recreation
+            self.shadow_cache.clear()
+            
+            # Validate shadow parameters
+            print(f"🔧 Shadow parameters:")
+            print(f"   Building center: {self.building_center}")
+            print(f"   Building dimensions: {self.building_width}x{self.building_length}x{self.building_height}")
+            print(f"   Shadow level: {self.shadow_level}")
+            print(f"   Sun elevation: {self.sun_elevation}°")
+            print(f"   Sun position: {self.sun_position}")
+            
+            # Force create shadows with test parameters if needed
+            if self.sun_elevation <= 5:
+                print("⚠️ Sun elevation too low, setting test elevation")
+                self.sun_elevation = 45.0
+                
+            if np.allclose(self.building_center, [0, 0, 0]):
+                print("⚠️ Building center at origin, setting default")
+                self.building_center = np.array([0, 0, 1.5])
+            
+            # Recreate shadows immediately
+            self._create_building_shadows()
+            
+            # Force render twice to ensure visibility
+            if hasattr(self.plotter, 'render'):
+                self.plotter.render()
+                import time
+                time.sleep(0.1)  # Small delay
+                self.plotter.render()
+                print("✅ Double render completed")
+                
+            shadow_count = len(self.shadow_actors)
+            if shadow_count > 0:
+                print(f"✅ Forced shadow update completed - {shadow_count} shadows created")
+            else:
+                print("❌ No shadows created despite forced update")
+                
+        except Exception as e:
+            print(f"❌ Force shadow update failed: {e}")
+            import traceback
+            traceback.print_exc()
+    
     def _invalidate_shadow_cache(self):
         """Clear shadow cache when parameters change"""
         self.shadow_cache.clear()
+        print("🗑️ Shadow cache cleared")
     
     def _clear_sun_elements(self):
-        """Clear all sun-related visual elements"""
+        """Clear all sun-related visual elements including debug elements"""
         try:
             # Remove sun actor
             if self.sun_actor:
@@ -657,6 +865,23 @@ class EnhancedRealisticSunSystem(QObject):
                 except:
                     pass
             self.atmosphere_actors.clear()
+            
+            # Remove debug actors (cone, markers, etc.)
+            if hasattr(self, 'debug_actors'):
+                for actor in self.debug_actors:
+                    try:
+                        self.plotter.remove_actor(actor)
+                    except:
+                        pass
+                self.debug_actors.clear()
+            
+            # Remove debug elements by name
+            debug_names = ['sun_debug_cone', 'shadow_debug_marker']
+            for name in debug_names:
+                try:
+                    self.plotter.remove_actor(name)
+                except:
+                    pass
             
         except Exception as e:
             logger.error(f"Error clearing sun elements: {e}")
@@ -725,6 +950,98 @@ class EnhancedRealisticSunSystem(QObject):
         self.weather_factor = weather_factor
         self.create_photorealistic_sun(sun_position)
     
+    def test_shadows_immediately(self):
+        """Test method to immediately create visible shadows for debugging"""
+        try:
+            print("🧪 Testing shadows immediately...")
+            
+            # Set optimal parameters for shadow testing
+            self.building_center = np.array([0, 0, 1.5])
+            self.building_width = 8.0
+            self.building_length = 10.0
+            self.building_height = 3.0
+            self.roof_height = 4.0
+            self.shadow_level = -0.04
+            self.sun_elevation = 45.0
+            self.sun_azimuth = 180.0
+            self.weather_factor = 1.0
+            
+            # Set good sun position
+            test_sun_position = [20, 20, 20]
+            self.sun_position = np.array(test_sun_position)
+            
+            print(f"🧪 Test parameters set:")
+            print(f"   Building center: {self.building_center}")
+            print(f"   Sun position: {self.sun_position}")
+            print(f"   Sun elevation: {self.sun_elevation}°")
+            
+            # Force shadow creation
+            self._force_shadow_update()
+            
+            # Create a test ground plane if none exists
+            self._create_test_ground_for_shadows()
+            
+            return len(self.shadow_actors) > 0
+            
+        except Exception as e:
+            print(f"❌ Shadow test failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _create_test_ground_for_shadows(self):
+        """Create a test ground plane to receive shadows"""
+        try:
+            # Check if ground already exists
+            existing_ground = False
+            for actor in self.plotter.renderer.actors:
+                if hasattr(actor, 'name') and 'ground' in str(actor.name).lower():
+                    existing_ground = True
+                    break
+            
+            if existing_ground:
+                print("✅ Ground plane already exists")
+                return
+            
+            print("🧪 Creating test ground for shadow visibility...")
+            
+            # Create a simple ground plane
+            ground_size = 40.0
+            ground_level = self.shadow_level - 0.01  # Slightly below shadow level
+            
+            ground_plane = pv.Plane(
+                center=[0, 0, ground_level],
+                direction=(0, 0, 1),
+                i_size=ground_size,
+                j_size=ground_size,
+                i_resolution=50,
+                j_resolution=50
+            )
+            
+            # Ensure proper normals
+            ground_plane.compute_normals(inplace=True, auto_orient_normals=True)
+            
+            # Add ground plane with shadow-receiving properties
+            ground_actor = self.plotter.add_mesh(
+                ground_plane,
+                color='#6BCD6B',  # Grass green
+                opacity=1.0,
+                lighting=True,
+                smooth_shading=True,
+                ambient=0.4,
+                diffuse=0.9,
+                specular=0.0,
+                name='test_ground_for_shadows'
+            )
+            
+            if ground_actor:
+                print("✅ Test ground created for shadow visibility")
+            else:
+                print("❌ Failed to create test ground")
+                
+        except Exception as e:
+            print(f"❌ Error creating test ground: {e}")
+    
     def destroy(self):
         """Clean up all resources"""
         try:
@@ -744,6 +1061,8 @@ class EnhancedRealisticSunSystem(QObject):
             # Clear caches
             self.shadow_cache.clear()
             self.scene_objects.clear()
+            
+            print("✅ Enhanced sun system destroyed")
             
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
