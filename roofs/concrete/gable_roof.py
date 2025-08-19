@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-roofs/concrete/gable_roof.py
-FIXED: Properly rotating foundation and updating lighting by re-adding meshes
+roofs/concrete/gable_roof.py - COMPLETE FIXED VERSION
+Eliminated roof lines and proper sun integration
 """
 from roofs.base.base_roof import BaseRoof
 from roofs.base.resource_utils import resource_path
@@ -18,7 +18,7 @@ except ImportError as e:
     SolarPanelPlacementGable = None
 
 class GableRoof(BaseRoof):
-    """FIXED: Gable roof with proper rotation and lighting updates"""
+    """COMPLETE FIXED: Smooth gable roof without lighting lines"""
 
     def __init__(self, plotter=None, dimensions=(10.0, 8.0, 4.0), theme="light", rotation_angle=0):
         if dimensions is None:
@@ -63,7 +63,21 @@ class GableRoof(BaseRoof):
         
         self.base_height = self.building_height
         self._find_references()
+        
+        # Set building center for sun system
+        self._set_building_center_for_sun_system()
+        
         self.initialize_roof(dimensions)
+    
+    def _set_building_center_for_sun_system(self):
+        """Set building center in sun system for proper sun positioning"""
+        try:
+            building_center = [0, 0, self.building_height / 2 + self.height / 2]
+            if self.sun_system and hasattr(self.sun_system, 'set_building_center'):
+                self.sun_system.set_building_center(building_center)
+                print(f"✅ Building center set in sun system: {building_center}")
+        except Exception as e:
+            print(f"⚠️ Could not set building center: {e}")
     
     def _find_references(self):
         """Find references to solar systems"""
@@ -210,25 +224,39 @@ class GableRoof(BaseRoof):
     
     def _create_all_meshes(self):
         """Create all meshes and add them to the scene"""
-        self._create_roof_slopes()
+        self._create_smooth_roof_slopes()
         self._create_walls()
         self._create_gable_triangles()
         self._add_foundation()
     
-    def _create_roof_slopes(self):
-        """Create roof slopes"""
-        # Left slope
+    def _safe_compute_normals(self, mesh):
+        """Safely compute normals with PyVista version compatibility"""
+        try:
+            mesh.compute_normals(inplace=True, auto_orient_normals=True)
+        except TypeError:
+            try:
+                mesh.compute_normals(inplace=True)
+            except:
+                pass
+        except Exception as e:
+            print(f"⚠️ Normal computation failed: {e}")
+    
+    def _create_smooth_roof_slopes(self):
+        """FIXED: Create smooth roof slopes without grid lines"""
+        # FIXED: Use simple quad faces instead of subdivision to eliminate lines
+        
+        # Left slope - single smooth quad
         left_slope_points = np.array([
             self.roof_points['eave_left_front'],
-            self.roof_points['eave_left_back'],
+            self.roof_points['eave_left_back'], 
             self.roof_points['ridge_back'],
             self.roof_points['ridge_front']
         ])
         left_faces = np.array([[4, 0, 1, 2, 3]])
         self.left_slope = pv.PolyData(left_slope_points, left_faces)
-        self.left_slope.compute_normals(inplace=True, auto_orient_normals=True)
+        self._safe_compute_normals(self.left_slope)
         
-        # Right slope
+        # Right slope - single smooth quad
         right_slope_points = np.array([
             self.roof_points['eave_right_front'],
             self.roof_points['eave_right_back'],
@@ -237,15 +265,15 @@ class GableRoof(BaseRoof):
         ])
         right_faces = np.array([[4, 0, 1, 2, 3]])
         self.right_slope = pv.PolyData(right_slope_points, right_faces)
-        self.right_slope.compute_normals(inplace=True, auto_orient_normals=True)
+        self._safe_compute_normals(self.right_slope)
         
         self.mesh_cache['left_slope'] = self.left_slope
         self.mesh_cache['right_slope'] = self.right_slope
         
-        # Add texture coordinates
-        tcoords = np.array([[0, 0], [5, 0], [5, 3], [0, 3]])
-        self.left_slope.active_t_coords = tcoords
-        self.right_slope.active_t_coords = tcoords
+        # Simple texture coordinates for smooth surfaces
+        simple_tcoords = np.array([[0, 0], [3, 0], [3, 2], [0, 2]])
+        self.left_slope.active_t_coords = simple_tcoords
+        self.right_slope.active_t_coords = simple_tcoords
         
         # Load texture
         roof_texture, texture_loaded = self.load_texture_safely(
@@ -253,46 +281,48 @@ class GableRoof(BaseRoof):
             self.roof_color
         )
         
-        # Add meshes to scene
+        # Add meshes with smooth shading
         if texture_loaded:
-            self.building_actors['left_slope'] = self.plotter.add_mesh(
+            self.building_actors['left_slope'] = self.add_sun_compatible_mesh(
                 self.left_slope,
                 texture=roof_texture,
                 name="left_slope",
-                smooth_shading=True
+                smooth_shading=True  # Force smooth shading
             )
-            self.building_actors['right_slope'] = self.plotter.add_mesh(
+            self.building_actors['right_slope'] = self.add_sun_compatible_mesh(
                 self.right_slope,
                 texture=roof_texture,
                 name="right_slope",
-                smooth_shading=True
+                smooth_shading=True  # Force smooth shading
             )
         else:
-            self.building_actors['left_slope'] = self.plotter.add_mesh(
+            self.building_actors['left_slope'] = self.add_sun_compatible_mesh(
                 self.left_slope,
                 color=self.roof_color,
                 name="left_slope",
                 smooth_shading=True
             )
-            self.building_actors['right_slope'] = self.plotter.add_mesh(
+            self.building_actors['right_slope'] = self.add_sun_compatible_mesh(
                 self.right_slope,
                 color=self.roof_color,
                 name="right_slope",
                 smooth_shading=True
             )
+        
+        print("✅ Smooth roof slopes created without grid lines")
     
     def _create_walls(self):
-        """Create walls"""
+        """Create walls with proper normals"""
         wall_vertices = []
         wall_faces = []
         vertex_offset = 0
         
-        # Front wall
+        # Front wall (counter-clockwise from outside)
         wall_vertices.extend([
             self.base_points['base_left_front'],
-            self.base_points['base_right_front'],
+            self.roof_points['eave_left_front'],
             self.roof_points['eave_right_front'],
-            self.roof_points['eave_left_front']
+            self.base_points['base_right_front']
         ])
         wall_faces.append([4, vertex_offset, vertex_offset+1, vertex_offset+2, vertex_offset+3])
         vertex_offset += 4
@@ -300,9 +330,9 @@ class GableRoof(BaseRoof):
         # Right wall
         wall_vertices.extend([
             self.base_points['base_right_front'],
-            self.base_points['base_right_back'],
+            self.roof_points['eave_right_front'],
             self.roof_points['eave_right_back'],
-            self.roof_points['eave_right_front']
+            self.base_points['base_right_back']
         ])
         wall_faces.append([4, vertex_offset, vertex_offset+1, vertex_offset+2, vertex_offset+3])
         vertex_offset += 4
@@ -310,9 +340,9 @@ class GableRoof(BaseRoof):
         # Back wall
         wall_vertices.extend([
             self.base_points['base_right_back'],
-            self.base_points['base_left_back'],
+            self.roof_points['eave_right_back'],
             self.roof_points['eave_left_back'],
-            self.roof_points['eave_right_back']
+            self.base_points['base_left_back']
         ])
         wall_faces.append([4, vertex_offset, vertex_offset+1, vertex_offset+2, vertex_offset+3])
         vertex_offset += 4
@@ -320,25 +350,22 @@ class GableRoof(BaseRoof):
         # Left wall
         wall_vertices.extend([
             self.base_points['base_left_back'],
-            self.base_points['base_left_front'],
+            self.roof_points['eave_left_back'],
             self.roof_points['eave_left_front'],
-            self.roof_points['eave_left_back']
+            self.base_points['base_left_front']
         ])
         wall_faces.append([4, vertex_offset, vertex_offset+1, vertex_offset+2, vertex_offset+3])
-        vertex_offset += 4
         
         wall_mesh = pv.PolyData(np.array(wall_vertices))
         wall_mesh.faces = np.hstack(wall_faces)
-        wall_mesh.compute_normals(inplace=True, auto_orient_normals=True)
+        self._safe_compute_normals(wall_mesh)
         
         self.mesh_cache['walls'] = wall_mesh
         
         # Texture coordinates
         texture_coords = []
-        texture_coords.extend([[0, 0], [3, 0], [3, 1], [0, 1]])  # Front
-        texture_coords.extend([[0, 0], [4, 0], [4, 1], [0, 1]])  # Right
-        texture_coords.extend([[0, 0], [3, 0], [3, 1], [0, 1]])  # Back
-        texture_coords.extend([[0, 0], [4, 0], [4, 1], [0, 1]])  # Left
+        for _ in range(4):  # 4 walls
+            texture_coords.extend([[0, 0], [0, 1], [1, 1], [1, 0]])
         
         wall_mesh.active_t_coords = np.array(texture_coords)
         
@@ -348,22 +375,21 @@ class GableRoof(BaseRoof):
         )
         
         if texture_loaded:
-            self.building_actors['building_walls'] = self.plotter.add_mesh(
+            self.building_actors['building_walls'] = self.add_sun_compatible_mesh(
                 wall_mesh,
                 texture=wall_texture,
-                name="building_walls",
-                smooth_shading=True
+                name="building_walls"
             )
         else:
-            self.building_actors['building_walls'] = self.plotter.add_mesh(
+            self.building_actors['building_walls'] = self.add_sun_compatible_mesh(
                 wall_mesh,
                 color=self.wall_color,
-                name="building_walls",
-                smooth_shading=True
+                name="building_walls"
             )
     
     def _create_gable_triangles(self):
         """Create gable triangles"""
+        # Front gable triangle
         front_tri_verts = np.array([
             self.roof_points['eave_left_front'],
             self.roof_points['eave_right_front'],
@@ -371,16 +397,17 @@ class GableRoof(BaseRoof):
         ])
         front_tri_faces = np.array([[3, 0, 1, 2]])
         front_gable = pv.PolyData(front_tri_verts, front_tri_faces)
-        front_gable.compute_normals(inplace=True, auto_orient_normals=True)
+        self._safe_compute_normals(front_gable)
         
+        # Back gable triangle
         back_tri_verts = np.array([
-            self.roof_points['eave_left_back'],
             self.roof_points['eave_right_back'],
+            self.roof_points['eave_left_back'],
             self.roof_points['ridge_back']
         ])
         back_tri_faces = np.array([[3, 0, 1, 2]])
         back_gable = pv.PolyData(back_tri_verts, back_tri_faces)
-        back_gable.compute_normals(inplace=True, auto_orient_normals=True)
+        self._safe_compute_normals(back_gable)
         
         self.mesh_cache['front_gable'] = front_gable
         self.mesh_cache['back_gable'] = back_gable
@@ -395,58 +422,56 @@ class GableRoof(BaseRoof):
         )
         
         if texture_loaded:
-            self.building_actors['front_gable_triangle'] = self.plotter.add_mesh(
+            self.building_actors['front_gable_triangle'] = self.add_sun_compatible_mesh(
                 front_gable,
                 texture=wall_texture,
-                name="front_gable_triangle",
-                smooth_shading=True
+                name="front_gable_triangle"
             )
-            self.building_actors['back_gable_triangle'] = self.plotter.add_mesh(
+            self.building_actors['back_gable_triangle'] = self.add_sun_compatible_mesh(
                 back_gable,
                 texture=wall_texture,
-                name="back_gable_triangle",
-                smooth_shading=True
+                name="back_gable_triangle"
             )
         else:
-            self.building_actors['front_gable_triangle'] = self.plotter.add_mesh(
+            self.building_actors['front_gable_triangle'] = self.add_sun_compatible_mesh(
                 front_gable,
                 color=self.wall_color,
-                name="front_gable_triangle",
-                smooth_shading=True
+                name="front_gable_triangle"
             )
-            self.building_actors['back_gable_triangle'] = self.plotter.add_mesh(
+            self.building_actors['back_gable_triangle'] = self.add_sun_compatible_mesh(
                 back_gable,
                 color=self.wall_color,
-                name="back_gable_triangle",
-                smooth_shading=True
+                name="back_gable_triangle"
             )
     
     def _add_foundation(self):
-        """Add foundation - FIXED to rotate properly"""
-        foundation_height = 0.2
+        """Add foundation"""
+        foundation_height = 0.15
         foundation_extend = 0.15
         
         half_length = self.length/2 + foundation_extend
         half_width = self.width/2 + foundation_extend
         
-        # Create foundation vertices in local coordinates
+        # Create foundation vertices
         foundation_verts_local = np.array([
-            [-half_width, -half_length, -foundation_height],
-            [half_width, -half_length, -foundation_height],
-            [half_width, half_length, -foundation_height],
-            [-half_width, half_length, -foundation_height],
-            [-half_width, -half_length, 0],
-            [half_width, -half_length, 0],
-            [half_width, half_length, 0],
-            [-half_width, half_length, 0]
+            # Bottom face
+            [-half_width, -half_length, -foundation_height],  # 0
+            [half_width, -half_length, -foundation_height],   # 1
+            [half_width, half_length, -foundation_height],    # 2
+            [-half_width, half_length, -foundation_height],   # 3
+            # Top face
+            [-half_width, -half_length, 0.01],                # 4
+            [half_width, -half_length, 0.01],                 # 5
+            [half_width, half_length, 0.01],                  # 6
+            [-half_width, half_length, 0.01]                  # 7
         ])
         
-        # ROTATE the foundation vertices
+        # Rotate foundation vertices
         foundation_verts = self._rotate_points(foundation_verts_local)
         
-        foundation = pv.PolyData(foundation_verts)
-        foundation.faces = np.array([
-            [4, 0, 1, 2, 3],  # Bottom
+        # Create faces
+        foundation_faces = np.array([
+            [4, 0, 3, 2, 1],  # Bottom
             [4, 4, 5, 6, 7],  # Top
             [4, 0, 1, 5, 4],  # Front
             [4, 1, 2, 6, 5],  # Right
@@ -454,19 +479,77 @@ class GableRoof(BaseRoof):
             [4, 3, 0, 4, 7]   # Left
         ]).flatten()
         
-        foundation.compute_normals(inplace=True, auto_orient_normals=True)
+        foundation = pv.PolyData(foundation_verts)
+        foundation.faces = foundation_faces
+        self._safe_compute_normals(foundation)
+        
+        # Texture coordinates
+        n_points = len(foundation_verts)
+        texture_coords = np.zeros((n_points, 2))
+        
+        for i in range(n_points):
+            x_norm = (foundation_verts[i][0] + half_width) / (2 * half_width)
+            y_norm = (foundation_verts[i][1] + half_length) / (2 * half_length)
+            texture_coords[i] = [x_norm * 2, y_norm * 2]
+        
+        foundation.active_t_coords = texture_coords
         
         self.mesh_cache['foundation'] = foundation
         
-        self.building_actors['foundation'] = self.plotter.add_mesh(
-            foundation,
-            color=self.concrete_color,
-            name="foundation",
-            smooth_shading=True
+        # Load texture and add
+        concrete_texture, texture_loaded = self.load_texture_safely(
+            self.concrete_texture_path,
+            self.concrete_color
         )
+        
+        if texture_loaded:
+            self.building_actors['foundation'] = self.add_sun_compatible_mesh(
+                foundation,
+                texture=concrete_texture,
+                name="foundation"
+            )
+        else:
+            self.building_actors['foundation'] = self.add_sun_compatible_mesh(
+                foundation,
+                color=self.concrete_color,
+                name="foundation"
+            )
+        
+        print("✅ Foundation created")
     
+    def add_sun_compatible_mesh(self, mesh, **kwargs):
+        """ENHANCED: Add mesh with better low-sun visibility"""
+        kwargs['lighting'] = True
+        kwargs.setdefault('smooth_shading', True)
+        
+        # ENHANCED material properties for better visibility at low sun
+        mesh_name = kwargs.get('name', '').lower()
+        
+        if 'wall' in mesh_name or 'gable' in mesh_name:
+            kwargs.setdefault('ambient', 0.3)   # INCREASED for low sun visibility
+            kwargs.setdefault('diffuse', 0.9)   # HIGH for sun response
+            kwargs.setdefault('specular', 0.1)
+        elif 'roof' in mesh_name or 'slope' in mesh_name:
+            kwargs.setdefault('ambient', 0.25)  # INCREASED for low sun visibility
+            kwargs.setdefault('diffuse', 0.9)   # HIGH for sun response
+            kwargs.setdefault('specular', 0.1)
+        else:
+            kwargs.setdefault('ambient', 0.3)   # INCREASED overall
+            kwargs.setdefault('diffuse', 0.8)
+            kwargs.setdefault('specular', 0.1)
+        
+        # Add mesh
+        actor = self.plotter.add_mesh(mesh, **kwargs)
+        
+        # Register with sun system
+        if self.sun_system and hasattr(self.sun_system, 'register_scene_object'):
+            name = kwargs.get('name', 'unnamed')
+            self.sun_system.register_scene_object(mesh, name, cast_shadow=True)
+        
+        return actor
+
     def rotate_building(self, angle_delta):
-        """Rotate building - FIXED with proper mesh recreation"""
+        """Rotate building and update sun system"""
         print(f"🔄 Rotating building by {angle_delta}° (current: {self.rotation_angle}°)")
         
         # Store solar panel state
@@ -479,7 +562,7 @@ class GableRoof(BaseRoof):
         # Update geometry points
         self._update_rotated_points()
         
-        # CRITICAL: Remove all actors from scene
+        # Remove all actors
         for name in ['left_slope', 'right_slope', 'building_walls', 
                      'front_gable_triangle', 'back_gable_triangle', 'foundation']:
             try:
@@ -487,11 +570,13 @@ class GableRoof(BaseRoof):
             except:
                 pass
         
-        # Clear actors dictionary
         self.building_actors.clear()
         
-        # RECREATE all meshes with new positions
+        # Recreate meshes
         self._create_all_meshes()
+        
+        # Update sun system building center
+        self._set_building_center_for_sun_system()
         
         # Update solar system
         if self.solar_simulation:
@@ -499,12 +584,6 @@ class GableRoof(BaseRoof):
         
         # Restore solar panels
         self._restore_solar_panels_state()
-        
-        # Update UI elements
-        if hasattr(self, 'rotation_text_actor'):
-            self._update_rotation_indicator()
-        if hasattr(self, 'rotation_handle_actor'):
-            self._update_rotation_circle()
         
         # Force render
         self.plotter.render()
@@ -532,32 +611,6 @@ class GableRoof(BaseRoof):
             except Exception as e:
                 print(f"❌ Error restoring solar panels: {e}")
     
-    def get_current_building_mesh(self):
-        """Get combined building mesh"""
-        try:
-            meshes_to_combine = []
-            
-            for mesh_name in ['left_slope', 'right_slope', 'walls', 'front_gable', 'back_gable', 'foundation']:
-                if mesh_name in self.mesh_cache:
-                    mesh = self.mesh_cache[mesh_name].copy(deep=True)
-                    mesh.compute_normals(inplace=True, auto_orient_normals=True)
-                    meshes_to_combine.append(mesh)
-            
-            if meshes_to_combine:
-                combined_mesh = meshes_to_combine[0]
-                for mesh in meshes_to_combine[1:]:
-                    combined_mesh = combined_mesh + mesh
-                
-                combined_mesh.compute_normals(inplace=True, auto_orient_normals=True)
-                combined_mesh.Modified()
-                return combined_mesh
-            
-            return None
-            
-        except Exception as e:
-            print(f"❌ Error getting building mesh: {e}")
-            return None
-    
     def initialize_roof(self, dimensions):
         """Initialize the gable roof"""
         self.dimensions = dimensions
@@ -573,10 +626,6 @@ class GableRoof(BaseRoof):
         
         # Initialize solar panel handler
         self._initialize_solar_panel_handler()
-        
-        # Add rotation indicator if rotated
-        if self.rotation_angle != 0:
-            self._add_rotation_indicator()
         
         # Setup key bindings
         try:
@@ -605,7 +654,6 @@ class GableRoof(BaseRoof):
         self.plotter.add_key_event("bracketright", lambda: self.rotate_building(5))
         self.plotter.add_key_event("bracketleft", lambda: self.rotate_building(-5))
     
-    # Keep all other methods unchanged...
     def _add_rotation_circle(self):
         """Add rotation control circle"""
         radius = max(self.length, self.width) * 0.7
@@ -679,56 +727,6 @@ class GableRoof(BaseRoof):
             )
             self.compass_actors.append(actor)
     
-    def _update_rotation_circle(self):
-        """Update rotation handle position"""
-        if hasattr(self, 'rotation_handle_actor'):
-            try:
-                self.plotter.remove_actor('rotation_handle')
-            except:
-                pass
-            
-            radius = max(self.length, self.width) * 0.7
-            handle_angle = np.radians(self.rotation_angle)
-            handle_x = radius * np.sin(handle_angle)
-            handle_y = -radius * np.cos(handle_angle)
-            handle_z = 0.1
-            
-            handle = pv.Sphere(radius=0.3, center=[handle_x, handle_y, handle_z])
-            self.rotation_handle_actor = self.plotter.add_mesh(
-                handle,
-                color='red',
-                name='rotation_handle',
-                pickable=True
-            )
-    
-    def _update_rotation_indicator(self):
-        """Update rotation angle indicator"""
-        if hasattr(self, 'rotation_text_actor'):
-            try:
-                self.plotter.remove_actor('rotation_text')
-            except:
-                pass
-        
-        text = f"Rotation: {self.rotation_angle:.1f}°"
-        self.rotation_text_actor = self.plotter.add_text(
-            text,
-            position='upper_right',
-            font_size=10,
-            color='orange',
-            name='rotation_text'
-        )
-    
-    def _add_rotation_indicator(self):
-        """Add rotation angle indicator"""
-        text = f"Rotation: {self.rotation_angle:.1f}°"
-        self.rotation_text_actor = self.plotter.add_text(
-            text,
-            position='upper_right',
-            font_size=10,
-            color='orange',
-            name='rotation_text'
-        )
-    
     def calculate_camera_position(self):
         """Calculate optimal camera position"""
         total_height = self.building_height + self.height
@@ -752,7 +750,6 @@ class GableRoof(BaseRoof):
     def _get_annotation_params(self):
         """Get annotation parameters"""
         return None
-
 
     def add_attachment_points(self):
         """Add attachment points for obstacle placement"""

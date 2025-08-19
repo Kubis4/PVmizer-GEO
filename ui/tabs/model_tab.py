@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 ui/content_tabs/model_tab.py
-Model Tab with only plotter - left panel is separate
-INTEGRATED with Enhanced Realistic Sun System - COMPLETE FIXED VERSION
+Model Tab with Enhanced Sun System Integration - COMPLETE FIXED VERSION
 """
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame
 from PyQt5.QtCore import pyqtSignal, Qt, QTimer
@@ -30,7 +29,7 @@ except ImportError:
     SOLAR_CALCULATIONS_AVAILABLE = False
     print("⚠️ SolarCalculations module not found")
 
-# Import the NEW Enhanced Realistic Sun System
+# Import the Enhanced Realistic Sun System
 try:
     from solar_system.enhanced_sun_system import EnhancedRealisticSunSystem
     ENHANCED_SUN_AVAILABLE = True
@@ -41,9 +40,7 @@ except ImportError:
 
 class ModelTab(QWidget):
     """
-    Model Tab - Contains only the 3D plotter/viewer
-    Left panel is handled separately in ui/panel/model_tab_left
-    INTEGRATED with Enhanced Realistic Sun System
+    Model Tab with Enhanced Sun System Integration
     """
     
     # Signals
@@ -133,19 +130,6 @@ class ModelTab(QWidget):
         view_layout.setContentsMargins(5, 5, 5, 5)
         view_layout.setSpacing(5)
         
-        # Title bar
-        title_frame = QFrame()
-        title_frame.setMaximumHeight(40)
-        title_frame.setStyleSheet("""
-            QFrame {
-                background-color: #2c3e50;
-                border-radius: 4px;
-            }
-        """)
-        
-        title_layout = QVBoxLayout(title_frame)
-        title_layout.setContentsMargins(10, 5, 10, 5)
-                
         # 3D View Area
         if PYVISTA_AVAILABLE:
             self.setup_pyvista_view(view_layout)
@@ -157,15 +141,28 @@ class ModelTab(QWidget):
         print("✅ ModelTab UI setup completed")
 
     def setup_pyvista_view(self, layout):
-        """Setup PyVista 3D view with enhanced solar capabilities and freeze prevention"""
+        """ENHANCED: Setup PyVista 3D view with advanced features"""
         try:
             # Create PyVista plotter widget with advanced features
             self.plotter = QtInteractor(layout.parent())
             self.plotter.setMinimumHeight(500)
             
+            # CRITICAL: Set reference to this ModelTab for roof system finding
+            self.plotter.model_tab = self
+            
             # Enable advanced rendering features for enhanced sun
-            self.plotter.enable_shadows()
-            self.plotter.enable_anti_aliasing()
+            if hasattr(self.plotter, 'enable_shadows'):
+                self.plotter.enable_shadows()
+                print("✅ Shadows enabled")
+            
+            if hasattr(self.plotter, 'enable_anti_aliasing'):
+                self.plotter.enable_anti_aliasing()
+                print("✅ Anti-aliasing enabled")
+            
+            # Enable SSAO for better lighting
+            if hasattr(self.plotter, 'enable_ssao'):
+                self.plotter.enable_ssao(radius=0.5, bias=0.01, kernel_size=32)
+                print("✅ SSAO enabled")
             
             # Connect camera events for performance optimization
             if hasattr(self.plotter, 'iren'):
@@ -179,11 +176,12 @@ class ModelTab(QWidget):
             
             # Set up the plotter with enhanced lighting
             self.plotter.set_background('#87CEEB', top='#E6F3FF')  # Sky gradient
-            self.plotter.show_axes()
-            self.plotter.show_grid()
             
-            # Add ground plane for shadows
-            self._add_ground_plane()
+            # Add axes and grid
+            if hasattr(self.plotter, 'show_axes'):
+                self.plotter.show_axes()
+            if hasattr(self.plotter, 'show_grid'):
+                self.plotter.show_grid()
             
             # Store reference to the VTK widget
             self.vtk_widget = self.plotter.interactor
@@ -212,25 +210,6 @@ class ModelTab(QWidget):
         if self.enhanced_sun_system:
             self.enhanced_sun_system.set_interactive_mode(False)
         print("📷 Camera interaction ended")
-
-    def _add_ground_plane(self):
-        """Add ground plane for realistic shadows"""
-        try:
-            ground_plane = pv.Plane(
-                center=(0, 0, -0.01),
-                direction=(0, 0, 1),
-                i_size=40,
-                j_size=40
-            )
-            self.plotter.add_mesh(
-                ground_plane,
-                color='#90EE90',  # Light green grass color
-                opacity=0.8,
-                name='ground_plane',
-                smooth_shading=True
-            )
-        except Exception as e:
-            print(f"⚠️ Could not add ground plane: {e}")
 
     def setup_fallback_3d_view(self, layout):
         """Setup fallback 3D view placeholder"""
@@ -267,7 +246,7 @@ Current status: Fallback mode
         print("⚠️ Using fallback 3D view")
 
     def _initialize_solar_systems(self):
-        """Initialize solar system modules - FIXED"""
+        """ENHANCED: Initialize solar system modules"""
         try:
             if not self.plotter:
                 print("⚠️ No plotter available for solar system initialization")
@@ -282,6 +261,10 @@ Current status: Fallback mode
             if ENHANCED_SUN_AVAILABLE:
                 try:
                     self.enhanced_sun_system = EnhancedRealisticSunSystem(self.plotter)
+                    
+                    # CRITICAL: Set global reference for roof finding
+                    import sys
+                    sys.modules[__name__]._global_sun_system = self.enhanced_sun_system
                     
                     # Set initial quality level
                     self.enhanced_sun_system.set_quality_level(self.quality_level)
@@ -302,6 +285,8 @@ Current status: Fallback mode
                     
                 except Exception as e:
                     print(f"❌ Failed to initialize EnhancedRealisticSunSystem: {e}")
+                    import traceback
+                    traceback.print_exc()
                     self.enhanced_sun_system = None
             else:
                 print("⚠️ EnhancedRealisticSunSystem module not available")
@@ -313,6 +298,156 @@ Current status: Fallback mode
             print(f"❌ Solar system initialization failed: {e}")
             import traceback
             traceback.print_exc()
+
+    def _calculate_initial_sun_position(self):
+        """Calculate initial sun position"""
+        try:
+            if SOLAR_CALCULATIONS_AVAILABLE:
+                self.sun_position = self.solar_calculations.calculate_sun_position(
+                    self.current_time,
+                    self.current_day,
+                    self.latitude
+                )
+                print(f"✅ Initial sun position calculated: {self.sun_position}")
+            else:
+                # Fallback calculation
+                self.sun_position = [30, 30, 30]
+                print("⚠️ Using fallback sun position")
+                
+        except Exception as e:
+            print(f"❌ Initial sun position calculation failed: {e}")
+            self.sun_position = [30, 30, 30]
+
+    def _update_all_solar_systems(self):
+        """ENHANCED: Update all solar systems with current parameters"""
+        try:
+            # Don't update if camera is moving
+            if self.camera_interacting:
+                print("⚠️ Skipping sun update - camera is moving")
+                return
+            
+            # Get building height if available
+            building_height = 3.0
+            if self.current_building:
+                building_height = self.current_building.get('height', 3.0)
+            
+            # Calculate new sun position
+            if SOLAR_CALCULATIONS_AVAILABLE:
+                self.sun_position = self.solar_calculations.calculate_sun_position(
+                    self.current_time,
+                    self.current_day,
+                    self.latitude,
+                    building_height
+                )
+                
+                # Update background based on time of day
+                self._update_background_for_time()
+                
+            else:
+                # Fallback sun position
+                self.sun_position = [30, 30, 30]
+            
+            # Update Enhanced Sun System - Use update_sun_position for debounced updates
+            if self.enhanced_sun_system and self.sun_position:
+                solar_settings = {
+                    'current_hour': self.current_time,
+                    'current_day': self.current_day,
+                    'latitude': self.latitude,
+                    'longitude': self.longitude,
+                    'weather_factor': self.weather_factor,
+                    'quality': self.quality_level,
+                    'shadows_enabled': self.shadows_enabled,
+                    'sunshafts_enabled': self.sunshafts_enabled
+                }
+                
+                # Use update method instead of create for debouncing
+                self.enhanced_sun_system.update_sun_position(
+                    self.sun_position, 
+                    solar_settings
+                )
+                
+                # Create building shadows if available
+                if self.current_building and self.shadows_enabled:
+                    building_bounds = self._get_building_bounds()
+                    if building_bounds:
+                        self.enhanced_sun_system.create_building_shadows(
+                            building_bounds,
+                            self.sun_position,
+                            self.weather_factor
+                        )
+            
+            # Don't print every minor update
+            if not hasattr(self, '_last_update_hour'):
+                self._last_update_hour = self.current_time
+            
+            if abs(self._last_update_hour - self.current_time) >= 0.5:
+                self._last_update_hour = self.current_time
+                print(f"✅ Solar systems updated for time {self.current_time:.1f}h")
+            
+        except Exception as e:
+            print(f"❌ Solar systems update failed: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _update_background_for_time(self):
+        """Update background color based on time of day"""
+        if not self.plotter:
+            return
+            
+        try:
+            if self.sun_position and self.sun_position[2] > 0:  # Sun above horizon
+                if 10 <= self.current_time <= 14:  # Noon
+                    bg_color = '#87CEEB'
+                    top_color = '#E6F3FF'
+                elif self.current_time < 6 or self.current_time > 20:  # Dawn/Dusk
+                    bg_color = '#FF6B35'
+                    top_color = '#4A5A8A'
+                elif self.current_time < 8 or self.current_time > 18:  # Early/Late
+                    bg_color = '#FFA500'
+                    top_color = '#87CEEB'
+                else:  # Day
+                    bg_color = '#87CEEB'
+                    top_color = '#B0E0E6'
+            else:  # Night
+                bg_color = '#0A0A1A'
+                top_color = '#1A1A3A'
+            
+            self.plotter.set_background(bg_color, top=top_color)
+            
+        except Exception as e:
+            print(f"⚠️ Error updating background: {e}")
+
+    def _get_building_bounds(self):
+        """Get building bounds for shadow calculation"""
+        try:
+            if not self.current_building:
+                return None
+            
+            points = self.current_building.get('points', [])
+            height = self.current_building.get('height', 3.0)
+            scale = self.current_building.get('scale', 0.05)
+            
+            if not points:
+                return None
+            
+            xs = []
+            ys = []
+            for point in points:
+                if hasattr(point, 'x') and hasattr(point, 'y'):
+                    x, y = point.x() * scale, point.y() * scale
+                else:
+                    x, y = point[0] * scale, point[1] * scale
+                xs.append(x)
+                ys.append(y)
+            
+            if xs and ys:
+                return [min(xs), max(xs), min(ys), max(ys), 0, height]
+            
+            return None
+            
+        except Exception as e:
+            print(f"❌ Error getting building bounds: {e}")
+            return None
 
     # ===========================================
     # SOLAR SIMULATION METHODS (Left Panel Signals)
@@ -439,146 +574,6 @@ Current status: Fallback mode
         except Exception as e:
             print(f"❌ Animation toggle failed: {e}")
 
-    # ===========================================
-    # SOLAR SYSTEM INTEGRATION METHODS
-    # ===========================================
-
-    def _calculate_initial_sun_position(self):
-        """Calculate initial sun position"""
-        try:
-            if SOLAR_CALCULATIONS_AVAILABLE:
-                self.sun_position = self.solar_calculations.calculate_sun_position(
-                    self.current_time,
-                    self.current_day,
-                    self.latitude
-                )
-                print(f"✅ Initial sun position calculated: {self.sun_position}")
-            else:
-                # Fallback calculation
-                self.sun_position = [30, 30, 30]
-                print("⚠️ Using fallback sun position")
-                
-        except Exception as e:
-            print(f"❌ Initial sun position calculation failed: {e}")
-            self.sun_position = [30, 30, 30]
-
-    def _update_all_solar_systems(self):
-        """Update all solar systems with current parameters - FIXED"""
-        try:
-            # Don't update if camera is moving
-            if self.camera_interacting:
-                print("⚠️ Skipping sun update - camera is moving")
-                return
-            
-            # Get building height if available
-            building_height = 3.0
-            if self.current_building:
-                building_height = self.current_building.get('height', 3.0)
-            
-            # Calculate new sun position
-            if SOLAR_CALCULATIONS_AVAILABLE:
-                self.sun_position = self.solar_calculations.calculate_sun_position(
-                    self.current_time,
-                    self.current_day,
-                    self.latitude,
-                    building_height
-                )
-                
-                # Update background based on time
-                if self.sun_position and self.sun_position[2] > 0:  # Sun above horizon
-                    if 10 <= self.current_time <= 14:  # Noon
-                        bg_color = '#87CEEB'
-                        top_color = '#E6F3FF'
-                    elif self.current_time < 8 or self.current_time > 18:  # Dawn/Dusk
-                        bg_color = '#FF6B35'
-                        top_color = '#4A5A8A'
-                    else:  # Day
-                        bg_color = '#87CEEB'
-                        top_color = '#B0E0E6'
-                else:  # Night
-                    bg_color = '#0A0A1A'
-                    top_color = '#1A1A3A'
-                
-                if self.plotter:
-                    self.plotter.set_background(bg_color, top=top_color)
-            else:
-                # Fallback sun position
-                self.sun_position = [30, 30, 30]
-            
-            # Update Enhanced Sun System - Use update_sun_position for debounced updates
-            if self.enhanced_sun_system and self.sun_position:
-                solar_settings = {
-                    'current_hour': self.current_time,
-                    'current_day': self.current_day,
-                    'latitude': self.latitude,
-                    'longitude': self.longitude,
-                    'weather_factor': self.weather_factor,
-                    'quality': self.quality_level,
-                    'shadows_enabled': self.shadows_enabled,
-                    'sunshafts_enabled': self.sunshafts_enabled
-                }
-                
-                # Use update method instead of create for debouncing
-                self.enhanced_sun_system.update_sun_position(
-                    self.sun_position, 
-                    solar_settings
-                )
-                
-                # Create building shadows if available
-                if self.current_building and self.shadows_enabled:
-                    building_bounds = self._get_building_bounds()
-                    if building_bounds:
-                        self.enhanced_sun_system.create_building_shadows(
-                            building_bounds,
-                            self.sun_position,
-                            self.weather_factor
-                        )
-            
-            # Don't print every minor update
-            if not hasattr(self, '_last_update_hour'):
-                self._last_update_hour = self.current_time
-            
-            if abs(self._last_update_hour - self.current_time) >= 0.5:
-                self._last_update_hour = self.current_time
-                print(f"✅ Solar systems updated for time {self.current_time:.1f}h")
-            
-        except Exception as e:
-            print(f"❌ Solar systems update failed: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def _get_building_bounds(self):
-        """Get building bounds for shadow calculation"""
-        try:
-            if not self.current_building:
-                return None
-            
-            points = self.current_building.get('points', [])
-            height = self.current_building.get('height', 3.0)
-            scale = self.current_building.get('scale', 0.05)
-            
-            if not points:
-                return None
-            
-            xs = []
-            ys = []
-            for point in points:
-                if hasattr(point, 'x') and hasattr(point, 'y'):
-                    x, y = point.x() * scale, point.y() * scale
-                else:
-                    x, y = point[0] * scale, point[1] * scale
-                xs.append(x)
-                ys.append(y)
-            
-            if xs and ys:
-                return [min(xs), max(xs), min(ys), max(ys), 0, height]
-            
-            return None
-            
-        except Exception as e:
-            print(f"❌ Error getting building bounds: {e}")
-            return None
-
     def _animate_solar_position(self):
         """Animate solar position over time"""
         try:
@@ -603,7 +598,7 @@ Current status: Fallback mode
     # ===========================================
 
     def create_building(self, points, height=3.0, roof_type='flat', roof_pitch=30.0, scale=0.05):
-        """Create building in 3D view with enhanced solar features"""
+        """ENHANCED: Create building in 3D view with enhanced solar features"""
         try:
             print(f"🏗️ Creating building with {len(points)} points, {roof_type} roof")
             
@@ -611,13 +606,17 @@ Current status: Fallback mode
                 print("❌ Invalid points for building creation")
                 return False
             
-            # Clear existing building
+            # Clear existing building but preserve sun system
             if self.plotter:
-                self.plotter.clear()
+                # Remove building-specific actors but keep sun system
+                self._clear_building_actors()
+                
+                # Reset background and basic elements
                 self.plotter.set_background('#87CEEB', top='#E6F3FF')
-                self.plotter.show_axes()
-                self.plotter.show_grid()
-                self._add_ground_plane()
+                if hasattr(self.plotter, 'show_axes'):
+                    self.plotter.show_axes()
+                if hasattr(self.plotter, 'show_grid'):
+                    self.plotter.show_grid()
             
             # Create building data
             building_data = {
@@ -632,13 +631,6 @@ Current status: Fallback mode
             # Store building
             self.current_building = building_data
             
-            # Add building to 3D view
-            if self.plotter:
-                success = self._add_building_to_plotter(building_data)
-                if not success:
-                    print("❌ Building creation failed")
-                    return False
-            
             # Create roof object based on type
             self._create_roof_object(roof_type, points, height, scale)
             
@@ -650,16 +642,49 @@ Current status: Fallback mode
             
             print("✅ Building created successfully")
             
+            
+            if hasattr(self, 'test_shadows_immediately'):
+                QTimer.singleShot(1000, self.test_shadows_immediately)
+                
             return True
             
+
         except Exception as e:
             print(f"❌ Building creation failed: {e}")
             import traceback
             traceback.print_exc()
             return False
+    
+    def _clear_building_actors(self):
+        """Clear building-specific actors but preserve sun system"""
+        try:
+            # Clear mesh lists
+            self.building_meshes.clear()
+            self.roof_meshes.clear()
+            self.panel_meshes.clear()
+            
+            # Remove building-specific actors
+            actors_to_remove = []
+            for name in self.plotter.renderer.actors:
+                if hasattr(name, 'name'):
+                    actor_name = str(name.name).lower()
+                    if any(keyword in actor_name for keyword in 
+                           ['wall', 'roof', 'foundation', 'building', 'panel']):
+                        actors_to_remove.append(name)
+            
+            for actor in actors_to_remove:
+                try:
+                    self.plotter.remove_actor(actor)
+                except:
+                    pass
+            
+            print("✅ Building actors cleared")
+            
+        except Exception as e:
+            print(f"⚠️ Error clearing building actors: {e}")
 
     def _create_roof_object(self, roof_type, points, height, scale):
-        """Create roof object based on type"""
+        """ENHANCED: Create roof object based on type"""
         try:
             base_points = []
             for point in points:
@@ -668,6 +693,15 @@ Current status: Fallback mode
                 else:
                     x, y = point[0] * scale, point[1] * scale
                 base_points.append([x, y, 0])
+            
+            # Cleanup previous roof
+            if hasattr(self, 'current_roof') and self.current_roof:
+                try:
+                    if hasattr(self.current_roof, 'cleanup'):
+                        self.current_roof.cleanup()
+                    del self.current_roof
+                except:
+                    pass
             
             if roof_type == 'pyramid':
                 from roofs.concrete.pyramid_roof import PyramidRoof
@@ -681,27 +715,35 @@ Current status: Fallback mode
                 
             elif roof_type == 'gable':
                 from roofs.concrete.gable_roof import GableRoof
+                # Calculate dimensions from base points
+                if len(base_points) >= 4:
+                    length = abs(base_points[1][1] - base_points[0][1])
+                    width = abs(base_points[2][0] - base_points[1][0])
+                    dimensions = (length, width, height)
+                else:
+                    dimensions = (10.0, 8.0, height)
+                
                 self.current_roof = GableRoof(
                     plotter=self.plotter,
-                    base_points=base_points[:4],
-                    ridge_height=height,
-                    building_height=0
+                    dimensions=dimensions,
+                    theme="light",
+                    rotation_angle=0
                 )
                 print("✅ Created GableRoof object")
                 
             elif roof_type == 'flat':
                 from roofs.concrete.flat_roof import FlatRoof
-                base_points = []
+                roof_points = []
                 for point in points:
                     if hasattr(point, 'x') and hasattr(point, 'y'):
                         x, y = point.x() * scale, point.y() * scale
                     else:
                         x, y = point[0] * scale, point[1] * scale
-                    base_points.append([x, y, height])
+                    roof_points.append([x, y, height])
                 
                 self.current_roof = FlatRoof(
                     plotter=self.plotter,
-                    base_points=base_points,
+                    base_points=roof_points,
                     building_height=height
                 )
                 print("✅ Created FlatRoof object")
@@ -709,95 +751,23 @@ Current status: Fallback mode
             else:
                 print(f"⚠️ Roof type '{roof_type}' not implemented")
                 self.current_roof = None
+            
+            # Register roof with sun system
+            if self.current_roof and self.enhanced_sun_system:
+                # Get roof meshes and register them
+                if hasattr(self.current_roof, 'mesh_cache'):
+                    for mesh_name, mesh in self.current_roof.mesh_cache.items():
+                        self.enhanced_sun_system.register_scene_object(
+                            mesh, f"roof_{mesh_name}", cast_shadow=True
+                        )
+                
+            self.roof_generated.emit(self.current_roof)
                 
         except Exception as e:
             print(f"❌ Error creating roof object: {e}")
             import traceback
             traceback.print_exc()
             self.current_roof = None
-
-    def _add_building_to_plotter(self, building_data):
-        """Add building geometry to PyVista plotter"""
-        try:
-            if not self.plotter:
-                return False
-            
-            points = building_data['points']
-            height = building_data['height']
-            scale = building_data['scale']
-            
-            # Convert points to 3D coordinates
-            vertices = []
-            for point in points:
-                if hasattr(point, 'x') and hasattr(point, 'y'):
-                    x, y = point.x() * scale, point.y() * scale
-                else:
-                    x, y = point[0] * scale, point[1] * scale
-                vertices.append([x, y, 0])  # Base
-                vertices.append([x, y, height])  # Top
-            
-            # Create building visualization
-            if len(vertices) > 0:
-                vertices_array = np.array(vertices)
-                
-                # Add building points
-                self.plotter.add_points(
-                    vertices_array,
-                    color='red',
-                    point_size=8,
-                    render_points_as_spheres=True
-                )
-                
-                # Add building outline
-                base_points = vertices_array[::2]
-                if len(base_points) > 2:
-                    # Create building walls
-                    self._create_building_walls(base_points, height)
-            
-            # Reset camera
-            self.plotter.reset_camera()
-            
-            print("✅ Building added to 3D view")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Adding building to plotter failed: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    def _create_building_walls(self, base_points, height):
-        """Create building walls"""
-        try:
-            # Create walls as surfaces
-            for i in range(len(base_points)):
-                next_i = (i + 1) % len(base_points)
-                
-                # Wall vertices
-                wall_verts = np.array([
-                    [base_points[i][0], base_points[i][1], 0],
-                    [base_points[next_i][0], base_points[next_i][1], 0],
-                    [base_points[next_i][0], base_points[next_i][1], height],
-                    [base_points[i][0], base_points[i][1], height]
-                ])
-                
-                # Create wall surface
-                wall = pv.PolyData(wall_verts)
-                wall.faces = np.array([4, 0, 1, 2, 3])
-                
-                wall_actor = self.plotter.add_mesh(
-                    wall,
-                    color='#8B7355',  # Building color
-                    opacity=0.9,
-                    smooth_shading=True,
-                    name=f'wall_{i}'
-                )
-                
-                if wall_actor:
-                    self.building_meshes.append(wall_actor)
-                    
-        except Exception as e:
-            print(f"⚠️ Error creating building walls: {e}")
 
     # ===========================================
     # UTILITY METHODS
@@ -843,7 +813,8 @@ Current status: Fallback mode
             print("🔄 Refreshing 3D view")
             
             if self.plotter:
-                self.plotter.update()
+                if hasattr(self.plotter, 'update'):
+                    self.plotter.update()
                 if hasattr(self.plotter, 'reset_camera'):
                     self.plotter.reset_camera()
                 
@@ -859,16 +830,10 @@ Current status: Fallback mode
         """Reset the plotter to clean state"""
         try:
             if PYVISTA_AVAILABLE and self.plotter:
-                # Clear all actors
-                self.plotter.clear()
+                # Clear building actors but preserve sun system
+                self._clear_building_actors()
                 
-                # Clear mesh lists
-                self.building_meshes.clear()
-                self.roof_meshes.clear()
-                self.panel_meshes.clear()
-                self.shadow_actors.clear()
-                
-                # Clear enhanced sun system
+                # Recreate enhanced sun system
                 if self.enhanced_sun_system:
                     self.enhanced_sun_system.destroy()
                     self.enhanced_sun_system = EnhancedRealisticSunSystem(self.plotter)
@@ -876,9 +841,10 @@ Current status: Fallback mode
                 
                 # Reset background and basic elements
                 self.plotter.set_background('#87CEEB', top='#E6F3FF')
-                self.plotter.show_axes()
-                self.plotter.show_grid()
-                self._add_ground_plane()
+                if hasattr(self.plotter, 'show_axes'):
+                    self.plotter.show_axes()
+                if hasattr(self.plotter, 'show_grid'):
+                    self.plotter.show_grid()
                 
                 # Reset camera
                 if camera_position:
@@ -916,9 +882,12 @@ Current status: Fallback mode
             # Cleanup enhanced sun system
             if self.enhanced_sun_system:
                 self.enhanced_sun_system.destroy()
+                self.enhanced_sun_system = None
 
             # Clear current roof
             if hasattr(self, 'current_roof') and self.current_roof:
+                if hasattr(self.current_roof, 'cleanup'):
+                    self.current_roof.cleanup()
                 del self.current_roof
                 self.current_roof = None
             
@@ -928,6 +897,11 @@ Current status: Fallback mode
             self.panel_meshes.clear()
             self.shadow_actors.clear()
             self.current_building = None
+            
+            # Clear global reference
+            import sys
+            if hasattr(sys.modules[__name__], '_global_sun_system'):
+                delattr(sys.modules[__name__], '_global_sun_system')
             
             # Close plotter
             if PYVISTA_AVAILABLE and self.plotter:
@@ -969,3 +943,42 @@ Current status: Fallback mode
         except Exception as e:
             print(f"❌ Time range calculation failed: {e}")
             return 6.0, 18.0
+        
+    def test_shadows_immediately(self):
+        """DEBUGGING: Test shadows immediately"""
+        try:
+            print("🐛 TESTING SHADOWS IMMEDIATELY...")
+            
+            if not self.enhanced_sun_system:
+                print("❌ No enhanced sun system available")
+                return False
+            
+            # Force building center and dimensions
+            self.enhanced_sun_system.set_building_center([0, 0, 0])
+            self.enhanced_sun_system.set_building_dimensions(8.0, 10.0, 3.0, 4.0)
+            
+            # Force sun update with high elevation
+            test_sun_position = [20, 20, 30]
+            test_settings = {
+                'sun_elevation': 60.0,
+                'sun_azimuth': 180.0,
+                'current_hour': 12.0,
+                'weather_factor': 1.0
+            }
+            
+            print(f"🐛 Forcing sun update with: {test_sun_position}")
+            self.enhanced_sun_system.create_photorealistic_sun(test_sun_position, test_settings)
+            
+            # Force render
+            if self.plotter:
+                self.plotter.render()
+                print("✅ Forced render completed")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Shadow test failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+        

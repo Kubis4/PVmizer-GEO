@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 roofs/base/base_roof.py
-COMPLETE FIXED: BaseRoof with proper lighting for walls and all elements
+COMPLETE FIXED: BaseRoof with proper ground level coordination for shadows
 """
 from abc import ABC, abstractmethod
 import pyvista as pv
@@ -17,10 +17,10 @@ from roofs.roof_obstacle import RoofObstacle
 from .resource_utils import resource_path
 
 class BaseRoof(ABC):
-    """Base class with proper lighting for sun system compatibility"""
+    """FIXED: Base class with proper ground level coordination for shadows"""
     
     def __init__(self, plotter=None, dimensions=None, theme="light"):
-        """Initialize roof with sun-compatible lighting"""
+        """Initialize roof with proper ground coordination"""
         print("\nDEBUG: BaseRoof.__init__ starting")
         print(f"DEBUG: Called from: {self.__class__.__name__}")
         
@@ -33,6 +33,9 @@ class BaseRoof(ABC):
         self.environment_obstacles = []
         self.environment_attachment_points = []
         self.tree_type_index = 0
+        
+        # CRITICAL: Ground level coordination
+        self.grass_ground_level = -0.05  # FIXED: Standard grass level
         
         # Building rotation tracking
         self.building_rotation_angle = 0
@@ -63,8 +66,8 @@ class BaseRoof(ABC):
         # Setup textures
         self._setup_textures()
         
-        # Create grass ground with proper lighting
-        self._create_sun_compatible_grass_ground()
+        # Create grass ground with proper coordination
+        self._create_coordinated_grass_ground()
         
         # Create environment attachment points
         self._create_environment_attachment_points()
@@ -117,18 +120,22 @@ class BaseRoof(ABC):
         print(f"✅ Plotter initialized: {type(self.plotter)}")
     
     def _find_sun_system(self):
-        """Try to find the sun system through various paths"""
+        """ENHANCED: Try to find the sun system through various paths"""
         try:
             # Method 1: Through plotter parent chain
             if hasattr(self.plotter, 'parent'):
                 parent = self.plotter.parent()
-                # Check each level of parent hierarchy
                 current = parent
                 for _ in range(5):  # Check up to 5 levels
                     if current:
                         if hasattr(current, 'enhanced_sun_system'):
                             self.sun_system = current.enhanced_sun_system
                             print("✅ Found sun system via parent chain")
+                            return
+                        # Also check for model_tab reference
+                        if hasattr(current, 'model_tab') and hasattr(current.model_tab, 'enhanced_sun_system'):
+                            self.sun_system = current.model_tab.enhanced_sun_system
+                            print("✅ Found sun system via model_tab")
                             return
                         if hasattr(current, 'parent'):
                             current = current.parent()
@@ -145,12 +152,31 @@ class BaseRoof(ABC):
             # Method 3: Through interactor
             if hasattr(self.plotter, 'iren'):
                 if hasattr(self.plotter.iren, '_parent'):
-                    if hasattr(self.plotter.iren._parent, 'enhanced_sun_system'):
-                        self.sun_system = self.plotter.iren._parent.enhanced_sun_system
+                    parent = self.plotter.iren._parent
+                    if hasattr(parent, 'enhanced_sun_system'):
+                        self.sun_system = parent.enhanced_sun_system
                         print("✅ Found sun system via interactor")
                         return
+                    # Check parent's parent
+                    if hasattr(parent, 'parent') and parent.parent():
+                        grandparent = parent.parent()
+                        if hasattr(grandparent, 'enhanced_sun_system'):
+                            self.sun_system = grandparent.enhanced_sun_system
+                            print("✅ Found sun system via grandparent")
+                            return
+                        if hasattr(grandparent, 'model_tab') and hasattr(grandparent.model_tab, 'enhanced_sun_system'):
+                            self.sun_system = grandparent.model_tab.enhanced_sun_system
+                            print("✅ Found sun system via grandparent.model_tab")
+                            return
             
-            print("⚠️ No sun system found - shadows may not work")
+            # Method 4: Global registry approach (if available)
+            import sys
+            if hasattr(sys.modules[__name__], '_global_sun_system'):
+                self.sun_system = sys.modules[__name__]._global_sun_system
+                print("✅ Found sun system via global registry")
+                return
+            
+            print("⚠️ No sun system found - shadows may not work optimally")
             
         except Exception as e:
             print(f"⚠️ Error finding sun system: {e}")
@@ -185,20 +211,50 @@ class BaseRoof(ABC):
         self.default_bark_color = "#B08060"
 
     def add_sun_compatible_mesh(self, mesh, **kwargs):
-        """Add mesh with proper lighting parameters for sun system"""
+        """REALISTIC: Add mesh with proper material properties"""
         # FORCE proper lighting parameters
         kwargs['lighting'] = True
         kwargs['smooth_shading'] = True
         
-        # Set material properties with higher ambient for walls
-        if 'wall' in kwargs.get('name', '').lower():
-            kwargs.setdefault('ambient', 0.4)  # Higher for walls
-        else:
-            kwargs.setdefault('ambient', 0.3)
+        # REALISTIC material properties based on surface type
+        mesh_name = kwargs.get('name', '').lower()
         
-        kwargs.setdefault('diffuse', 0.8)
-        kwargs.setdefault('specular', 0.2)
-        kwargs.setdefault('specular_power', 10)
+        if 'foundation' in mesh_name:
+            # Concrete foundation - low reflectivity
+            kwargs.setdefault('ambient', 0.25)   # REDUCED
+            kwargs.setdefault('diffuse', 0.75)   # REDUCED
+            kwargs.setdefault('specular', 0.05)  # VERY LOW
+            kwargs.setdefault('specular_power', 3)
+        elif 'wall' in mesh_name:
+            # Brick walls - moderate reflectivity
+            kwargs.setdefault('ambient', 0.3)    # REDUCED
+            kwargs.setdefault('diffuse', 0.8)    # Good diffuse reflection
+            kwargs.setdefault('specular', 0.05)  # VERY LOW (brick is not shiny)
+            kwargs.setdefault('specular_power', 2)
+        elif 'roof' in mesh_name or 'slope' in mesh_name:
+            # Roof tiles - moderate reflectivity
+            kwargs.setdefault('ambient', 0.25)   # REDUCED
+            kwargs.setdefault('diffuse', 0.85)   # Good for roof tiles
+            kwargs.setdefault('specular', 0.1)   # Slightly reflective
+            kwargs.setdefault('specular_power', 8)
+        elif 'gable' in mesh_name:
+            # Gable triangles - same as walls
+            kwargs.setdefault('ambient', 0.35)   # Slightly higher for visibility
+            kwargs.setdefault('diffuse', 0.8)
+            kwargs.setdefault('specular', 0.05)
+            kwargs.setdefault('specular_power', 2)
+        elif 'ground' in mesh_name:
+            # Ground plane - optimized for shadow receiving
+            kwargs.setdefault('ambient', 0.4)    # Higher for better visibility
+            kwargs.setdefault('diffuse', 0.9)    # High for shadow contrast
+            kwargs.setdefault('specular', 0.0)   # No specularity for grass
+            kwargs.setdefault('specular_power', 1)
+        else:
+            # Default realistic materials
+            kwargs.setdefault('ambient', 0.2)    # MUCH LOWER default
+            kwargs.setdefault('diffuse', 0.8)
+            kwargs.setdefault('specular', 0.1)
+            kwargs.setdefault('specular_power', 5)
         
         # Add mesh
         actor = self.plotter.add_mesh(mesh, **kwargs)
@@ -207,35 +263,38 @@ class BaseRoof(ABC):
         if self.sun_system and hasattr(self.sun_system, 'register_scene_object'):
             name = kwargs.get('name', 'unnamed')
             self.sun_system.register_scene_object(mesh, name, cast_shadow=True)
+            print(f"✅ Registered '{name}' with realistic materials")
         
         return actor
 
-    def _create_sun_compatible_grass_ground(self):
-        """Create grass ground with proper lighting"""
+    def _create_coordinated_grass_ground(self):
+        """FIXED: Create grass ground with coordinated level for shadows"""
         try:
             ground_size = self.ground_size
-            z_level = -0.1
+            z_level = self.grass_ground_level  # Use coordinated level
             
-            # Create ground mesh
-            resolution = 80
+            print(f"🌱 Creating grass ground at level: {z_level:.3f}")
+            
+            # Create ground mesh with better resolution for shadow receiving
+            resolution = 120  # Higher resolution for better shadows
             x = np.linspace(-ground_size/2, ground_size/2, resolution)
             y = np.linspace(-ground_size/2, ground_size/2, resolution)
             x, y = np.meshgrid(x, y)
             
-            # Subtle terrain variation
+            # Minimal terrain variation to avoid shadow issues
             z = np.ones_like(x) * z_level
-            z += np.random.normal(0, 0.001, z.shape)
+            z += np.random.normal(0, 0.001, z.shape)  # Very minimal variation
             
             # Create mesh
             points = np.c_[x.ravel(), y.ravel(), z.ravel()]
             self.ground_mesh = pv.PolyData(points)
             self.ground_mesh = self.ground_mesh.delaunay_2d()
             
-            # Compute normals for proper lighting
+            # CRITICAL: Compute normals for proper lighting and shadow receiving
             self.ground_mesh.compute_normals(inplace=True, auto_orient_normals=True)
             
             # Generate texture coordinates
-            texture_scale = 8.0
+            texture_scale = 12.0  # Good scale for detail
             texture_coords = np.zeros((self.ground_mesh.n_points, 2))
             for i in range(self.ground_mesh.n_points):
                 point = self.ground_mesh.points[i]
@@ -251,29 +310,35 @@ class BaseRoof(ABC):
                 self.default_grass_color
             )
             
-            # Add with proper lighting
+            # FIXED: Add with shadow-optimized lighting
             if texture_loaded:
                 self.add_sun_compatible_mesh(
                     self.ground_mesh,
                     texture=grass_texture,
-                    name="ground_plane"
+                    name="ground_plane",
+                    ambient=0.4,   # Higher for shadow contrast
+                    diffuse=0.9,   # Very high for shadow visibility
+                    specular=0.0   # No specularity for grass
                 )
             else:
                 self.add_sun_compatible_mesh(
                     self.ground_mesh,
                     color=self.default_grass_color,
-                    name="ground_plane"
+                    name="ground_plane",
+                    ambient=0.4,   # Higher for shadow contrast
+                    diffuse=0.9,   # Very high for shadow visibility
+                    specular=0.0   # No specularity for grass
                 )
             
-            print(f"✅ Sun-compatible grass ground created")
+            print(f"✅ Coordinated grass ground created at {z_level:.3f}")
             
         except Exception as e:
-            print(f"❌ Error creating grass ground: {e}")
+            print(f"❌ Error creating coordinated grass ground: {e}")
             import traceback
             traceback.print_exc()
 
     def create_building_walls(self, base_points, height):
-        """Create building walls with FIXED LIGHTING"""
+        """Create building walls with ENHANCED LIGHTING"""
         try:
             print(f"🏗️ Creating {len(base_points)} walls with height {height}")
             
@@ -291,7 +356,7 @@ class BaseRoof(ABC):
                     pass
             self.house_walls.clear()
             
-            # Create each wall with PROPER LIGHTING
+            # Create each wall with ENHANCED LIGHTING
             for i in range(len(base_points)):
                 next_i = (i + 1) % len(base_points)
                 
@@ -310,38 +375,43 @@ class BaseRoof(ABC):
                 # CRITICAL: Compute normals for proper lighting
                 wall.compute_normals(inplace=True, auto_orient_normals=True)
                 
-                # Add wall with FORCED LIGHTING
-                wall_actor = self.plotter.add_mesh(
-                    wall,
-                    texture=wall_texture if wall_loaded else None,
-                    color="#8B4513" if not wall_loaded else None,
-                    name=f'building_wall_{i}',
-                    lighting=True,  # FORCE lighting
-                    smooth_shading=True,
-                    ambient=0.4,  # HIGH ambient for visibility
-                    diffuse=0.8,
-                    specular=0.15,
-                    specular_power=10
-                )
+                # Add texture coordinates for walls
+                wall_length = np.linalg.norm(np.array(base_points[next_i]) - np.array(base_points[i]))
+                texture_coords = np.array([
+                    [0, 0],  # Bottom left
+                    [wall_length, 0],  # Bottom right
+                    [wall_length, height],  # Top right
+                    [0, height]  # Top left
+                ])
+                wall.active_t_coords = texture_coords
+                
+                # Add wall with sun-compatible lighting
+                if wall_loaded:
+                    wall_actor = self.add_sun_compatible_mesh(
+                        wall,
+                        texture=wall_texture,
+                        name=f'building_wall_{i}'
+                    )
+                else:
+                    wall_actor = self.add_sun_compatible_mesh(
+                        wall,
+                        color="#8B4513",
+                        name=f'building_wall_{i}'
+                    )
                 
                 if wall_actor:
                     self.house_walls.append(wall_actor)
-                    
-                    # Register with sun system
-                    if self.sun_system:
-                        self.sun_system.register_scene_object(
-                            wall, f'building_wall_{i}', cast_shadow=True
-                        )
             
             # Store base points for later use
             self.base_points = base_points
             
-            print(f"✅ Created {len(self.house_walls)} walls with proper lighting")
+            print(f"✅ Created {len(self.house_walls)} walls with enhanced lighting")
             
         except Exception as e:
             print(f"❌ Error creating walls: {e}")
             import traceback
             traceback.print_exc()
+
 
     def _create_environment_attachment_points(self):
         """Create attachment points around the building"""
@@ -1165,7 +1235,6 @@ class BaseRoof(ABC):
         """Generate attachment points for obstacle placement"""
         pass
 
-    # ==================== TEMPLATE METHOD ====================
     def initialize_roof(self, dimensions):
         """Initialize roof with proper lighting"""
         # Store dimensions
@@ -1192,4 +1261,4 @@ class BaseRoof(ABC):
         except Exception as e:
             print(f"⚠️ Could not set camera view: {e}")
 
-        print(f"🏠 {self.__class__.__name__} initialized with sun-compatible lighting")
+        print(f"🏠 {self.__class__.__name__} initialized with coordinated ground lighting")
