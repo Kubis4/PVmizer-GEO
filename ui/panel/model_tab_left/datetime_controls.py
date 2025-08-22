@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ui/panel/model_tab_left/datetime_controls.py
-COMPLETE with enhanced solar simulation integration
+CLEANED - No hardcoded styles
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QGroupBox, QPushButton, QSpinBox, QComboBox)
@@ -12,22 +12,6 @@ import calendar
 import time
 
 try:
-    from styles.ui_styles import (
-        get_model3d_groupbox_style,
-        get_model3d_label_style,
-        get_model3d_button_style,
-        get_model3d_scrollbar_style,
-        get_model3d_time_label_style,
-        get_model3d_sun_info_label_style,
-        get_model3d_spinbox_style,
-        get_model3d_combobox_style
-    )
-    STYLES_AVAILABLE = True
-except ImportError:
-    STYLES_AVAILABLE = False
-    print("⚠️ Styles not available for DateTimeControls")
-
-try:
     from solar_system.solar_calculations import SolarCalculations
     SOLAR_CALC_AVAILABLE = True
 except ImportError:
@@ -36,7 +20,7 @@ except ImportError:
 
 
 class ArcSlider(QWidget):
-    """Arc slider for time control with proper opaque background"""
+    """Arc slider for time control"""
     
     valueChanged = pyqtSignal(int)
     
@@ -58,15 +42,6 @@ class ArcSlider(QWidget):
         
         # Enable mouse tracking for smoother interaction
         self.setMouseTracking(True)
-        
-        # Set solid background via stylesheet
-        self.setStyleSheet("""
-            ArcSlider {
-                background-color: #34495e;
-                border: 1px solid #2c3e50;
-                border-radius: 6px;
-            }
-        """)
         
         # Set proper background
         self.setAutoFillBackground(True)
@@ -102,13 +77,13 @@ class ArcSlider(QWidget):
         return self._value
     
     def paintEvent(self, event):
-        """Paint with proper opaque background"""
+        """Paint arc slider"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Fill entire widget with solid background color
+        # Fill entire widget with dark background
         widget_rect = self.rect()
-        painter.fillRect(widget_rect, QColor("#34495e"))
+        painter.fillRect(widget_rect, QColor("#1a2632"))
         
         # Cache frequently used values
         width = self.width()
@@ -262,7 +237,7 @@ class DateTimeControls(QWidget):
         
         # Reference to solar systems
         self.solar_viz = None
-        self.solar_simulation = None  # NEW: Enhanced solar simulation
+        self.solar_simulation = None
         self.model_tab = None
         
         # Default location (Nitra, Slovakia)
@@ -289,7 +264,6 @@ class DateTimeControls(QWidget):
         self.time_container = None
         
         self.setup_ui()
-        self.apply_styling()
         
     def setup_ui(self):
         """Setup the date/time UI"""
@@ -339,6 +313,7 @@ class DateTimeControls(QWidget):
         time_layout.setContentsMargins(10, 10, 10, 10)
         
         self.time_label = QLabel("12:00")
+        self.time_label.setObjectName("timeLabel")  # For yellow styling
         self.time_label.setAlignment(Qt.AlignCenter)
         time_layout.addWidget(self.time_label)
         
@@ -395,161 +370,17 @@ class DateTimeControls(QWidget):
         self._calculate_sun_position()
         self._update_hemisphere()
     
-    def apply_styling(self):
-        """Apply custom styling"""
-        try:
-            # Group box style
-            self.group_box.setStyleSheet("""
-                QGroupBox {
-                    background-color: #34495e;
-                    border: 2px solid #3498db;
-                    border-radius: 8px;
-                    margin-top: 10px;
-                    padding-top: 15px;
-                    font-weight: bold;
-                    color: #ffffff;
-                }
-                QGroupBox::title {
-                    subcontrol-origin: margin;
-                    subcontrol-position: top center;
-                    padding: 0 10px;
-                    color: #3498db;
-                    background-color: #34495e;
-                }
-            """)
-            
-            # Time container style
-            self.time_container.setStyleSheet("""
-                QWidget {
-                    background-color: #2c3e50;
-                    border-radius: 8px;
-                    padding: 5px;
-                }
-            """)
-            
-            # Time label
-            self.time_label.setStyleSheet("""
-                QLabel {
-                    font-weight: bold;
-                    color: #3498db;
-                    font-size: 28px;
-                    background-color: transparent;
-                    padding: 2px;
-                }
-            """)
-            
-            # Position labels
-            self.azimuth_label.setStyleSheet("""
-                QLabel {
-                    color: #3498db;
-                    font-weight: bold;
-                    font-size: 14px;
-                    background-color: transparent;
-                }
-            """)
-            self.elevation_label.setStyleSheet("""
-                QLabel {
-                    color: #f39c12;
-                    font-weight: bold;
-                    font-size: 14px;
-                    background-color: transparent;
-                }
-            """)
-            
-            # Separator
-            for label in self.findChildren(QLabel):
-                if label.text() == "|":
-                    label.setStyleSheet("color: #7f8c8d; font-size: 14px; background-color: transparent;")
-            
-            # Sun info labels
-            self.sunrise_label.setStyleSheet("color: #f39c12; font-size: 12px; font-weight: bold; background-color: transparent;")
-            self.sunset_label.setStyleSheet("color: #e74c3c; font-size: 12px; font-weight: bold; background-color: transparent;")
-            self.day_length_label.setStyleSheet("color: #95a5a6; font-size: 11px; background-color: transparent;")
-            
-            # Date label
-            for label in self.findChildren(QLabel):
-                if label.text() == "Date:":
-                    label.setStyleSheet("color: #ffffff; background-color: transparent;")
-            
-            # Button style
-            self.animation_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #3498db;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px;
-                    font-weight: bold;
-                    font-size: 12px;
-                }
-                QPushButton:hover {
-                    background-color: #2980b9;
-                }
-                QPushButton:checked {
-                    background-color: #e74c3c;
-                }
-                QPushButton:pressed {
-                    background-color: #21618c;
-                }
-            """)
-            
-            # Spinbox and combobox
-            self.day_spin.setStyleSheet("""
-                QSpinBox {
-                    background-color: #2c3e50;
-                    color: white;
-                    border: 1px solid #3498db;
-                    border-radius: 4px;
-                    padding: 4px;
-                }
-                QSpinBox::up-button, QSpinBox::down-button {
-                    background-color: #3498db;
-                    border: none;
-                    width: 16px;
-                }
-            """)
-            
-            self.month_combo.setStyleSheet("""
-                QComboBox {
-                    background-color: #2c3e50;
-                    color: white;
-                    border: 1px solid #3498db;
-                    border-radius: 4px;
-                    padding: 4px;
-                }
-                QComboBox::drop-down {
-                    border: none;
-                    background-color: #3498db;
-                }
-                QComboBox::down-arrow {
-                    image: none;
-                    border-left: 5px solid transparent;
-                    border-right: 5px solid transparent;
-                    border-top: 5px solid white;
-                    margin-right: 5px;
-                }
-                QComboBox QAbstractItemView {
-                    background-color: #2c3e50;
-                    color: white;
-                    selection-background-color: #3498db;
-                }
-            """)
-            
-        except Exception as e:
-            print(f"⚠️ Error applying styling: {e}")
-    
     def set_solar_viz(self, solar_viz):
         """Set reference to solar visualization"""
         self.solar_viz = solar_viz
     
     def set_solar_simulation(self, solar_sim):
-        """NEW: Set reference to enhanced solar simulation"""
+        """Set reference to enhanced solar simulation"""
         self.solar_simulation = solar_sim
     
     def set_model_tab(self, model_tab):
         """Set reference to model tab"""
         self.model_tab = model_tab
-        # Try to get solar simulation from model tab
         if model_tab:
             if hasattr(model_tab, 'solar_simulation'):
                 self.solar_simulation = model_tab.solar_simulation
@@ -565,7 +396,6 @@ class DateTimeControls(QWidget):
         """Handle animation toggle"""
         self.animation_active = checked
         
-        # Try to get references if not set
         if not self.solar_viz and not self.solar_simulation:
             self._find_references()
         
@@ -594,7 +424,6 @@ class DateTimeControls(QWidget):
                         self.model_tab = tab
                         return
             
-            # Alternative: Try through parent hierarchy
             parent = self.parent()
             while parent:
                 if hasattr(parent, 'model_tab'):
@@ -614,67 +443,48 @@ class DateTimeControls(QWidget):
         if not self.animation_active:
             return
         
-        # Get current time
         current_minutes = self.arc_slider.value()
-        
-        # Advance time
         new_minutes = (current_minutes + self.animation_step_minutes) % 1440
-        
-        # Update arc slider
         self.arc_slider.setValue(new_minutes)
         
-        # Calculate decimal hour
         decimal_hour = new_minutes / 60.0
-        
-        # Update both solar systems
         self._update_solar_systems(decimal_hour)
         
-        # Progress logging
-        if new_minutes % 180 == 0:  # Every 3 hours
+        if new_minutes % 180 == 0:
             hours = new_minutes // 60
             print(f"🌞 {hours:02d}:00")
     
     def _on_time_changed(self, value):
-        """ENHANCED: Time change handler with proper solar updates"""
+        """Time change handler with proper solar updates"""
         decimal_hour = value / 60.0
         
         hours = int(decimal_hour)
         minutes = int((decimal_hour - hours) * 60)
         self.time_label.setText(f"{hours:02d}:{minutes:02d}")
         
-        # Calculate sun position
         self._calculate_sun_position()
-        
-        # Update both solar systems
         self._update_solar_systems(decimal_hour)
         
-        # Emit signal
         self.time_changed.emit(decimal_hour)
     
     def _update_solar_systems(self, decimal_hour):
-        """NEW: Update both solar visualization and simulation"""
+        """Update both solar visualization and simulation"""
         try:
-            # Update enhanced solar simulation
             if self.solar_simulation:
                 self.solar_simulation.set_time(decimal_hour)
                 
-                # Update building lighting if roof exists
                 if self.model_tab and hasattr(self.model_tab, 'current_roof'):
                     roof = self.model_tab.current_roof
                     if roof:
-                        # Link solar simulation to roof if not already done
                         if not hasattr(roof, 'solar_simulation') or roof.solar_simulation != self.solar_simulation:
                             roof.set_solar_simulation(self.solar_simulation)
                         
-                        # Update lighting for current rotation
                         if hasattr(roof, 'rotation_angle'):
                             self.solar_simulation.update_for_building_rotation(roof.rotation_angle)
             
-            # Update legacy solar visualization
             if self.solar_viz:
                 self.solar_viz.current_hour = decimal_hour
                 
-                # Legacy sun position update
                 sun_pos = self.solar_viz.calculate_sun_position() if hasattr(self.solar_viz, 'calculate_sun_position') else None
                 if sun_pos and hasattr(self.solar_viz, 'model_tab'):
                     if hasattr(self.solar_viz.model_tab, 'unified_sun_system'):
@@ -685,7 +495,6 @@ class DateTimeControls(QWidget):
                         }
                         self.solar_viz.model_tab.unified_sun_system.create_unified_sun(sun_pos, solar_settings)
                         
-                        # Update building lighting
                         if hasattr(self.solar_viz.model_tab, 'current_roof'):
                             roof = self.solar_viz.model_tab.current_roof
                             if hasattr(roof, 'set_sun_position_for_lighting'):
@@ -709,7 +518,6 @@ class DateTimeControls(QWidget):
         self._update_sun_times()
         self._calculate_sun_position()
         
-        # Update both solar systems
         if self.solar_simulation:
             self.solar_simulation.set_date(day_of_year)
         if self.solar_viz:
@@ -815,7 +623,6 @@ class DateTimeControls(QWidget):
         self._calculate_sun_position()
         self._update_hemisphere()
         
-        # Update both solar systems
         if self.solar_simulation:
             self.solar_simulation.set_location(latitude, longitude)
         if self.solar_viz:
@@ -845,8 +652,8 @@ class DateTimeControls(QWidget):
         }
     
     def update_theme(self, is_dark_theme):
-        """Update theme"""
-        self.apply_styling()
+        """Update theme - no hardcoded styles"""
+        pass
     
     def cleanup(self):
         """Cleanup resources"""

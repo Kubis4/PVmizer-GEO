@@ -1,26 +1,11 @@
 #!/usr/bin/env python3
 """
 ui/panel/model_tab_left/location_controls.py
-Location controls for Model3D panel with weather icon buttons
+CLEANED - No hardcoded styles
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QGroupBox, QComboBox, QPushButton, QDoubleSpinBox)
 from PyQt5.QtCore import pyqtSignal, Qt
-
-try:
-    from styles.ui_styles import (
-        get_model3d_groupbox_style,
-        get_model3d_label_style,
-        get_model3d_combobox_style,
-        get_model3d_button_style,
-        get_model3d_spinbox_style,
-        get_model3d_scrollbar_style,
-        get_model3d_info_label_style
-    )
-    STYLES_AVAILABLE = True
-except ImportError:
-    STYLES_AVAILABLE = False
-    print("⚠️ Styles not available for LocationControls")
 
 class LocationControls(QWidget):
     """Location settings control widget with weather"""
@@ -69,7 +54,6 @@ class LocationControls(QWidget):
         self.weather_buttons = []
         
         self.setup_ui()
-        self.apply_styling()
         
     def setup_ui(self):
         """Setup the location UI"""
@@ -160,7 +144,8 @@ class LocationControls(QWidget):
             btn = QPushButton(emoji)
             btn.setToolTip(tooltip)
             btn.setCheckable(True)
-            btn.setFixedSize(55, 55)  # Smaller, consistent size
+            btn.setFixedSize(55, 55)
+            btn.setObjectName("weatherButton")  # For styling
             btn.clicked.connect(lambda checked, f=factor, b=btn: self._on_weather_selected(f, b))
             
             weather_buttons_layout.addWidget(btn)
@@ -171,103 +156,6 @@ class LocationControls(QWidget):
         
         weather_buttons_layout.addStretch()
         group_layout.addLayout(weather_buttons_layout)
-    
-    def apply_styling(self):
-        """Apply custom styling from centralized styles"""
-        if STYLES_AVAILABLE:
-            # Apply styles to individual widgets
-            self.group_box.setStyleSheet(get_model3d_groupbox_style())
-            
-            # Apply to all labels except coordinate labels
-            for label in self.findChildren(QLabel):
-                if label in [self.lat_label, self.lon_label]:
-                    label.setStyleSheet("color: #95a5a6; font-size: 11px; background-color: transparent;")
-                else:
-                    label.setStyleSheet(get_model3d_label_style())
-            
-            # Apply to combo box
-            self.preset_combo.setStyleSheet(get_model3d_combobox_style())
-            
-            # Apply to spin boxes
-            self.lat_spin.setStyleSheet(get_model3d_spinbox_style())
-            self.lon_spin.setStyleSheet(get_model3d_spinbox_style())
-            
-            # Fixed weather button style without green border
-            weather_button_style = """
-                QPushButton {
-                    background-color: #34495e;
-                    border: 2px solid #3498db;
-                    border-radius: 25px;
-                    font-size: 24px;
-                    padding: 0px;
-                    min-width: 50px;
-                    max-width: 50px;
-                    min-height: 50px;
-                    max-height: 50px;
-                }
-                QPushButton:hover {
-                    background-color: #2c3e50;
-                    border: 2px solid #2980b9;
-                }
-                QPushButton:checked {
-                    background-color: #3498db;
-                    border: 2px solid #2980b9;
-                }
-                QPushButton:checked:hover {
-                    background-color: #2980b9;
-                    border: 2px solid #21618c;
-                }
-            """
-            
-            for btn in self.weather_buttons:
-                btn.setStyleSheet(weather_button_style)
-        else:
-            # Fallback styles
-            self.setStyleSheet("""
-                QGroupBox {
-                    background-color: #34495e;
-                    border: 1px solid #3498db;
-                    border-radius: 6px;
-                    margin-top: 10px;
-                    padding-top: 15px;
-                    font-weight: bold;
-                    color: #ffffff;
-                }
-                QGroupBox::title {
-                    subcontrol-origin: margin;
-                    subcontrol-position: top center;
-                    color: #3498db;
-                    background-color: #34495e;
-                }
-                QLabel {
-                    color: #ffffff;
-                    background-color: transparent;
-                }
-                QComboBox {
-                    background-color: #34495e;
-                    color: #ffffff;
-                    border: 1px solid #3498db;
-                    border-radius: 4px;
-                    padding: 6px;
-                }
-                QDoubleSpinBox {
-                    background-color: #34495e;
-                    color: #ffffff;
-                    border: 1px solid #3498db;
-                    border-radius: 4px;
-                    padding: 6px;
-                }
-                QPushButton {
-                    background-color: #34495e;
-                    border: 2px solid #3498db;
-                    border-radius: 25px;
-                    font-size: 24px;
-                    padding: 0px;
-                }
-                QPushButton:checked {
-                    background-color: #3498db;
-                }
-            """)
     
     def _on_location_changed(self):
         """Handle location change"""
@@ -322,8 +210,8 @@ class LocationControls(QWidget):
         return self.current_weather
     
     def update_theme(self, is_dark_theme):
-        """Update theme (always dark for this panel)"""
-        self.apply_styling()
+        """Update theme - no hardcoded styles"""
+        pass
     
     def cleanup(self):
         """Cleanup resources"""

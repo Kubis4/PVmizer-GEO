@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-roofs/concrete/gable_roof.py - OPTIMIZED VERSION
-Removed debug lines and optimized for performance
+roofs/concrete/gable_roof.py - With automatic shadow updates on rotation
 """
 from roofs.base.base_roof import BaseRoof
 from roofs.base.resource_utils import resource_path
@@ -18,10 +17,9 @@ except ImportError as e:
     SolarPanelPlacementGable = None
 
 class GableRoof(BaseRoof):
-    """OPTIMIZED: Smooth gable roof without debug lines - Performance focused"""
+    """Gable roof with automatic shadow updates on rotation"""
 
     def __init__(self, plotter=None, dimensions=(10.0, 8.0, 4.0), theme="light", rotation_angle=0):
-        # Minimal debug output
         if dimensions is None:
             dimensions = (10.0, 8.0, 4.0)
         
@@ -69,6 +67,10 @@ class GableRoof(BaseRoof):
         # Set building center for sun system
         self._set_building_center_for_sun_system()
         
+        # Initialize with current rotation
+        if self.sun_system:
+            self.sun_system.set_building_rotation(self.rotation_angle)
+        
         self.initialize_roof(dimensions)
     
     def _set_building_center_for_sun_system(self):
@@ -77,11 +79,15 @@ class GableRoof(BaseRoof):
             building_center = [0, 0, self.building_height / 2 + self.height / 2]
             if self.sun_system and hasattr(self.sun_system, 'set_building_center'):
                 self.sun_system.set_building_center(building_center)
+                
+            # Also set initial rotation
+            if self.sun_system and hasattr(self.sun_system, 'set_building_rotation'):
+                self.sun_system.set_building_rotation(self.rotation_angle)
         except Exception as e:
-            pass  # Silent fail for performance
+            pass
     
     def _find_references(self):
-        """Find references to solar systems - minimal version"""
+        """Find references to solar systems"""
         try:
             if hasattr(self.plotter, 'app'):
                 app = self.plotter.app
@@ -92,7 +98,7 @@ class GableRoof(BaseRoof):
                     if hasattr(self.model_tab, 'solar_simulation'):
                         self.solar_simulation = self.model_tab.solar_simulation
         except:
-            pass  # Silent fail
+            pass
     
     def set_solar_simulation(self, solar_sim):
         """Set reference to solar simulation"""
@@ -147,7 +153,7 @@ class GableRoof(BaseRoof):
         return self._rotate_vector(self.original_north_vector)
     
     def create_roof_geometry(self):
-        """Create gable roof geometry - optimized version"""
+        """Create gable roof geometry"""
         half_length = self.length / 2
         half_width = self.width / 2
         
@@ -172,6 +178,24 @@ class GableRoof(BaseRoof):
         
         # Create all meshes
         self._create_all_meshes()
+        
+        # Register meshes with sun system for shadow casting
+        self._register_meshes_with_sun_system()
+    
+    def _register_meshes_with_sun_system(self):
+        """Register building meshes with sun system for dynamic shadows"""
+        if not self.sun_system:
+            return
+        
+        try:
+            # Register all building components
+            for name, mesh in self.mesh_cache.items():
+                if mesh and hasattr(self.sun_system, 'register_scene_object'):
+                    # Don't register foundation for shadow casting
+                    cast_shadow = 'foundation' not in name.lower()
+                    self.sun_system.register_scene_object(mesh, name, cast_shadow)
+        except:
+            pass
     
     def _calculate_original_surface_normals(self):
         """Calculate surface normals in the original coordinate system"""
@@ -238,12 +262,11 @@ class GableRoof(BaseRoof):
             except:
                 pass
         except:
-            pass  # Silent fail for performance
+            pass
     
     def _create_smooth_roof_slopes(self):
-        """OPTIMIZED: Create smooth roof slopes without any lines"""
-        
-        # Left slope - simple quad, no subdivision
+        """Create smooth roof slopes"""
+        # Left slope
         left_slope_points = np.array([
             self.roof_points['eave_left_front'],
             self.roof_points['eave_left_back'], 
@@ -254,7 +277,7 @@ class GableRoof(BaseRoof):
         self.left_slope = pv.PolyData(left_slope_points, left_faces)
         self._safe_compute_normals(self.left_slope)
         
-        # Right slope - simple quad, no subdivision
+        # Right slope
         right_slope_points = np.array([
             self.roof_points['eave_right_front'],
             self.roof_points['eave_right_back'],
@@ -268,7 +291,7 @@ class GableRoof(BaseRoof):
         self.mesh_cache['left_slope'] = self.left_slope
         self.mesh_cache['right_slope'] = self.right_slope
         
-        # Simple texture coordinates - minimal processing
+        # Texture coordinates
         simple_tcoords = np.array([[0, 0], [3, 0], [3, 2], [0, 2]])
         self.left_slope.active_t_coords = simple_tcoords
         self.right_slope.active_t_coords = simple_tcoords
@@ -279,7 +302,7 @@ class GableRoof(BaseRoof):
             self.roof_color
         )
         
-        # Add meshes with optimized settings
+        # Add meshes
         if texture_loaded:
             self.building_actors['left_slope'] = self.add_sun_compatible_mesh(
                 self.left_slope,
@@ -308,7 +331,7 @@ class GableRoof(BaseRoof):
             )
     
     def _create_walls(self):
-        """Create walls with minimal processing"""
+        """Create walls"""
         try:
             wall_vertices = []
             wall_faces = []
@@ -359,9 +382,9 @@ class GableRoof(BaseRoof):
             
             self.mesh_cache['walls'] = wall_mesh
             
-            # Simple texture coordinates
+            # Texture coordinates
             texture_coords = []
-            for _ in range(4):  # 4 walls
+            for _ in range(4):
                 texture_coords.extend([[0, 0], [0, 1], [1, 1], [1, 0]])
             
             wall_mesh.active_t_coords = np.array(texture_coords)
@@ -384,10 +407,10 @@ class GableRoof(BaseRoof):
                     name="building_walls"
                 )
         except:
-            pass  # Silent fail for performance
+            pass
     
     def _create_gable_triangles(self):
-        """Create gable triangles - optimized"""
+        """Create gable triangles"""
         try:
             # Front gable triangle
             front_tri_verts = np.array([
@@ -444,10 +467,10 @@ class GableRoof(BaseRoof):
                     name="back_gable_triangle"
                 )
         except:
-            pass  # Silent fail
+            pass
     
     def _add_foundation(self):
-        """Add foundation - optimized"""
+        """Add foundation"""
         try:
             foundation_height = 0.15
             foundation_extend = 0.15
@@ -486,7 +509,7 @@ class GableRoof(BaseRoof):
             foundation.faces = foundation_faces
             self._safe_compute_normals(foundation)
             
-            # Simple texture coordinates
+            # Texture coordinates
             n_points = len(foundation_verts)
             texture_coords = np.zeros((n_points, 2))
             
@@ -518,55 +541,20 @@ class GableRoof(BaseRoof):
                     name="foundation"
                 )
         except:
-            pass  # Silent fail
-    
-    def add_sun_compatible_mesh(self, mesh, **kwargs):
-        """OPTIMIZED: Add mesh with minimal processing"""
-        kwargs['lighting'] = True
-        kwargs.setdefault('smooth_shading', True)
-        
-        # Simplified material properties
-        mesh_name = kwargs.get('name', '').lower()
-        
-        if 'wall' in mesh_name or 'gable' in mesh_name:
-            kwargs.setdefault('ambient', 0.3)
-            kwargs.setdefault('diffuse', 0.9)
-            kwargs.setdefault('specular', 0.1)
-        elif 'roof' in mesh_name or 'slope' in mesh_name:
-            kwargs.setdefault('ambient', 0.25)
-            kwargs.setdefault('diffuse', 0.9)
-            kwargs.setdefault('specular', 0.1)
-        else:
-            kwargs.setdefault('ambient', 0.3)
-            kwargs.setdefault('diffuse', 0.8)
-            kwargs.setdefault('specular', 0.1)
-        
-        # Add mesh
-        actor = self.plotter.add_mesh(mesh, **kwargs)
-        
-        # Register with sun system if available
-        if self.sun_system and hasattr(self.sun_system, 'register_scene_object'):
-            name = kwargs.get('name', 'unnamed')
-            self.sun_system.register_scene_object(mesh, name, cast_shadow=True)
-        
-        return actor
+            pass
 
     def rotate_building(self, angle_delta):
-        """Rotate building - minimal logging"""
+        """Rotate building with shadow update"""
         try:
-            # Store solar panel state
             self._store_solar_panels_state()
             
-            # Update rotation
             self.rotation_angle = (self.rotation_angle + angle_delta) % 360
             self.rotation_rad = np.radians(self.rotation_angle)
             
-            # Update geometry points
             self._update_rotated_points()
             
-            # Remove all actors
             for name in ['left_slope', 'right_slope', 'building_walls', 
-                         'front_gable_triangle', 'back_gable_triangle', 'foundation']:
+                        'front_gable_triangle', 'back_gable_triangle', 'foundation']:
                 try:
                     self.plotter.remove_actor(name)
                 except:
@@ -574,24 +562,20 @@ class GableRoof(BaseRoof):
             
             self.building_actors.clear()
             
-            # Recreate meshes
             self._create_all_meshes()
             
-            # Update sun system building center
-            self._set_building_center_for_sun_system()
+            # Update shadows
+            if self.sun_system:
+                self.sun_system.set_building_rotation(self.rotation_angle)
             
-            # Update solar system
-            if self.solar_simulation:
-                self.solar_simulation.update_for_building_rotation(self.rotation_angle)
-            
-            # Restore solar panels
+            self._register_meshes_with_sun_system()
             self._restore_solar_panels_state()
             
-            # Force render
             self.plotter.render()
             
         except:
-            pass  # Silent fail for performance
+            pass
+
     
     def _store_solar_panels_state(self):
         """Store solar panel state"""
@@ -612,17 +596,14 @@ class GableRoof(BaseRoof):
                 for side in active_sides:
                     self.solar_panel_handler.add_panels(side)
             except:
-                pass  # Silent fail
+                pass
     
     def initialize_roof(self, dimensions):
-        """Initialize the gable roof - minimal logging"""
+        """Initialize the gable roof"""
         self.dimensions = dimensions
         
         # Create geometry
         self.create_roof_geometry()
-        
-        # Add rotation controls - REMOVED to eliminate debug lines
-        # self._add_rotation_circle()  # COMMENTED OUT
         
         # Initialize solar panel handler
         self._initialize_solar_panel_handler()
@@ -640,7 +621,7 @@ class GableRoof(BaseRoof):
             pass
     
     def setup_roof_specific_key_bindings(self):
-        """Setup key bindings - minimal version"""
+        """Setup key bindings with rotation"""
         try:
             # Solar panels
             if self.solar_panel_handler:
@@ -649,15 +630,17 @@ class GableRoof(BaseRoof):
                 self.plotter.add_key_event("c", self.safe_clear_panels)
                 self.plotter.add_key_event("C", self.safe_clear_panels)
             
-            # Rotation controls
+            # Rotation controls with automatic shadow updates
             self.plotter.add_key_event("plus", lambda: self.rotate_building(15))
             self.plotter.add_key_event("minus", lambda: self.rotate_building(-15))
             self.plotter.add_key_event("bracketright", lambda: self.rotate_building(5))
             self.plotter.add_key_event("bracketleft", lambda: self.rotate_building(-5))
+            
+            # Arrow keys for rotation
+            self.plotter.add_key_event("Left", lambda: self.rotate_building(-15))
+            self.plotter.add_key_event("Right", lambda: self.rotate_building(15))
         except:
-            pass  # Silent fail
-    
-    # REMOVED: _add_rotation_circle() and _add_compass_markers() to eliminate debug lines
+            pass
     
     def calculate_camera_position(self):
         """Calculate optimal camera position"""
@@ -684,7 +667,7 @@ class GableRoof(BaseRoof):
         return None
 
     def add_attachment_points(self):
-        """Add attachment points for obstacle placement - optimized"""
+        """Add attachment points for obstacle placement"""
         try:
             if not hasattr(self, 'obstacle_count'):
                 self.obstacle_count = 0

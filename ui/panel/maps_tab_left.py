@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QGroupBox, QFrame, QDialog
 )
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal, Qt
 from ui.dialogs.roof_dialog import RoofDimensionDialog  # Import RoofDimensionDialog class
 
 
@@ -20,10 +20,11 @@ class MapsTabPanel(QWidget):
 
     def setup_ui(self):
         """Setup Maps tab UI with buttons"""
-        # Main layout
+        # Main layout - align to top
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
+        main_layout.setAlignment(Qt.AlignTop)  # Align content to top
 
         # Screenshot Tools Group
         self._create_screenshot_section(main_layout)
@@ -31,8 +32,8 @@ class MapsTabPanel(QWidget):
         # Roof Types Section
         self._create_roof_types_section(main_layout)
 
-        # Add stretch to center content
-        main_layout.addStretch()
+        # REMOVED addStretch() - this was causing the gap!
+        # main_layout.addStretch()
 
         print("✅ Maps Tab UI setup completed")
 

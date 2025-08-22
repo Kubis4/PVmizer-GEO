@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Updated Left Control Panel - With expandable tips and improved functionality
+Updated Left Control Panel - Blue buttons, centered titles, scrollable content
 """
 from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QLabel, QStackedWidget, 
-                            QSizePolicy, QGroupBox, QPushButton, QWidget)
-from PyQt5.QtCore import pyqtSignal, Qt, QTimer, QPropertyAnimation, QRect
+                            QSizePolicy, QGroupBox, QPushButton, QWidget,
+                            QScrollArea)
+from PyQt5.QtCore import pyqtSignal, Qt, QTimer
 from PyQt5.QtGui import QFont
 
 # Import separated tab panels
@@ -12,104 +13,8 @@ from ui.panel.maps_tab_left import MapsTabPanel
 from ui.panel.drawing_tab_left import DrawingTabPanel
 from ui.panel.model_tab_left.model_3d_tab_panel import Model3DTabPanel
 
-class ExpandableTipsWidget(QWidget):
-    """Expandable tips widget with smooth animation"""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.expanded = False
-        self.tips_content = None
-        self.toggle_btn = None
-        self.content_widget = None
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        """Setup expandable tips UI"""
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-        
-        # Toggle button header
-        self.toggle_btn = QPushButton("💡 Tips (Click to expand)")
-        self.toggle_btn.setCheckable(True)
-        self.toggle_btn.clicked.connect(self._toggle_expanded)
-        self.toggle_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #fff3cd;
-                border: 1px solid #ffeaa7;
-                border-radius: 8px 8px 0px 0px;
-                color: #856404;
-                font-weight: bold;
-                font-size: 14px;
-                padding: 12px;
-                text-align: left;
-            }
-            QPushButton:hover {
-                background-color: #fff2a8;
-            }
-            QPushButton:checked {
-                border-radius: 8px 8px 0px 0px;
-                border-bottom: none;
-            }
-        """)
-        main_layout.addWidget(self.toggle_btn)
-        
-        # Content widget (initially hidden)
-        self.content_widget = QWidget()
-        self.content_widget.setStyleSheet("""
-            QWidget {
-                background-color: #fff3cd;
-                border: 1px solid #ffeaa7;
-                border-top: none;
-                border-radius: 0px 0px 8px 8px;
-            }
-        """)
-        
-        content_layout = QVBoxLayout(self.content_widget)
-        content_layout.setContentsMargins(12, 8, 12, 12)
-        
-        self.tips_content = QLabel("Ready to start.")
-        self.tips_content.setWordWrap(True)
-        self.tips_content.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        self.tips_content.setStyleSheet("""
-            QLabel {
-                color: #856404;
-                background-color: transparent;
-                font-size: 11px;
-                line-height: 1.4;
-                padding: 8px;
-                font-weight: normal;
-                border: none;
-            }
-        """)
-        content_layout.addWidget(self.tips_content)
-        
-        main_layout.addWidget(self.content_widget)
-        
-        # Initially hide content
-        self.content_widget.setMaximumHeight(0)
-        self.content_widget.setVisible(False)
-    
-    def _toggle_expanded(self):
-        """Toggle expanded state with animation"""
-        self.expanded = self.toggle_btn.isChecked()
-        
-        if self.expanded:
-            self.toggle_btn.setText("💡 Tips (Click to collapse)")
-            self.content_widget.setVisible(True)
-            self.content_widget.setMaximumHeight(300)  # Allow expansion
-        else:
-            self.toggle_btn.setText("💡 Tips (Click to expand)")
-            self.content_widget.setMaximumHeight(0)
-            QTimer.singleShot(200, lambda: self.content_widget.setVisible(False))
-    
-    def set_tips_text(self, text):
-        """Set tips content text"""
-        if self.tips_content:
-            self.tips_content.setText(text)
-
 class LeftControlPanel(QFrame):
-    """Main Left Control Panel with separated tab components and expandable tips"""
+    """Main Left Control Panel with blue buttons and scrollable content"""
     
     # Consolidated signals from all tabs
     scale_changed = pyqtSignal(float)
@@ -139,8 +44,10 @@ class LeftControlPanel(QFrame):
         ]
         
         # UI components
+        self.title_box = None
         self.title_label = None
-        self.tips_widget = None
+        self.controls_box = None
+        self.scroll_area = None
         self.stacked_widget = None
         self.maps_tab = None
         self.drawing_tab = None
@@ -150,157 +57,491 @@ class LeftControlPanel(QFrame):
         self._setup_ui()
         self._connect_signals()
         
-        print("✅ Left Control Panel initialized with expandable tips")
+        print("✅ Left Control Panel initialized")
     
     def _setup_ui(self):
-        """Setup main UI structure"""
+        """Setup main UI structure with scrollable content"""
         self.setObjectName("leftMenu")
-        self.setMinimumWidth(360)
-        self.setMaximumWidth(360)
-        self.setFrameStyle(QFrame.StyledPanel)
+        
+        # Panel width
+        PANEL_WIDTH = 450
+        self.setFixedWidth(PANEL_WIDTH)
+        self.setFrameStyle(QFrame.NoFrame)
+        
+        # Main panel background
+        self.setStyleSheet("""
+            QFrame#leftMenu {
+                background-color: #3a4f5c;
+                border: none;
+            }
+        """)
         
         # Main layout
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15)
-        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
+        main_layout.setAlignment(Qt.AlignTop)
         
-        # Dynamic title label
-        self.title_label = QLabel("PVmizer GEO")
-        self.title_label.setObjectName("menuTitle")
-        self.title_label.setAlignment(Qt.AlignCenter)
-        self.title_label.setFont(QFont("Arial", 20, QFont.Bold))
-        self.title_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                background-color: #2c3e50;
-                padding: 12px;
-                font-weight: bold;
+        # Title Box with light blue border
+        self.title_box = QWidget()
+        self.title_box.setFixedHeight(50)
+        self.title_box.setStyleSheet("""
+            QWidget {
+                background-color: #34495e;
+                border: 2px solid #5dade2;
                 border-radius: 8px;
-                border: 2px solid #3498db;
-                margin-bottom: 10px;
             }
         """)
-        main_layout.addWidget(self.title_label)
         
-        # Tab-specific content stack
+        title_layout = QVBoxLayout(self.title_box)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setAlignment(Qt.AlignCenter)
+        
+        self.title_label = QLabel("PVmizer GEO")
+        self.title_label.setAlignment(Qt.AlignCenter)
+        title_font = QFont("Arial", 16, QFont.Bold)
+        self.title_label.setFont(title_font)
+        self.title_label.setStyleSheet("""
+            QLabel {
+                color: #ffffff;
+                background-color: transparent;
+                border: none;
+                padding: 5px;
+            }
+        """)
+        title_layout.addWidget(self.title_label)
+        main_layout.addWidget(self.title_box)
+        
+        # Scroll Area for controls
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # Controls Container with light blue border and centered title
+        self.controls_box = QGroupBox("Maps Controls")
+        self.controls_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        
+        controls_layout = QVBoxLayout(self.controls_box)
+        controls_layout.setContentsMargins(10, 20, 10, 10)
+        controls_layout.setSpacing(0)
+        controls_layout.setAlignment(Qt.AlignTop)
+        
+        # Stacked widget for different tab contents
         self.stacked_widget = QStackedWidget()
-        self.stacked_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.stacked_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.stacked_widget.setStyleSheet("""
+            QStackedWidget {
+                background-color: transparent;
+                border: none;
+            }
+        """)
         
-        # Create and add tab panels
-        self.maps_tab = MapsTabPanel(self.main_window)
-        self.drawing_tab = DrawingTabPanel(self.main_window)
-        self.model_3d_tab = Model3DTabPanel(self.main_window)
+        # Create tab panels
+        self.maps_tab = self._prepare_panel(MapsTabPanel(self.main_window))
+        self.drawing_tab = self._prepare_panel(DrawingTabPanel(self.main_window))
+        self.model_3d_tab = self._prepare_panel(Model3DTabPanel(self.main_window))
         
-        self.stacked_widget.addWidget(self.maps_tab)      # Index 0
-        self.stacked_widget.addWidget(self.drawing_tab)   # Index 1
-        self.stacked_widget.addWidget(self.model_3d_tab)  # Index 2
+        self.stacked_widget.addWidget(self.maps_tab)
+        self.stacked_widget.addWidget(self.drawing_tab)
+        self.stacked_widget.addWidget(self.model_3d_tab)
         
-        main_layout.addWidget(self.stacked_widget)
+        controls_layout.addWidget(self.stacked_widget)
         
-        # Expandable tips section
-        self.tips_widget = ExpandableTipsWidget()
-        main_layout.addWidget(self.tips_widget)
+        # Set the controls box as the scroll area widget
+        self.scroll_area.setWidget(self.controls_box)
+        main_layout.addWidget(self.scroll_area)
         
-        # Set initial state
-        self.stacked_widget.setCurrentIndex(0)
-        self._update_tips_content(0)
-        
-        print("✓ UI setup complete with expandable tips")
+        # Apply comprehensive styling
+        self._apply_comprehensive_styling()
     
-    def _connect_signals(self):
-        """Connect signals from tab components to main panel signals"""
-        try:
-            # Maps tab signals
-            if self.maps_tab and hasattr(self.maps_tab, 'snip_requested'):
-                self.maps_tab.snip_requested.connect(self.snip_requested.emit)
-            
-            # Drawing tab signals
-            if self.drawing_tab:
-                if hasattr(self.drawing_tab, 'scale_changed'):
-                    self.drawing_tab.scale_changed.connect(self.scale_changed.emit)
-                if hasattr(self.drawing_tab, 'angle_snap_toggled'):
-                    self.drawing_tab.angle_snap_toggled.connect(self.angle_snap_toggled.emit)
-                if hasattr(self.drawing_tab, 'clear_drawing_requested'):
-                    self.drawing_tab.clear_drawing_requested.connect(self.clear_drawing_requested.emit)
-                if hasattr(self.drawing_tab, 'undo_requested'):
-                    self.drawing_tab.undo_requested.connect(self.undo_requested.emit)
-                if hasattr(self.drawing_tab, 'generate_model_requested'):
-                    self.drawing_tab.generate_model_requested.connect(self.generate_model_requested.emit)
-            
-            # 3D model tab signals
-            if self.model_3d_tab:
-                if hasattr(self.model_3d_tab, 'building_parameter_changed'):
-                    self.model_3d_tab.building_parameter_changed.connect(self.building_parameter_changed.emit)
-                if hasattr(self.model_3d_tab, 'solar_parameter_changed'):
-                    self.model_3d_tab.solar_parameter_changed.connect(self.solar_parameter_changed.emit)
-                if hasattr(self.model_3d_tab, 'export_model_requested'):
-                    self.model_3d_tab.export_model_requested.connect(self.export_model_requested.emit)
-                if hasattr(self.model_3d_tab, 'animation_toggled'):
-                    self.model_3d_tab.animation_toggled.connect(self.animation_toggled.emit)
-            
-            # Tab switching
-            if hasattr(self.main_window, 'content_tabs'):
-                content_tabs = self.main_window.content_tabs
-                if hasattr(content_tabs, 'currentChanged'):
-                    content_tabs.currentChanged.connect(self.switch_to_tab_content)
-                    print("✓ Tab switching signal connected")
-                    
-        except Exception as e:
-            print(f"❌ Error connecting signals: {e}")
+    def _prepare_panel(self, panel_widget):
+        """Prepare panel widget"""
+        panel_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        
+        # Store reference
+        if isinstance(panel_widget, MapsTabPanel):
+            self.maps_tab_widget = panel_widget
+        elif isinstance(panel_widget, DrawingTabPanel):
+            self.drawing_tab_widget = panel_widget
+        elif isinstance(panel_widget, Model3DTabPanel):
+            self.model_3d_tab_widget = panel_widget
+        
+        return panel_widget
     
-    def _update_tips_content(self, tab_index):
-        """Update tips content based on active tab"""
-        if not self.tips_widget:
-            return
-        
-        tips_texts = [
-            """🗺️ Getting Started:
-• Navigate to building location on map
-• Adjust zoom for best detail
-• Click 'Snip Screenshot' to capture area
-• Use satellite view for best building visibility
-
-📐 Pro Tips:
-• Center building in view before snipping
-• Higher zoom = more detailed measurements
-• Satellite view shows building outlines clearly
-• Good lighting helps with edge detection""",
+    def _apply_comprehensive_styling(self):
+        """Apply comprehensive styling with blue buttons and centered titles"""
+        self.setStyleSheet(self.styleSheet() + """
+            /* Main background */
+            * {
+                background-color: #3a4f5c;
+            }
             
-            """✏️ Drawing Process:
-• Set correct scale first (m/pixel)
-• Click points to draw building outline
-• Enable angle snap for 90° precision
-• Minimum 3 points needed for polygon
-
-📐 Pro Tips:
-• Click accurately on building corners
-• Work clockwise or counter-clockwise consistently
-• Close polygon by clicking near first point
-• Use Clear button to restart if needed
-• Check scale before starting to draw""",
+            /* Scroll Area */
+            QScrollArea {
+                background-color: transparent;
+                border: none;
+            }
             
-            """🏗️ 3D Model & Solar:
-• Adjust building parameters with controls
-• Generate 3D model from polygon first
-• Fine-tune solar simulation settings
-• Export model when satisfied with result
-
-📐 Pro Tips:
-• Wall height affects solar calculations significantly
-• Roof type impacts energy generation potential
-• Time/date settings change sun position
-• Animation shows daily solar movement patterns
-• Export includes all current settings"""
-        ]
-        
-        if 0 <= tab_index < len(tips_texts):
-            self.tips_widget.set_tips_text(tips_texts[tab_index])
+            QScrollBar:vertical {
+                background-color: #2c3e50;
+                width: 12px;
+                border-radius: 6px;
+                border: 1px solid #5dade2;
+                margin: 0px;
+            }
+            
+            QScrollBar::handle:vertical {
+                background-color: #5dade2;
+                border-radius: 5px;
+                min-height: 30px;
+                margin: 1px;
+            }
+            
+            QScrollBar::handle:vertical:hover {
+                background-color: #48a1d6;
+            }
+            
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                background: none;
+                border: none;
+                height: 0px;
+            }
+            
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
+            }
+            
+            /* Main Controls Container - Centered title between lines */
+            QGroupBox {
+                background-color: #34495e;
+                border: 2px solid #5dade2;
+                border-radius: 8px;
+                margin-top: 20px;
+                padding-top: 25px;
+                padding-left: 10px;
+                padding-right: 10px;
+                padding-bottom: 10px;
+                font-weight: bold;
+                font-size: 13px;
+                color: #ffffff;
+            }
+            
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: 0 15px;
+                margin-top: -12px;
+                color: #5dade2;
+                background-color: #34495e;
+                font-size: 14px;
+            }
+            
+            /* Nested Group Boxes - Centered titles */
+            QGroupBox QGroupBox {
+                background-color: transparent;
+                border: 2px solid #5dade2;
+                border-radius: 8px;
+                margin-top: 15px;
+                padding-top: 20px;
+            }
+            
+            QGroupBox QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: 0 10px;
+                margin-top: -10px;
+                color: #5dade2;
+                background-color: #34495e;
+                font-size: 13px;
+            }
+            
+            /* Time container */
+            QWidget#timeContainer {
+                background-color: #2c3e50;
+                border: 2px solid #5dade2;
+                border-radius: 8px;
+                padding: 10px;
+            }
+            
+            /* Time Label - Light blue */
+            QLabel#timeLabel {
+                color: #5dade2 !important;
+                font-size: 32px;
+                font-weight: bold;
+                background-color: transparent;
+                border: none;
+            }
+            
+            /* Regular Labels */
+            QLabel {
+                color: #ffffff;
+                background-color: transparent;
+                border: none;
+                font-size: 12px;
+            }
+            
+            /* Description labels - gray */
+            QLabel[objectName="descriptionLabel"],
+            QLabel.description {
+                color: #7f8c8d;
+                font-size: 11px;
+                background-color: transparent;
+                border: none !important;
+            }
+            
+            /* Buttons - Beautiful blue like in screenshots */
+            QPushButton {
+                background-color: #5dade2;
+                color: #ffffff;
+                border: none;
+                border-radius: 8px;
+                padding: 12px;
+                font-weight: bold;
+                font-size: 14px;
+                min-height: 40px;
+                text-align: center;
+            }
+            
+            QPushButton:hover {
+                background-color: #48a1d6;
+            }
+            
+            QPushButton:pressed {
+                background-color: #3498db;
+                padding: 13px 11px 11px 13px;
+            }
+            
+            QPushButton:checked {
+                background-color: #e74c3c;
+            }
+            
+            QPushButton:disabled {
+                background-color: #7f8c8d;
+                color: #95a5a6;
+            }
+            
+            /* Weather Buttons - Circular */
+            QPushButton#weatherButton {
+                background-color: #34495e;
+                border: 2px solid #5dade2;
+                border-radius: 27px;
+                font-size: 24px;
+                padding: 0px;
+                min-width: 54px;
+                max-width: 54px;
+                min-height: 54px;
+                max-height: 54px;
+            }
+            
+            QPushButton#weatherButton:hover {
+                background-color: rgba(93, 173, 226, 0.2);
+                border: 2px solid #48a1d6;
+            }
+            
+            QPushButton#weatherButton:checked {
+                background-color: #5dade2;
+                border: 2px solid #48a1d6;
+            }
+            
+            /* SpinBoxes and DoubleSpinBoxes */
+            QSpinBox, QDoubleSpinBox {
+                background-color: #2c3e50;
+                color: #ffffff;
+                border: 2px solid #5dade2;
+                border-radius: 6px;
+                padding: 6px;
+                min-height: 30px;
+                font-size: 13px;
+            }
+            
+            QSpinBox:focus, QDoubleSpinBox:focus {
+                border: 2px solid #48a1d6;
+                background-color: #2c3e50;
+            }
+            
+            QSpinBox::up-button, QSpinBox::down-button,
+            QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+                background-color: #5dade2;
+                border: none;
+                width: 20px;
+            }
+            
+            /* ComboBoxes */
+            QComboBox {
+                background-color: #2c3e50;
+                color: #ffffff;
+                border: 2px solid #5dade2;
+                border-radius: 6px;
+                padding: 6px;
+                min-height: 30px;
+                font-size: 13px;
+            }
+            
+            QComboBox:focus {
+                border: 2px solid #48a1d6;
+                background-color: #2c3e50;
+            }
+            
+            QComboBox::drop-down {
+                border: none;
+                background-color: #5dade2;
+                width: 25px;
+                border-top-right-radius: 6px;
+                border-bottom-right-radius: 6px;
+            }
+            
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid white;
+                margin-right: 5px;
+            }
+            
+            /* Text fields - NO BORDERS */
+            QLineEdit, QTextEdit, QPlainTextEdit {
+                background-color: #2c3e50;
+                color: #ffffff;
+                border: none !important;
+                border-radius: 6px;
+                padding: 8px;
+                min-height: 28px;
+                font-size: 13px;
+            }
+            
+            QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
+                background-color: #253545;
+                border: none !important;
+            }
+            
+            /* Checkboxes */
+            QCheckBox {
+                color: #ffffff;
+                spacing: 8px;
+                font-size: 13px;
+                background-color: transparent;
+            }
+            
+            QCheckBox::indicator {
+                width: 20px;
+                height: 20px;
+                border-radius: 4px;
+                border: 2px solid #5dade2;
+                background-color: #2c3e50;
+            }
+            
+            QCheckBox::indicator:checked {
+                background-color: #5dade2;
+                border: 2px solid #48a1d6;
+            }
+            
+            /* Progress Bars */
+            QProgressBar {
+                border: 2px solid #5dade2;
+                border-radius: 6px;
+                background-color: #2c3e50;
+                color: #ffffff;
+                text-align: center;
+                font-weight: bold;
+                min-height: 25px;
+            }
+            
+            QProgressBar::chunk {
+                background-color: #5dade2;
+                border-radius: 4px;
+            }
+            
+            /* Tab Widget */
+            QTabWidget::pane {
+                border: 2px solid #5dade2;
+                background-color: #34495e;
+                border-radius: 8px;
+                border-top-left-radius: 0px;
+            }
+            
+            QTabBar::tab {
+                background-color: #34495e;
+                color: #b8c5ce;
+                border: 2px solid #5dade2;
+                border-bottom: none;
+                padding: 10px 20px;
+                margin-right: 3px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                font-size: 13px;
+            }
+            
+            QTabBar::tab:selected {
+                background-color: #5dade2;
+                color: #ffffff;
+                font-weight: bold;
+            }
+            
+            /* Arc Slider */
+            ArcSlider {
+                background-color: #34495e;
+                border: 2px solid #5dade2;
+                border-radius: 8px;
+            }
+            
+            /* Special labels */
+            QLabel[objectName="sunriseLabel"] {
+                color: #f39c12;
+                font-weight: bold;
+                font-size: 13px;
+                border: none !important;
+            }
+            
+            QLabel[objectName="sunsetLabel"] {
+                color: #e74c3c;
+                font-weight: bold;
+                font-size: 13px;
+                border: none !important;
+            }
+        """)
     
     def _update_title(self, tab_index):
-        """Update title based on active tab"""
-        if self.title_label and 0 <= tab_index < len(self.tab_titles):
-            self.title_label.setText(self.tab_titles[tab_index])
-            print(f"✓ Title updated to: {self.tab_titles[tab_index]}")
+        """Update main title and controls box title"""
+        if 0 <= tab_index < len(self.tab_titles):
+            if self.title_label:
+                self.title_label.setText(self.tab_titles[tab_index])
+            
+            # Update controls box title
+            if self.controls_box:
+                titles = ["Maps Controls", "Drawing Controls", "3D Model Controls"]
+                self.controls_box.setTitle(titles[tab_index])
+    
+    def _connect_signals(self):
+        """Connect signals from tab panels to main panel signals"""
+        try:
+            # Maps tab signals
+            if hasattr(self, 'maps_tab_widget'):
+                if hasattr(self.maps_tab_widget, 'snip_requested'):
+                    self.maps_tab_widget.snip_requested.connect(self.snip_requested.emit)
+            
+            # Drawing tab signals
+            if hasattr(self, 'drawing_tab_widget'):
+                if hasattr(self.drawing_tab_widget, 'angle_snap_toggled'):
+                    self.drawing_tab_widget.angle_snap_toggled.connect(self.angle_snap_toggled.emit)
+                if hasattr(self.drawing_tab_widget, 'clear_drawing_requested'):
+                    self.drawing_tab_widget.clear_drawing_requested.connect(self.clear_drawing_requested.emit)
+                if hasattr(self.drawing_tab_widget, 'undo_requested'):
+                    self.drawing_tab_widget.undo_requested.connect(self.undo_requested.emit)
+                if hasattr(self.drawing_tab_widget, 'generate_model_requested'):
+                    self.drawing_tab_widget.generate_model_requested.connect(self.generate_model_requested.emit)
+            
+            # Model 3D tab signals
+            if hasattr(self, 'model_3d_tab_widget'):
+                if hasattr(self.model_3d_tab_widget, 'solar_parameter_changed'):
+                    self.model_3d_tab_widget.solar_parameter_changed.connect(self.solar_parameter_changed.emit)
+                if hasattr(self.model_3d_tab_widget, 'animation_toggled'):
+                    self.model_3d_tab_widget.animation_toggled.connect(self.animation_toggled.emit)
+            
+            print("✅ All tab panel signals connected successfully")
+            
+        except Exception as e:
+            print(f"❌ Error connecting tab panel signals: {e}")
     
     # Public API methods
     def switch_to_tab_content(self, tab_index):
@@ -310,14 +551,16 @@ class LeftControlPanel(QFrame):
                 self.stacked_widget.setCurrentIndex(tab_index)
                 self.current_tab_index = tab_index
                 
-                # Update title and tips
                 self._update_title(tab_index)
-                self._update_tips_content(tab_index)
                 
-                print(f"✓ Left panel switched to tab {tab_index} - {self.tab_titles[tab_index] if tab_index < len(self.tab_titles) else 'Unknown'}")
+                # Reset scroll position
+                if self.scroll_area:
+                    self.scroll_area.verticalScrollBar().setValue(0)
                 
-                if tab_index == 1 and self.drawing_tab:  # Drawing tab
-                    QTimer.singleShot(100, self.drawing_tab._check_completion)
+                print(f"✓ Left panel switched to tab {tab_index}")
+                
+                if tab_index == 1 and hasattr(self, 'drawing_tab_widget'):
+                    QTimer.singleShot(100, self.drawing_tab_widget._check_completion)
                     
         except Exception as e:
             print(f"❌ Error switching left panel tab: {e}")
@@ -325,127 +568,25 @@ class LeftControlPanel(QFrame):
     def enable_generate_button(self):
         """Enable generate button when polygon is complete"""
         self.polygon_complete = True
-        if self.drawing_tab and hasattr(self.drawing_tab, 'enable_generate_button'):
-            self.drawing_tab.enable_generate_button()
+        if hasattr(self, 'drawing_tab_widget') and hasattr(self.drawing_tab_widget, 'enable_generate_button'):
+            self.drawing_tab_widget.enable_generate_button()
     
     def disable_generate_button(self):
         """Disable generate button"""
         self.polygon_complete = False
-        if self.drawing_tab and hasattr(self.drawing_tab, 'disable_generate_button'):
-            self.drawing_tab.disable_generate_button()
+        if hasattr(self, 'drawing_tab_widget') and hasattr(self.drawing_tab_widget, 'disable_generate_button'):
+            self.drawing_tab_widget.disable_generate_button()
     
     def update_polygon_info(self, measurements):
         """Update polygon information from external sources"""
-        if self.drawing_tab and hasattr(self.drawing_tab, 'update_polygon_info'):
-            self.drawing_tab.update_polygon_info(measurements)
+        if hasattr(self, 'drawing_tab_widget') and hasattr(self.drawing_tab_widget, 'update_polygon_info'):
+            self.drawing_tab_widget.update_polygon_info(measurements)
     
     def reset_drawing_measurements(self):
         """Reset drawing measurements"""
-        if self.drawing_tab and hasattr(self.drawing_tab, 'reset_measurements'):
-            self.drawing_tab.reset_measurements()
+        if hasattr(self, 'drawing_tab_widget') and hasattr(self.drawing_tab_widget, 'reset_measurements'):
+            self.drawing_tab_widget.reset_measurements()
     
-    # Parameter getters (delegate to appropriate tab)
-    def get_wall_height(self):
-        """Get current wall height in meters"""
-        if self.model_3d_tab and hasattr(self.model_3d_tab, 'get_wall_height'):
-            return self.model_3d_tab.get_wall_height()
-        return 3.0  # Default
-    
-    def get_roof_type(self):
-        """Get current roof type"""
-        if self.model_3d_tab and hasattr(self.model_3d_tab, 'get_roof_type'):
-            return self.model_3d_tab.get_roof_type()
-        return "flat"  # Default
-    
-    def get_roof_pitch(self):
-        """Get current roof pitch in degrees"""
-        if self.model_3d_tab and hasattr(self.model_3d_tab, 'get_roof_pitch'):
-            return self.model_3d_tab.get_roof_pitch()
-        return 30.0  # Default
-    
-    def get_scale_factor(self):
-        """Get current scale factor"""
-        if self.drawing_tab and hasattr(self.drawing_tab, 'get_scale_factor'):
-            return self.drawing_tab.get_scale_factor()
-        return 0.05  # Default
-    
-    def get_time_of_day(self):
-        """Get current time of day"""
-        if self.model_3d_tab and hasattr(self.model_3d_tab, 'get_time_of_day'):
-            return self.model_3d_tab.get_time_of_day()
-        return 12.0  # Default noon
-    
-    def get_day_of_year(self):
-        """Get current day of year"""
-        if self.model_3d_tab and hasattr(self.model_3d_tab, 'get_day_of_year'):
-            return self.model_3d_tab.get_day_of_year()
-        return 172  # Default summer solstice
-    
-    def is_angle_snap_enabled(self):
-        """Check if angle snap is enabled"""
-        if self.drawing_tab and hasattr(self.drawing_tab, 'is_angle_snap_enabled'):
-            return self.drawing_tab.is_angle_snap_enabled()
-        return True  # Default
-    
-    def get_current_measurements(self):
-        """Get current polygon measurements"""
-        if self.drawing_tab and hasattr(self.drawing_tab, 'get_current_measurements'):
-            return self.drawing_tab.get_current_measurements()
-        return {'points': 0, 'area': 0.0, 'perimeter': 0.0, 'is_complete': False}
-    
-    def is_polygon_complete(self):
-        """Check if polygon is complete"""
-        if self.drawing_tab and hasattr(self.drawing_tab, 'is_polygon_complete'):
-            return self.drawing_tab.is_polygon_complete()
-        return False
-    
-    # Cleanup
-    def cleanup(self):
-        """Cleanup resources"""
-        try:
-            print("🧹 Cleaning up Left Control Panel...")
-            
-            # Cleanup individual tabs
-            if self.maps_tab and hasattr(self.maps_tab, 'cleanup'):
-                self.maps_tab.cleanup()
-            
-            if self.drawing_tab and hasattr(self.drawing_tab, 'cleanup'):
-                self.drawing_tab.cleanup()
-            
-            if self.model_3d_tab and hasattr(self.model_3d_tab, 'cleanup'):
-                self.model_3d_tab.cleanup()
-            
-            # Clear references
-            self.main_window = None
-            self.title_label = None
-            self.tips_widget = None
-            self.stacked_widget = None
-            self.maps_tab = None
-            self.drawing_tab = None
-            self.model_3d_tab = None
-            
-            print("✅ Left Control Panel cleanup completed")
-            
-        except Exception as e:
-            print(f"❌ Error during Left Control Panel cleanup: {e}")
-
-    def connect_model_tab_to_left_panel(self):
-        """Connect left panel controls to model tab"""
-        try:
-            # Get model tab
-            if hasattr(self, 'content_tabs'):
-                model_tab = self.content_tabs.widget(2)  # Model tab index
-                
-                # Get left panel 3D section
-                if hasattr(self, 'left_panel') and hasattr(self.left_panel, 'model_3d_tab'):
-                    left_panel_3d = self.left_panel.model_3d_tab
-                    
-                    # Connect parameter changes
-                    left_panel_3d.building_parameter_changed.connect(
-                        model_tab.update_building_parameter
-                    )
-                    
-                    print("✅ Model tab connected to left panel")
-                    
-        except Exception as e:
-            print(f"❌ Error connecting model tab to left panel: {e}")
+    def get_current_tab_index(self):
+        """Get current active tab index"""
+        return self.current_tab_index

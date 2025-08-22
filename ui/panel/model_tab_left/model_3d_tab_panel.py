@@ -3,7 +3,7 @@
 ui/panel/model_tab_left/model_3d_tab_panel.py
 FIXED Model3DTabPanel - uses separated classes and connects to model tab
 """
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QTabWidget, QLabel, QGroupBox)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QTabWidget, QLabel, QGroupBox)
 from PyQt5.QtCore import pyqtSignal
 
 # Import centralized styles
@@ -11,7 +11,6 @@ try:
     from styles.ui_styles import (
         get_model3d_panel_style,
         get_model3d_tab_widget_style,
-        get_model3d_export_button_style,
         get_model3d_groupbox_style,
         get_model3d_tab_content_style,
         get_model3d_error_label_style
@@ -47,7 +46,6 @@ class Model3DTabPanel(QWidget):
     """FIXED Model3DTabPanel - uses separated classes and connects to model tab"""
     
     # Signals
-    export_model_requested = pyqtSignal()
     solar_parameter_changed = pyqtSignal(str, object)
     animation_toggled = pyqtSignal(bool)
     solar_panel_config_changed = pyqtSignal(dict)
@@ -63,7 +61,6 @@ class Model3DTabPanel(QWidget):
         self.datetime_controls = None
         self.location_controls = None
         self.modifications_tab = None
-        self.export_btn = None
         self.tab_widget = None
         
         print("🌞 FIXED Model3DTabPanel initializing with separated classes...")
@@ -114,12 +111,8 @@ class Model3DTabPanel(QWidget):
         
         layout.addWidget(self.tab_widget)
         
-        # Export button
-        self.export_btn = QPushButton("💾 Export 3D Solar Model")
-        self.export_btn.setMinimumHeight(40)
-        self.export_btn.clicked.connect(self._emit_export_requested)
-        
-        layout.addWidget(self.export_btn)
+        # Add stretch to push content to top
+        layout.addStretch()
         
         # Apply styles after all widgets are created
         self.apply_theme_styles()
@@ -184,29 +177,6 @@ class Model3DTabPanel(QWidget):
         """
         
         self.tab_widget.setStyleSheet(tab_style)
-        
-        # Apply export button style
-        if STYLES_AVAILABLE:
-            self.export_btn.setStyleSheet(get_model3d_export_button_style(True))
-        else:
-            self.export_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #3498db;
-                    color: #ffffff;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px 16px;
-                    text-align: center;
-                    font-size: 12px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #2980b9;
-                }
-                QPushButton:pressed {
-                    background-color: #21618c;
-                }
-            """)
     
     def setup_solar_simulation_tab(self, tab_widget):
         """Setup solar simulation tab using separated control classes"""
@@ -283,7 +253,6 @@ class Model3DTabPanel(QWidget):
             
         except Exception as e:
             print(f"❌ Error connecting signals: {e}")
-
     
     # Signal handlers that connect to model tab
     def _on_time_changed(self, decimal_time):
@@ -307,7 +276,6 @@ class Model3DTabPanel(QWidget):
             
         except Exception as e:
             print(f"❌ Error updating time: {e}")
-
     
     def _on_date_changed(self, day_of_year):
         """Handle date change and update model tab"""
@@ -352,7 +320,6 @@ class Model3DTabPanel(QWidget):
             
         except Exception as e:
             print(f"❌ Error updating location: {e}")
-
     
     def _get_model_tab(self):
         """Get model tab from content tabs"""
@@ -376,14 +343,6 @@ class Model3DTabPanel(QWidget):
         except Exception as e:
             print(f"❌ Error getting model tab: {e}")
             return None
-        
-    def _emit_export_requested(self):
-        """Emit export requested signal"""
-        try:
-            print("💾 Export requested")
-            self.export_model_requested.emit()
-        except Exception as e:
-            print(f"❌ Error emitting export request: {e}")
     
     # Fallback methods for missing control classes
     def _create_fallback_modifications_tab(self):

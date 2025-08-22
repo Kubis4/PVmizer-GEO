@@ -1,24 +1,13 @@
 #!/usr/bin/env python3
 """
 ui/panel/model_tab_left/modifications_tab.py
-Modifications tab with solar panels and obstacles for 3D model tab - Dark theme
+CLEANED - No hardcoded styles
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                            QPushButton, QProgressBar, QGroupBox, QMessageBox)
-from PyQt5.QtCore import pyqtSignal, QTimer
+                            QPushButton, QProgressBar, QGroupBox, QMessageBox, 
+                            QTabWidget)
+from PyQt5.QtCore import pyqtSignal, QTimer, Qt
 import math
-
-try:
-    from styles.ui_styles import (
-        get_model3d_groupbox_style,
-        get_model3d_button_style,
-        get_model3d_label_style,
-        get_model3d_progress_style
-    )
-    STYLES_AVAILABLE = True
-except ImportError:
-    STYLES_AVAILABLE = False
-    print("⚠️ Styles not available for ModificationsTab")
 
 # Import dialogs with fallback
 try:
@@ -33,18 +22,27 @@ try:
 except ImportError:
     OBSTACLE_DIALOG_AVAILABLE = False
 
+# Import environment tab with fallback
+try:
+    from ui.panel.model_tab_left.environment_tab import EnvironmentTab
+    ENVIRONMENT_TAB_AVAILABLE = True
+except ImportError:
+    ENVIRONMENT_TAB_AVAILABLE = False
+    print("⚠️ EnvironmentTab not available")
+
 class ModificationsTab(QWidget):
-    """Modifications tab widget for 3D model tab - Dark theme"""
+    """Enhanced Modifications tab widget for 3D model tab"""
     
     # Signals
     solar_panel_config_changed = pyqtSignal(dict)
     obstacle_placement_requested = pyqtSignal(str, tuple)
+    environment_action_requested = pyqtSignal(str, dict)
     
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
         self.main_window = main_window
         
-        # Control references
+        # Control references for original functionality
         self.solar_config_btn = None
         self.obstacle_btn = None
         self.power_label = None
@@ -52,6 +50,10 @@ class ModificationsTab(QWidget):
         self.efficiency_label = None
         self.performance_progress = None
         self.performance_timer = None
+        
+        # Tab system and environment tab
+        self.modifications_tabs = None
+        self.environment_tab = None
         
         # Solar parameters
         self.current_time = 12.0  # Noon
@@ -66,17 +68,51 @@ class ModificationsTab(QWidget):
         }
         
         self.setup_ui()
-        self.apply_styles()
         self.setup_performance_timer()
         
-        print("✅ ModificationsTab initialized with dark theme")
+        print("✅ Enhanced ModificationsTab initialized")
     
     def setup_ui(self):
-        """Setup modifications tab UI"""
-        # Set background
-        self.setStyleSheet("background-color: #2c3e50;")
-        
+        """Enhanced UI setup with tabbed interface"""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(15)
+        
+        # CREATE TABBED INTERFACE FOR MODIFICATIONS
+        self.modifications_tabs = QTabWidget()
+        self.modifications_tabs.setTabPosition(QTabWidget.North)
+        
+        # Tab 1: Original modifications (Solar + Obstacles)
+        original_tab = QWidget()
+        self.setup_original_modifications_tab(original_tab)
+        self.modifications_tabs.addTab(original_tab, "🔋 Solar & Obstacles")
+        
+        # Tab 2: Environment tab
+        if ENVIRONMENT_TAB_AVAILABLE:
+            try:
+                self.environment_tab = EnvironmentTab(self.main_window)
+                self.modifications_tabs.addTab(self.environment_tab, "🌲 Environment")
+                
+                # Connect environment signals
+                self.environment_tab.environment_action_requested.connect(
+                    self.environment_action_requested.emit
+                )
+                
+                print("✅ Environment tab added successfully")
+            except Exception as e:
+                print(f"❌ Error adding environment tab: {e}")
+                self._create_fallback_environment_tab()
+        else:
+            self._create_fallback_environment_tab()
+        
+        layout.addWidget(self.modifications_tabs)
+        
+        # Add stretch to push everything up
+        layout.addStretch()
+
+    def setup_original_modifications_tab(self, tab_widget):
+        """Setup the original solar panel and obstacle controls"""
+        layout = QVBoxLayout(tab_widget)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
         
@@ -89,7 +125,7 @@ class ModificationsTab(QWidget):
         # Performance Section
         self.setup_performance_section(layout)
         
-        # Add stretch to push everything up
+        # Add stretch
         layout.addStretch()
     
     def setup_solar_panel_section(self, layout):
@@ -169,7 +205,7 @@ class ModificationsTab(QWidget):
         # Info about metrics
         info_label = QLabel("Real-time calculations based on sun position, panel configuration, and location")
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #95a5a6; font-size: 11px; font-style: italic;")
+        info_label.setObjectName("performanceInfo")  # For styling
         performance_layout.addWidget(info_label)
         
         # Performance metrics
@@ -200,245 +236,166 @@ class ModificationsTab(QWidget):
         
         layout.addWidget(performance_group)
         self.performance_group = performance_group
-    
-    def apply_styles(self):
-        """Apply dark theme styles"""
-        if STYLES_AVAILABLE:
-            # Group boxes
-            for group in [self.panel_group, self.obstacle_group, self.performance_group]:
-                group.setStyleSheet(get_model3d_groupbox_style())
-            
-            # Buttons
-            for button in self.findChildren(QPushButton):
-                button.setStyleSheet(get_model3d_button_style())
-            
-            # Progress bar
-            self.performance_progress.setStyleSheet(get_model3d_progress_style())
-            
-            # Labels - apply specific styles
-            info_style = "color: #bdc3c7; font-size: 12px; font-weight: normal; background-color: transparent;"
-            status_available_style = "color: #27ae60; font-size: 11px; font-weight: normal; background-color: transparent;"
-            status_unavailable_style = "color: #e74c3c; font-size: 11px; font-weight: normal; background-color: transparent;"
-            power_style = "color: #3498db; font-weight: bold; font-size: 13px; background-color: transparent;"
-            energy_style = "color: #2ecc71; font-weight: bold; font-size: 13px; background-color: transparent;"
-            efficiency_style = "color: #f39c12; font-weight: bold; font-size: 13px; background-color: transparent;"
-            
-            # Apply to specific labels
-            for label in self.findChildren(QLabel):
-                text = label.text()
-                if "Configure solar panel" in text or "Add obstacles" in text:
-                    label.setStyleSheet(info_style)
-                elif "✅" in text:
-                    label.setStyleSheet(status_available_style)
-                elif "⚠️" in text:
-                    label.setStyleSheet(status_unavailable_style)
-                elif "Current Power" in text:
-                    label.setStyleSheet(power_style)
-                elif "Daily Energy" in text:
-                    label.setStyleSheet(energy_style)
-                elif "System Efficiency" in text:
-                    label.setStyleSheet(efficiency_style)
-        else:
-            # Fallback styles
-            group_style = """
-                QGroupBox {
-                    background-color: #34495e;
-                    border: 1px solid #3498db;
-                    border-radius: 6px;
-                    margin-top: 10px;
-                    padding-top: 12px;
-                    font-weight: bold;
-                    color: #ffffff;
-                }
-                QGroupBox::title {
-                    color: #3498db;
-                    background-color: #34495e;
-                }
-            """
-            
-            for group in [self.panel_group, self.obstacle_group, self.performance_group]:
-                group.setStyleSheet(group_style)
-            
-            button_style = """
-                QPushButton {
-                    background-color: #3498db;
-                    color: #ffffff;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px 16px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #2980b9;
-                }
-            """
-            
-            for button in self.findChildren(QPushButton):
-                button.setStyleSheet(button_style)
-            
-            self.performance_progress.setStyleSheet("""
-                QProgressBar {
-                    border: 1px solid #3498db;
-                    border-radius: 5px;
-                    text-align: center;
-                    font-weight: bold;
-                    height: 25px;
-                    background-color: #34495e;
-                    color: #ffffff;
-                }
-                QProgressBar::chunk {
-                    background-color: #3498db;
-                    border-radius: 3px;
-                }
-            """)
-            
-            # Labels
-            for label in self.findChildren(QLabel):
-                label.setStyleSheet("color: #ffffff; background-color: transparent;")
+
+    def _create_fallback_environment_tab(self):
+        """Create fallback environment tab when EnvironmentTab is not available"""
+        fallback_tab = QWidget()
+        
+        fallback_layout = QVBoxLayout(fallback_tab)
+        fallback_layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Error message
+        error_label = QLabel("⚠️ Environment Tab Not Available")
+        error_label.setAlignment(Qt.AlignCenter)
+        error_label.setObjectName("environmentError")  # For styling
+        fallback_layout.addWidget(error_label)
+        
+        # Instructions
+        instructions = QLabel("""
+        To enable environment features:
+        
+        1. Create the file: ui/panel/model_tab_left/environment_tab.py
+        2. Copy the EnvironmentTab class implementation
+        3. Restart the application
+        
+        Environment features include:
+        • Deciduous, Pine, and Oak trees
+        • Utility poles with power lines  
+        • Automatic scene population
+        • Shadow casting integration
+        """)
+        instructions.setWordWrap(True)
+        instructions.setObjectName("environmentInstructions")  # For styling
+        fallback_layout.addWidget(instructions)
+        
+        fallback_layout.addStretch()
+        
+        self.modifications_tabs.addTab(fallback_tab, "🌲 Environment (Missing)")
+        print("⚠️ Using fallback environment tab")
     
     def setup_performance_timer(self):
-        """Setup timer for automatic performance updates"""
+        """Setup performance update timer"""
         try:
             self.performance_timer = QTimer()
             self.performance_timer.timeout.connect(self._update_performance)
-            self.performance_timer.setInterval(5000)  # Update every 5 seconds
-            self.performance_timer.start()
+            self.performance_timer.start(30000)  # Update every 30 seconds
             
             # Initial update
             self._update_performance()
             
-            print("✅ Performance timer setup completed")
+            print("✅ Performance timer initialized")
             
         except Exception as e:
             print(f"❌ Error setting up performance timer: {e}")
     
-    def calculate_solar_position(self):
-        """Calculate sun position based on time, date, and location"""
-        # Simplified solar position calculation
-        # Convert time to solar angle
-        solar_noon = 12.0
-        hour_angle = 15.0 * (self.current_time - solar_noon)  # degrees
-        
-        # Declination angle (simplified)
-        declination = 23.45 * math.sin(math.radians((360/365) * (self.day_of_year - 81)))
-        
-        # Solar elevation angle
-        lat_rad = math.radians(self.latitude)
-        dec_rad = math.radians(declination)
-        hour_rad = math.radians(hour_angle)
-        
-        elevation = math.asin(
-            math.sin(lat_rad) * math.sin(dec_rad) + 
-            math.cos(lat_rad) * math.cos(dec_rad) * math.cos(hour_rad)
-        )
-        
-        elevation_deg = math.degrees(elevation)
-        
-        # Azimuth calculation (simplified)
-        azimuth = math.atan2(
-            -math.sin(hour_rad),
-            math.tan(dec_rad) * math.cos(lat_rad) - math.sin(lat_rad) * math.cos(hour_rad)
-        )
-        azimuth_deg = math.degrees(azimuth) + 180
-        
-        return elevation_deg, azimuth_deg
-    
-    def calculate_solar_irradiance(self, elevation_deg):
-        """Calculate solar irradiance based on sun elevation"""
-        if elevation_deg <= 0:
-            return 0.0
-        
-        # Air mass calculation
-        if elevation_deg > 0:
-            air_mass = 1 / math.sin(math.radians(elevation_deg))
-        else:
-            air_mass = 40  # Maximum practical value
-        
-        # Direct normal irradiance (simplified atmospheric model)
-        dni_max = 900  # W/m² at sea level
-        atmospheric_extinction = 0.14  # Typical value
-        dni = dni_max * math.exp(-atmospheric_extinction * air_mass)
-        
-        # Global horizontal irradiance (includes diffuse)
-        ghi = dni * math.sin(math.radians(elevation_deg)) + 100  # Add diffuse component
-        
-        return max(0, ghi)
-    
-    def calculate_panel_output(self, irradiance):
-        """Calculate panel output based on irradiance and configuration"""
-        if self.panel_config['panel_count'] == 0:
-            return 0.0, 0.0, 0.0
-        
-        # Temperature effect (simplified - assumes 25°C cell temp at 1000 W/m²)
-        temp_coefficient = -0.004  # -0.4% per °C
-        cell_temp = 25 + (irradiance / 1000) * 20  # Simplified NOCT model
-        temp_factor = 1 + temp_coefficient * (cell_temp - 25)
-        
-        # Power calculation
-        panel_power_stc = self.panel_config['panel_power']  # Watts at STC
-        actual_power = panel_power_stc * (irradiance / 1000) * temp_factor * self.panel_config['efficiency']
-        total_power = actual_power * self.panel_config['panel_count'] / 1000  # Convert to kW
-        
-        # System efficiency (includes inverter, wiring losses)
-        system_efficiency = 0.85
-        total_power *= system_efficiency
-        
-        # Daily energy estimation (simplified)
-        # Assumes symmetric day with peak at solar noon
-        if self.current_time >= 6 and self.current_time <= 18:
-            hours_of_sun = 12
-            daily_energy = total_power * hours_of_sun * 0.6  # Peak sun hours factor
-        else:
-            daily_energy = 0
-        
-        # Overall efficiency
-        theoretical_max = self.panel_config['panel_count'] * self.panel_config['panel_power'] / 1000
-        if theoretical_max > 0:
-            efficiency = (total_power / theoretical_max) * 100
-        else:
-            efficiency = 0
-        
-        return total_power, daily_energy, efficiency
-    
     def _update_performance(self):
-        """Update solar performance display with real calculations"""
+        """Update solar performance metrics"""
         try:
-            # Calculate sun position
-            elevation, azimuth = self.calculate_solar_position()
+            # Calculate solar parameters
+            solar_elevation = self._calculate_solar_elevation()
+            solar_azimuth = self._calculate_solar_azimuth()
             
-            # Calculate irradiance
-            irradiance = self.calculate_solar_irradiance(elevation)
+            # Calculate irradiance (simplified model)
+            if solar_elevation > 0:
+                # Base irradiance calculation
+                air_mass = 1 / math.sin(math.radians(solar_elevation))
+                air_mass = max(1.0, min(air_mass, 10.0))
+                
+                # Atmospheric attenuation
+                clear_sky_irradiance = 1000 * (0.7 ** (air_mass ** 0.678))
+                
+                # Panel efficiency factor
+                efficiency_factor = self.panel_config['efficiency']
+                
+                # Calculate power output
+                panel_area = self.panel_config['panel_area']
+                panel_count = self.panel_config['panel_count']
+                
+                current_power = (clear_sky_irradiance * panel_area * panel_count * 
+                               efficiency_factor) / 1000  # Convert to kW
+                
+                # Daily energy estimate (simplified)
+                peak_sun_hours = max(0, 6 + 2 * math.sin(math.radians(solar_elevation)))
+                daily_energy = current_power * peak_sun_hours
+                
+                # System efficiency
+                system_efficiency = (current_power / 
+                                   (panel_count * self.panel_config['panel_power'] / 1000)) * 100
+                system_efficiency = min(100, max(0, system_efficiency))
+                
+                # Irradiance percentage
+                irradiance_percent = min(100, (clear_sky_irradiance / 1000) * 100)
+                
+            else:
+                current_power = 0.0
+                daily_energy = 0.0
+                system_efficiency = 0.0
+                irradiance_percent = 0.0
             
-            # Calculate panel output
-            power, energy, efficiency = self.calculate_panel_output(irradiance)
+            # Update UI
+            self.power_label.setText(f"Current Power: {current_power:.1f} kW")
+            self.energy_label.setText(f"Daily Energy: {daily_energy:.1f} kWh")
+            self.efficiency_label.setText(f"System Efficiency: {system_efficiency:.1f}%")
+            self.performance_progress.setValue(int(irradiance_percent))
             
-            # Update labels
-            self.power_label.setText(f"Current Power: {power:.2f} kW")
-            self.energy_label.setText(f"Daily Energy: {energy:.1f} kWh")
-            self.efficiency_label.setText(f"System Efficiency: {efficiency:.1f}%")
-            
-            # Update progress bar (shows irradiance as percentage of max)
-            irradiance_percent = min(100, int((irradiance / 1000) * 100))
-            self.performance_progress.setValue(irradiance_percent)
-            self.performance_progress.setFormat(f"Solar Irradiance: {irradiance:.0f} W/m² ({irradiance_percent}%)")
-            
-                    
         except Exception as e:
             print(f"❌ Error updating performance: {e}")
     
+    def _calculate_solar_elevation(self):
+        """Calculate solar elevation angle"""
+        try:
+            # Convert day of year to solar declination
+            declination = 23.45 * math.sin(math.radians(360 * (284 + self.day_of_year) / 365))
+            
+            # Convert time to hour angle
+            hour_angle = 15 * (self.current_time - 12)
+            
+            # Calculate solar elevation
+            lat_rad = math.radians(self.latitude)
+            dec_rad = math.radians(declination)
+            hour_rad = math.radians(hour_angle)
+            
+            elevation = math.asin(
+                math.sin(lat_rad) * math.sin(dec_rad) +
+                math.cos(lat_rad) * math.cos(dec_rad) * math.cos(hour_rad)
+            )
+            
+            return math.degrees(elevation)
+            
+        except Exception as e:
+            print(f"❌ Error calculating solar elevation: {e}")
+            return 45.0  # Default value
+    
+    def _calculate_solar_azimuth(self):
+        """Calculate solar azimuth angle"""
+        try:
+            # Simplified azimuth calculation
+            hour_angle = 15 * (self.current_time - 12)
+            return 180 + hour_angle  # Simplified model
+            
+        except Exception as e:
+            print(f"❌ Error calculating solar azimuth: {e}")
+            return 180.0  # Default value
+    
     def update_solar_parameters(self, time=None, day=None, latitude=None, longitude=None):
-        """Update solar parameters from external controls"""
-        if time is not None:
-            self.current_time = time
-        if day is not None:
-            self.day_of_year = day
-        if latitude is not None:
-            self.latitude = latitude
-        if longitude is not None:
-            self.longitude = longitude
-        
-        # Immediate update
-        self._update_performance()
+        """Update solar calculation parameters"""
+        try:
+            if time is not None:
+                self.current_time = time
+            if day is not None:
+                self.day_of_year = day
+            if latitude is not None:
+                self.latitude = latitude
+            if longitude is not None:
+                self.longitude = longitude
+            
+            # Trigger immediate update
+            self._update_performance()
+            
+            print(f"✅ Solar parameters updated: time={self.current_time}, day={self.day_of_year}")
+            
+        except Exception as e:
+            print(f"❌ Error updating solar parameters: {e}")
     
     def _open_solar_panel_dialog(self):
         """Open solar panel configuration dialog"""
@@ -468,7 +425,6 @@ class ModificationsTab(QWidget):
                         
         except Exception as e:
             print(f"❌ Error opening solar panel dialog: {e}")
-            # Set some default panels for testing
             self.panel_config['panel_count'] = 10
             self._update_performance()
             QMessageBox.critical(self, "Error", f"Error opening solar panel dialog: {e}")
@@ -508,22 +464,6 @@ class ModificationsTab(QWidget):
         except Exception as e:
             print(f"❌ Error opening obstacle dialog: {e}")
             QMessageBox.critical(self, "Error", f"Error opening obstacle dialog: {e}")
-    
-    def update_theme(self, is_dark_theme):
-        """Update theme (always dark for this panel)"""
-        self.apply_styles()
-    
-    def cleanup(self):
-        """Cleanup resources"""
-        try:
-            if self.performance_timer:
-                self.performance_timer.stop()
-                self.performance_timer = None
-                
-            print("✅ ModificationsTab cleanup completed")
-            
-        except Exception as e:
-            print(f"❌ Error during cleanup: {e}")
     
     def _apply_panels_to_roof(self, config):
         """Apply solar panels to the roof in the 3D model"""
@@ -576,3 +516,192 @@ class ModificationsTab(QWidget):
         except Exception as e:
             print(f"❌ Error getting model tab: {e}")
             return None
+
+    def connect_environment_to_model_tab(self, model_tab):
+        """Connect environment actions to the model tab's roof system"""
+        if not self.environment_tab or not model_tab:
+            return
+            
+        try:
+            # Connect environment action signal to model tab handler
+            self.environment_tab.environment_action_requested.connect(
+                lambda action, params: self._handle_environment_action(model_tab, action, params)
+            )
+            print("✅ Environment tab connected to model tab")
+        except Exception as e:
+            print(f"❌ Error connecting environment to model tab: {e}")
+
+    def _handle_environment_action(self, model_tab, action_type, parameters):
+        """Handle environment actions by calling appropriate BaseRoof methods"""
+        try:
+            # Get the current roof from model tab
+            current_roof = getattr(model_tab, 'current_roof', None)
+            if not current_roof:
+                print("No active roof in model tab")
+                return False
+            
+            print(f"Handling environment action: {action_type}")
+            
+            # Handle different environment actions
+            if action_type == 'add_tree':
+                tree_type = parameters.get('tree_type', 'deciduous')
+                # Set the tree type index before adding
+                if tree_type == 'pine':
+                    current_roof.tree_type_index = 1
+                elif tree_type == 'oak':
+                    current_roof.tree_type_index = 2
+                else:  # deciduous
+                    current_roof.tree_type_index = 0
+                
+                success = current_roof.add_environment_obstacle_at_point('tree')
+                return success
+                
+            elif action_type == 'add_multiple_trees':
+                count = parameters.get('count', 5)
+                success_count = 0
+                for i in range(count):
+                    # Cycle through tree types
+                    tree_types = ['deciduous', 'pine', 'oak']
+                    current_roof.tree_type_index = i % len(tree_types)
+                    if current_roof.add_environment_obstacle_at_point('tree'):
+                        success_count += 1
+                
+                print(f"Added {success_count}/{count} trees")
+                return success_count > 0
+                
+            elif action_type == 'add_pole':
+                success = current_roof.add_environment_obstacle_at_point('pole')
+                return success
+                
+            elif action_type == 'toggle_attachment_points':
+                try:
+                    current_roof.hide_environment_attachment_points()
+                except:
+                    # If hide fails, try show
+                    current_roof.show_environment_attachment_points()
+                return True
+                
+            elif action_type == 'clear_all_environment':
+                current_roof.clear_environment_obstacles()
+                return True
+                
+            elif action_type == 'auto_populate_scene':
+                success_count = 0
+                
+                # Add 3 deciduous trees
+                current_roof.tree_type_index = 0
+                for _ in range(3):
+                    if current_roof.add_environment_obstacle_at_point('tree'):
+                        success_count += 1
+                
+                # Add 2 pine trees  
+                current_roof.tree_type_index = 1
+                for _ in range(2):
+                    if current_roof.add_environment_obstacle_at_point('tree'):
+                        success_count += 1
+                
+                # Add 1 oak tree
+                current_roof.tree_type_index = 2
+                if current_roof.add_environment_obstacle_at_point('tree'):
+                    success_count += 1
+                
+                # Add 2 poles
+                for _ in range(2):
+                    current_roof.add_environment_obstacle_at_point('pole')
+                
+                print(f"Added {success_count} trees + poles")
+                return True
+            
+            else:
+                print(f"Unknown environment action: {action_type}")
+                return False
+                
+        except Exception as e:
+            print(f"Error handling environment action '{action_type}': {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def update_theme(self, is_dark_theme):
+        """Update theme - no hardcoded styles"""
+        pass
+
+    def connect_signals(self):
+        """Enhanced signal connections including environment"""
+        try:
+            # Connect environment tab if available
+            if self.environment_tab and hasattr(self.environment_tab, 'environment_action_requested'):
+                self.environment_tab.environment_action_requested.connect(
+                    self.environment_action_requested.emit
+                )
+                print("Environment signals connected")
+                
+        except Exception as e:
+            print(f"Error connecting environment signals: {e}")
+
+    def cleanup(self):
+        """Enhanced cleanup with environment tab"""
+        try:
+            # Stop performance timer
+            if hasattr(self, 'performance_timer') and self.performance_timer:
+                try:
+                    self.performance_timer.stop()
+                except Exception as timer_error:
+                    print(f"Error stopping performance timer: {timer_error}")
+                finally:
+                    self.performance_timer = None
+            
+            # Cleanup environment tab
+            if hasattr(self, 'environment_tab') and self.environment_tab:
+                try:
+                    if hasattr(self.environment_tab, 'cleanup'):
+                        self.environment_tab.cleanup()
+                except Exception as env_error:
+                    print(f"Error cleaning up environment tab: {env_error}")
+                finally:
+                    self.environment_tab = None
+            
+            # Clear control references safely
+            control_refs = [
+                'solar_config_btn', 'obstacle_btn', 'power_label', 
+                'energy_label', 'efficiency_label', 'performance_progress', 
+                'update_btn', 'panel_status', 'obstacle_status'
+            ]
+            
+            for ref in control_refs:
+                if hasattr(self, ref):
+                    setattr(self, ref, None)
+            
+            # Clear group references safely
+            group_refs = ['panel_group', 'obstacle_group', 'performance_group']
+            for ref in group_refs:
+                if hasattr(self, ref):
+                    setattr(self, ref, None)
+            
+            # Clear tab widget
+            if hasattr(self, 'modifications_tabs') and self.modifications_tabs:
+                try:
+                    # Clear all tabs first
+                    while self.modifications_tabs.count() > 0:
+                        widget = self.modifications_tabs.widget(0)
+                        self.modifications_tabs.removeTab(0)
+                        if widget:
+                            widget.deleteLater()
+                except Exception as tab_error:
+                    print(f"Error clearing tabs: {tab_error}")
+                finally:
+                    self.modifications_tabs = None
+            
+            # Clear configuration data
+            if hasattr(self, 'panel_config'):
+                self.panel_config = None
+            
+            # Clear main window reference last
+            self.main_window = None
+                
+            print("Enhanced ModificationsTab cleanup completed")
+            
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+            import traceback
+            traceback.print_exc()
