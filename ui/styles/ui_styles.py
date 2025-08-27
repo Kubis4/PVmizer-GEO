@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
 ui/styles/ui_styles.py
-Centralized Styles for PVmizer GEO Application
+Centralized Styles for PVmizer GEO Application - Dark Theme Only
 All CSS styles organized by component type
 """
 
 # ============================================================================
-# MODEL 3D TAB PANEL STYLES - Professional Dark Theme
+# MODEL 3D TAB PANEL STYLES - Dark Theme Only
 # ============================================================================
 
-def get_model3d_panel_style(is_dark_theme=False):
-    """Main panel style for Model3D tab panel"""
+def get_model3d_panel_style():
+    """Main panel style for Model3D tab panel - Dark theme only"""
     return """
         Model3DTabPanel {
             background-color: #2c3e50;
@@ -18,8 +18,8 @@ def get_model3d_panel_style(is_dark_theme=False):
         }
     """
 
-def get_model3d_tab_widget_style(is_dark_theme=False):
-    """Tab widget style for Model3D panel"""
+def get_model3d_tab_widget_style():
+    """Tab widget style for Model3D panel - Dark theme only"""
     return """
         QTabWidget {
             background-color: #2c3e50;
@@ -71,8 +71,8 @@ def get_model3d_tab_widget_style(is_dark_theme=False):
         }
     """
 
-def get_model3d_groupbox_style(is_dark_theme=False):
-    """GroupBox style for Model3D panel - WITH BORDER, centered title"""
+def get_model3d_groupbox_style():
+    """GroupBox style for Model3D panel - Dark theme only"""
     return """
         QGroupBox {
             background-color: #34495e;
@@ -92,714 +92,683 @@ def get_model3d_groupbox_style(is_dark_theme=False):
         QGroupBox::title {
             subcontrol-origin: margin;
             subcontrol-position: top center;
-            padding: 0px 8px;
+            padding: 6px 12px;
+            background-color: #2c3e50;
             color: #3498db;
-            background-color: #34495e;
+            border-radius: 4px;
+            font-size: 12px;
             font-weight: bold;
-            font-size: 13px;
         }
     """
 
-def get_model3d_button_style(button_type="default"):
-    """Button styles for Model3D panel - ALL buttons use #3498db"""
-    base_style = """
+def get_model3d_export_button_style():
+    """Export button style for Model3D panel - Dark theme only"""
+    return """
         QPushButton {
-            background-color: #3498db;
-            color: #ffffff;
+            background-color: #16a085;
+            color: white;
             border: none;
-            border-radius: 4px;
-            padding: 8px 16px;
-            text-align: center;
-            font-size: 12px;
+            border-radius: 6px;
+            padding: 12px 20px;
             font-weight: bold;
-            margin: 2px;
+            font-size: 12px;
+            margin: 5px;
         }
+        
         QPushButton:hover {
-            background-color: #2980b9;
+            background-color: #138d75;
         }
+        
         QPushButton:pressed {
-            background-color: #21618c;
+            background-color: #117a65;
         }
+        
         QPushButton:disabled {
             background-color: #7f8c8d;
             color: #bdc3c7;
         }
     """
-    
-    if button_type == "animate":
-        # Animate button - same blue color
-        return """
-            QPushButton {
-                background-color: #3498db;
-                color: #ffffff;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 12px;
-                text-align: center;
-                min-height: 28px;
-                font-size: 11px;
-                font-weight: bold;
-                margin: 2px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
-            QPushButton:checked {
-                background-color: #e74c3c;
-            }
-            QPushButton:checked:hover {
-                background-color: #c0392b;
-            }
-        """
-    else:
-        # Default button style
-        return base_style + """
-            QPushButton {
-                min-height: 32px;
-            }
-        """
 
-def get_model3d_label_style():
-    """Label style with white text"""
+def get_model3d_tab_content_style():
+    """Tab content style for Model3D panel - Dark theme only"""
     return """
-        QLabel {
-            color: #ffffff;
-            background-color: transparent;
-            font-size: 12px;
-            font-weight: normal;
-            padding: 2px 0px;
-        }
-    """
-
-def get_model3d_combobox_style():
-    """ComboBox style with WHITE TEXT and visible dropdown arrow"""
-    return """
-        QComboBox {
-            background-color: #34495e;
-            color: #ffffff;
-            border: 1px solid #3498db;
-            border-radius: 4px;
-            padding: 6px 8px;
-            padding-right: 25px;
-            font-size: 12px;
-            font-weight: normal;
-            min-height: 20px;
-        }
-        
-        QComboBox:focus {
-            border: 1px solid #2980b9;
-            background-color: #3d566e;
-            color: #ffffff;
-        }
-        
-        QComboBox:hover {
-            border: 1px solid #2980b9;
-            background-color: #3d566e;
-            color: #ffffff;
-        }
-        
-        QComboBox:disabled {
+        QWidget {
             background-color: #2c3e50;
-            color: #7f8c8d;
-            border: 1px solid #34495e;
+            color: #ecf0f1;
         }
         
-        QComboBox::drop-down {
-            subcontrol-origin: padding;
-            subcontrol-position: top right;
-            width: 20px;
-            border: none;
+        QLabel {
+            color: #ecf0f1;
+            font-size: 12px;
+        }
+        
+        QPushButton {
             background-color: #3498db;
-            border-top-right-radius: 4px;
-            border-bottom-right-radius: 4px;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-weight: bold;
+            font-size: 11px;
         }
         
-        QComboBox::drop-down:hover {
+        QPushButton:hover {
             background-color: #2980b9;
         }
         
-        QComboBox::down-arrow {
-            image: none;
-            width: 0;
-            height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 5px solid #ffffff;
+        QPushButton:pressed {
+            background-color: #21618c;
+        }
+        
+        QLineEdit {
+            background-color: #34495e;
+            color: #ecf0f1;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            padding: 6px;
+            font-size: 11px;
+        }
+        
+        QLineEdit:focus {
+            border-color: #2980b9;
+        }
+        
+        QComboBox {
+            background-color: #34495e;
+            color: #ecf0f1;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            padding: 6px;
+            font-size: 11px;
+        }
+        
+        QComboBox:focus {
+            border-color: #2980b9;
         }
         
         QComboBox QAbstractItemView {
             background-color: #34495e;
-            color: #ffffff;
-            selection-background-color: #3498db;
-            selection-color: #ffffff;
-            border: 1px solid #3498db;
-            border-radius: 4px;
-            outline: none;
-            padding: 4px;
-        }
-        
-        QComboBox QAbstractItemView::item {
-            padding: 6px 8px;
-            border-radius: 2px;
-            margin: 1px;
-            background-color: #34495e;
-            color: #ffffff;
-            min-height: 20px;
-        }
-        
-        QComboBox QAbstractItemView::item:selected {
-            background-color: #3498db;
-            color: #ffffff;
-        }
-        
-        QComboBox QAbstractItemView::item:hover {
-            background-color: #2980b9;
-            color: #ffffff;
-        }
-        
-        /* Force white text in all states */
-        QComboBox QListView {
-            color: #ffffff;
-            background-color: #34495e;
+            color: #ecf0f1;
+            selection-background-color: #2980b9;
         }
     """
 
-def get_model3d_timeedit_style():
-    """Time edit style with white text"""
+def get_model3d_error_label_style():
+    """Error label style for Model3D panel - Dark theme only"""
     return """
-        QTimeEdit {
-            background-color: #34495e;
-            color: #ffffff;
-            border: 1px solid #3498db;
+        QLabel {
+            color: #e74c3c;
+            background-color: #2c3e50;
+            border: 1px solid #e74c3c;
             border-radius: 4px;
-            padding: 6px 8px;
+            padding: 10px;
+            font-weight: bold;
             font-size: 12px;
-            font-weight: normal;
-            min-height: 20px;
         }
-        
-        QTimeEdit:focus {
-            border: 1px solid #2980b9;
-            background-color: #3d566e;
-            color: #ffffff;
-        }
-        
-        QTimeEdit:hover {
-            border: 1px solid #2980b9;
-            background-color: #3d566e;
-            color: #ffffff;
-        }
-        
-        QTimeEdit::up-button, QTimeEdit::down-button {
+    """
+
+# ============================================================================
+# GENERAL UI COMPONENT STYLES - Dark Theme Only
+# ============================================================================
+
+def get_standard_button_style():
+    """Standard button style - Dark theme only"""
+    return """
+        QPushButton {
             background-color: #3498db;
+            color: white;
             border: none;
-            width: 16px;
-        }
-        
-        QTimeEdit::up-button:hover, QTimeEdit::down-button:hover {
-            background-color: #2980b9;
-        }
-        
-        QTimeEdit::up-arrow {
-            image: none;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-bottom: 4px solid #ffffff;
-        }
-        
-        QTimeEdit::down-arrow {
-            image: none;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 4px solid #ffffff;
-        }
-    """
-
-def get_model3d_dateedit_style():
-    """Date edit style with calendar fixes - WHITE TEXT"""
-    return """
-        QDateEdit {
-            background-color: #34495e;
-            color: #ffffff;
-            border: 1px solid #3498db;
-            border-radius: 4px;
-            padding: 6px 8px;
-            padding-right: 25px;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-weight: bold;
             font-size: 12px;
-            font-weight: normal;
             min-height: 20px;
         }
         
-        QDateEdit:focus {
-            border: 1px solid #2980b9;
-            background-color: #3d566e;
-            color: #ffffff;
+        QPushButton:hover {
+            background-color: #2980b9;
         }
         
-        QDateEdit:hover {
-            border: 1px solid #2980b9;
-            background-color: #3d566e;
-            color: #ffffff;
+        QPushButton:pressed {
+            background-color: #21618c;
         }
         
-        QDateEdit::drop-down {
+        QPushButton:disabled {
+            background-color: #7f8c8d;
+            color: #bdc3c7;
+        }
+    """
+
+def get_success_button_style():
+    """Success/OK button style - Dark theme only"""
+    return """
+        QPushButton {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-weight: bold;
+            font-size: 12px;
+            min-height: 20px;
+        }
+        
+        QPushButton:hover {
+            background-color: #219a52;
+        }
+        
+        QPushButton:pressed {
+            background-color: #1e8449;
+        }
+    """
+
+def get_danger_button_style():
+    """Danger/Delete button style - Dark theme only"""
+    return """
+        QPushButton {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-weight: bold;
+            font-size: 12px;
+            min-height: 20px;
+        }
+        
+        QPushButton:hover {
+            background-color: #c0392b;
+        }
+        
+        QPushButton:pressed {
+            background-color: #a93226;
+        }
+    """
+
+def get_secondary_button_style():
+    """Secondary/Cancel button style - Dark theme only"""
+    return """
+        QPushButton {
+            background-color: #95a5a6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-weight: bold;
+            font-size: 12px;
+            min-height: 20px;
+        }
+        
+        QPushButton:hover {
+            background-color: #7f8c8d;
+        }
+        
+        QPushButton:pressed {
+            background-color: #6c757d;
+        }
+    """
+
+def get_input_field_style():
+    """Input field style - Dark theme only"""
+    return """
+        QLineEdit, QSpinBox, QDoubleSpinBox {
+            background-color: #34495e;
+            color: #ecf0f1;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 13px;
+        }
+        
+        QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {
+            border-color: #2980b9;
+            background-color: #2c3e50;
+        }
+        
+        QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {
+            background-color: #7f8c8d;
+            color: #bdc3c7;
+            border-color: #95a5a6;
+        }
+    """
+
+def get_combobox_style():
+    """ComboBox style - Dark theme only"""
+    return """
+        QComboBox {
+            background-color: #34495e;
+            color: #ecf0f1;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 13px;
+            min-width: 120px;
+        }
+        
+        QComboBox:focus {
+            border-color: #2980b9;
+        }
+        
+        QComboBox:disabled {
+            background-color: #7f8c8d;
+            color: #bdc3c7;
+            border-color: #95a5a6;
+        }
+        
+        QComboBox::drop-down {
             subcontrol-origin: padding;
-            subcontrol-position: top right;
-            width: 20px;
-            border: none;
+            subcontrol-position: center right;
+            width: 25px;
+            border-left: 1px solid #3498db;
             background-color: #3498db;
             border-top-right-radius: 4px;
             border-bottom-right-radius: 4px;
         }
         
-        QDateEdit::drop-down:hover {
-            background-color: #2980b9;
-        }
-        
-        QDateEdit::down-arrow {
-            image: none;
-            width: 0;
-            height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 5px solid #ffffff;
-        }
-        
-        /* Calendar Widget Styling - FORCE ALL WHITE TEXT */
-        QCalendarWidget {
-            background-color: #2c3e50;
-            color: #ffffff;
+        QComboBox QAbstractItemView {
+            background-color: #34495e;
+            color: #ecf0f1;
             border: 1px solid #3498db;
-            border-radius: 4px;
+            selection-background-color: #2980b9;
+        }
+    """
+
+def get_checkbox_style():
+    """CheckBox style - Dark theme only"""
+    return """
+        QCheckBox {
+            color: #ecf0f1;
+            background-color: transparent;
+            font-size: 13px;
         }
         
-        QCalendarWidget * {
-            color: #ffffff;
-            background-color: #2c3e50;
+        QCheckBox:disabled {
+            color: #bdc3c7;
         }
         
-        QCalendarWidget QWidget {
-            color: #ffffff;
-        }
-        
-        QCalendarWidget QToolButton {
-            background-color: #34495e;
-            color: #ffffff;
-            border: none;
-            border-radius: 4px;
-            padding: 4px;
-            margin: 2px;
-        }
-        
-        QCalendarWidget QToolButton:hover {
-            background-color: #3498db;
-            color: #ffffff;
-        }
-        
-        QCalendarWidget QToolButton:pressed {
-            background-color: #2980b9;
-            color: #ffffff;
-        }
-        
-        QCalendarWidget QMenu {
-            background-color: #34495e;
-            color: #ffffff;
+        QCheckBox::indicator {
+            width: 18px;
+            height: 18px;
             border: 1px solid #3498db;
-        }
-        
-        QCalendarWidget QMenu::item {
+            border-radius: 3px;
             background-color: #34495e;
-            color: #ffffff;
-            padding: 4px 20px;
         }
         
-        QCalendarWidget QMenu::item:selected {
+        QCheckBox::indicator:checked {
             background-color: #3498db;
-            color: #ffffff;
+            border: 1px solid #2980b9;
         }
         
-        QCalendarWidget QSpinBox {
-            background-color: #34495e;
-            color: #ffffff;
+        QCheckBox::indicator:disabled {
+            background-color: #7f8c8d;
+            border: 1px solid #95a5a6;
+        }
+    """
+
+def get_radiobutton_style():
+    """RadioButton style - Dark theme only"""
+    return """
+        QRadioButton {
+            color: #ecf0f1;
+            background-color: transparent;
+            font-size: 13px;
+        }
+        
+        QRadioButton:disabled {
+            color: #bdc3c7;
+        }
+        
+        QRadioButton::indicator {
+            width: 18px;
+            height: 18px;
             border: 1px solid #3498db;
-            border-radius: 4px;
-            padding: 2px;
-            selection-background-color: #3498db;
-            selection-color: #ffffff;
+            border-radius: 9px;
+            background-color: #34495e;
         }
         
-        QCalendarWidget QSpinBox::up-button,
-        QCalendarWidget QSpinBox::down-button {
+        QRadioButton::indicator:checked {
             background-color: #3498db;
-            border: none;
-            width: 16px;
+            border: 1px solid #2980b9;
         }
         
-        QCalendarWidget QSpinBox::up-arrow,
-        QCalendarWidget QSpinBox::down-arrow {
-            width: 0;
-            height: 0;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
+        QRadioButton::indicator:disabled {
+            background-color: #7f8c8d;
+            border: 1px solid #95a5a6;
         }
-        
-        QCalendarWidget QSpinBox::up-arrow {
-            border-bottom: 4px solid #ffffff;
-        }
-        
-        QCalendarWidget QSpinBox::down-arrow {
-            border-top: 4px solid #ffffff;
-        }
-        
-        QCalendarWidget QAbstractItemView {
-            background-color: #2c3e50;
-            color: #ffffff;
-            selection-background-color: #3498db;
-            selection-color: #ffffff;
-            border: none;
-            alternate-background-color: #2c3e50;
-        }
-        
-        /* Calendar table view - day numbers */
-        QCalendarWidget QTableView {
-            background-color: #2c3e50;
-            color: #ffffff;
-            selection-background-color: #3498db;
-            selection-color: #ffffff;
-            gridline-color: #34495e;
-            outline: none;
-        }
-        
-        /* Individual day cells */
-        QCalendarWidget QTableView::item {
-            color: #ffffff;
-            background-color: #2c3e50;
-            padding: 4px;
-            border: none;
-        }
-        
-        QCalendarWidget QTableView::item:selected {
-            background-color: #3498db;
-            color: #ffffff;
+    """
+
+def get_groupbox_style():
+    """GroupBox style - Dark theme only"""
+    return """
+        QGroupBox {
+            background-color: #34495e;
+            color: #ecf0f1;
+            border: 1px solid #3498db;
+            border-radius: 6px;
+            margin-top: 12px;
+            padding-top: 15px;
             font-weight: bold;
+            font-size: 13px;
         }
         
-        QCalendarWidget QTableView::item:hover {
-            background-color: #34495e;
-            color: #ffffff;
-        }
-        
-        /* Weekday headers */
-        QCalendarWidget QHeaderView {
-            background-color: #34495e;
-            color: #ffffff;
-            border: none;
-        }
-        
-        QCalendarWidget QHeaderView::section {
-            background-color: #34495e;
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top center;
+            padding: 6px 15px;
+            background-color: #2c3e50;
             color: #3498db;
-            font-weight: bold;
-            border: none;
-            padding: 4px;
-        }
-        
-        /* Navigation bar */
-        QCalendarWidget QWidget#qt_calendar_navigationbar {
-            background-color: #34495e;
-            color: #ffffff;
-        }
-        
-        QCalendarWidget QWidget#qt_calendar_navigationbar QToolButton {
-            color: #ffffff;
-            background-color: #34495e;
-        }
-        
-        /* Month/Year buttons */
-        QCalendarWidget QToolButton#qt_calendar_monthbutton,
-        QCalendarWidget QToolButton#qt_calendar_yearbutton {
-            color: #ffffff;
-            background-color: #34495e;
-            padding: 2px 10px;
             border-radius: 4px;
-        }
-        
-        QCalendarWidget QToolButton#qt_calendar_monthbutton:hover,
-        QCalendarWidget QToolButton#qt_calendar_yearbutton:hover {
-            color: #ffffff;
-            background-color: #3498db;
-        }
-        
-        /* Navigation arrows */
-        QCalendarWidget QToolButton#qt_calendar_prevmonth,
-        QCalendarWidget QToolButton#qt_calendar_nextmonth {
-            color: #ffffff;
-            background-color: #34495e;
-            qproperty-icon: none;
-        }
-        
-        QCalendarWidget QToolButton#qt_calendar_prevmonth:hover,
-        QCalendarWidget QToolButton#qt_calendar_nextmonth:hover {
-            background-color: #3498db;
-            color: #ffffff;
-        }
-        
-        /* Force white text on disabled days */
-        QCalendarWidget QTableView::item:disabled {
-            color: #7f8c8d;
-            background-color: #2c3e50;
-        }
-        
-        /* Today's date */
-        QCalendarWidget QTableView::item:selected:active {
-            background-color: #e74c3c;
-            color: #ffffff;
+            font-size: 13px;
             font-weight: bold;
-        }
-        
-        /* Current month days vs other month days */
-        QCalendarWidget QTableView::item:!selected {
-            color: #ffffff;
-        }
-        
-        /* Days from other months */
-        QCalendarWidget QTableView::item:selected:!active {
-            color: #95a5a6;
-            background-color: #2c3e50;
         }
     """
 
-def get_model3d_slider_style():
-    """Slider style with groupbox matching colors"""
+def get_label_style():
+    """Label style - Dark theme only"""
     return """
-        QSlider::groove:horizontal {
-            border: 1px solid #3498db;
-            background: #34495e;
-            height: 6px;
-            border-radius: 3px;
-        }
-        
-        QSlider::handle:horizontal {
-            background: #3498db;
-            border: 1px solid #3498db;
-            width: 16px;
-            height: 16px;
-            border-radius: 8px;
-            margin: -6px 0;
-        }
-        
-        QSlider::handle:horizontal:hover {
-            background: #2980b9;
-        }
-        
-        QSlider::sub-page:horizontal {
-            background: #3498db;
-            border-radius: 3px;
-        }
-    """
-
-def get_model3d_spinbox_style():
-    """Spin box style with WHITE TEXT"""
-    return """
-        QSpinBox, QDoubleSpinBox {
-            background-color: #34495e;
-            color: #ffffff;
-            border: 1px solid #3498db;
-            border-radius: 4px;
-            padding: 6px 8px;
+        QLabel {
+            color: #ecf0f1;
             font-size: 12px;
-            font-weight: normal;
-            min-height: 20px;
-        }
-        
-        QSpinBox:focus, QDoubleSpinBox:focus {
-            border: 1px solid #2980b9;
-            background-color: #3d566e;
-            color: #ffffff;
-        }
-        
-        QSpinBox:hover, QDoubleSpinBox:hover {
-            border: 1px solid #2980b9;
-            background-color: #3d566e;
-            color: #ffffff;
-        }
-        
-        QSpinBox::up-button, QSpinBox::down-button,
-        QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
-            background-color: #3498db;
-            border: none;
-            width: 16px;
-        }
-        
-        QSpinBox::up-button:hover, QSpinBox::down-button:hover,
-        QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {
-            background-color: #2980b9;
-        }
-        
-        QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
-            image: none;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-bottom: 4px solid #ffffff;
-        }
-        
-        QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
-            image: none;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 4px solid #ffffff;
         }
     """
 
-def get_model3d_progress_style():
-    """Progress bar style for Model3D panel"""
+def get_text_edit_style():
+    """TextEdit style - Dark theme only"""
+    return """
+        QTextEdit, QPlainTextEdit {
+            background-color: #34495e;
+            color: #ecf0f1;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 12px;
+        }
+        
+        QTextEdit:focus, QPlainTextEdit:focus {
+            border-color: #2980b9;
+        }
+    """
+
+def get_progress_bar_style():
+    """Progress bar style - Dark theme only"""
     return """
         QProgressBar {
             border: 1px solid #3498db;
-            border-radius: 5px;
+            background-color: #34495e;
+            color: #ecf0f1;
+            border-radius: 4px;
             text-align: center;
             font-weight: bold;
-            height: 25px;
-            background-color: #34495e;
-            color: #ffffff;
         }
+        
         QProgressBar::chunk {
             background-color: #3498db;
             border-radius: 3px;
         }
     """
 
-def get_model3d_scrollbar_style():
-    """Scrollbar style matching groupbox colors"""
+def get_slider_style():
+    """Slider style - Dark theme only"""
+    return """
+        QSlider::groove:horizontal {
+            border: 1px solid #34495e;
+            height: 8px;
+            background: #2c3e50;
+            border-radius: 4px;
+        }
+        
+        QSlider::handle:horizontal {
+            background: #3498db;
+            border: 1px solid #2980b9;
+            width: 18px;
+            margin: -5px 0;
+            border-radius: 9px;
+        }
+        
+        QSlider::handle:horizontal:hover {
+            background: #2980b9;
+        }
+        
+        QSlider::handle:horizontal:pressed {
+            background: #21618c;
+        }
+    """
+
+def get_tab_widget_style():
+    """Tab widget style - Dark theme only"""
+    return """
+        QTabWidget {
+            border: none;
+            background-color: #2c3e50;
+        }
+        
+        QTabWidget::pane {
+            border: 1px solid #34495e;
+            border-radius: 4px;
+            background-color: #2c3e50;
+        }
+        
+        QTabBar {
+            border: none;
+            background-color: #2c3e50;
+        }
+        
+        QTabBar::tab {
+            background-color: #34495e;
+            border: none;
+            padding: 8px 16px;
+            margin-right: 2px;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            min-width: 100px;
+            color: #ecf0f1;
+        }
+        
+        QTabBar::tab:selected {
+            background-color: #3498db;
+            color: #ffffff;
+            font-weight: bold;
+            border-bottom: 2px solid #2980b9;
+        }
+        
+        QTabBar::tab:hover:!selected {
+            background-color: #2980b9;
+        }
+    """
+
+def get_scroll_bar_style():
+    """Scroll bar style - Dark theme only"""
     return """
         QScrollBar:vertical {
             background-color: #34495e;
-            width: 12px;
-            border-radius: 6px;
+            width: 16px;
+            border: none;
+            border-radius: 8px;
         }
+        
         QScrollBar::handle:vertical {
             background-color: #3498db;
-            border-radius: 6px;
+            border-radius: 8px;
             min-height: 20px;
         }
+        
         QScrollBar::handle:vertical:hover {
             background-color: #2980b9;
         }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-            background: none;
-            border: none;
-        }
-        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-            background: none;
-        }
+        
         QScrollBar:horizontal {
             background-color: #34495e;
-            height: 12px;
-            border-radius: 6px;
+            height: 16px;
+            border: none;
+            border-radius: 8px;
         }
+        
         QScrollBar::handle:horizontal {
             background-color: #3498db;
-            border-radius: 6px;
+            border-radius: 8px;
             min-width: 20px;
         }
+        
         QScrollBar::handle:horizontal:hover {
             background-color: #2980b9;
         }
-        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-            background: none;
-            border: none;
+    """
+
+def get_list_widget_style():
+    """List widget style - Dark theme only"""
+    return """
+        QListWidget {
+            background-color: #34495e;
+            color: #ecf0f1;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            alternate-background-color: #2c3e50;
         }
-        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-            background: none;
+        
+        QListWidget::item:selected {
+            background-color: #2980b9;
         }
-    """
-
-def get_model3d_info_label_style():
-    """Info/description label style"""
-    return """
-        color: #bdc3c7;
-        font-size: 12px;
-        font-weight: normal;
-        background-color: transparent;
-    """
-
-def get_model3d_status_label_style(status_type="available"):
-    """Status label styles"""
-    if status_type == "available":
-        return "color: #27ae60; font-size: 11px; font-weight: normal; background-color: transparent;"
-    elif status_type == "unavailable":
-        return "color: #e74c3c; font-size: 11px; font-weight: normal; background-color: transparent;"
-    elif status_type == "power":
-        return "color: #3498db; font-weight: bold; font-size: 13px; background-color: transparent;"
-    elif status_type == "energy":
-        return "color: #2ecc71; font-weight: bold; font-size: 13px; background-color: transparent;"
-    elif status_type == "efficiency":
-        return "color: #f39c12; font-weight: bold; font-size: 13px; background-color: transparent;"
-    else:
-        return "color: #95a5a6; font-size: 11px; font-style: italic; background-color: transparent;"
-
-def get_model3d_time_label_style():
-    """Special style for time display label"""
-    return """
-        font-weight: bold;
-        color: #3498db;
-        font-size: 16px;
-        background-color: transparent;
-    """
-
-def get_model3d_sun_info_label_style(label_type="sunrise"):
-    """Sunrise/sunset label styles"""
-    if label_type == "sunrise":
-        return "color: #f39c12; font-weight: bold; background-color: transparent;"
-    elif label_type == "sunset":
-        return "color: #e74c3c; font-weight: bold; background-color: transparent;"
-    else:
-        return "font-size: 11px; color: #95a5a6; padding: 5px; background-color: transparent; font-style: italic;"
-
-# ============================================================================
-# EXPORT BUTTON STYLE
-# ============================================================================
-
-def get_model3d_export_button_style(is_dark_theme=False):
-    """Export button style - larger for main export"""
-    return """
-        QPushButton {
+        
+        QListWidget::item:hover {
             background-color: #3498db;
-            color: #ffffff;
+        }
+    """
+
+def get_tree_widget_style():
+    """Tree widget style - Dark theme only"""
+    return """
+        QTreeWidget {
+            background-color: #34495e;
+            color: #ecf0f1;
+            border: 1px solid #3498db;
+            border-radius: 4px;
+            alternate-background-color: #2c3e50;
+        }
+        
+        QTreeWidget::item:selected {
+            background-color: #2980b9;
+        }
+        
+        QTreeWidget::item:hover {
+            background-color: #3498db;
+        }
+        
+        QHeaderView::section {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            border: 1px solid #34495e;
+            padding: 4px;
+        }
+    """
+
+def get_table_widget_style():
+    """Table widget style - Dark theme only"""
+    return """
+        QTableWidget {
+            background-color: #34495e;
+            color: #ecf0f1;
+            border: 1px solid #3498db;
+            gridline-color: #2c3e50;
+            alternate-background-color: #2c3e50;
+        }
+        
+        QTableWidget::item:selected {
+            background-color: #2980b9;
+        }
+        
+        QTableWidget::item:hover {
+            background-color: #3498db;
+        }
+        
+        QHeaderView::section {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            border: 1px solid #34495e;
+            padding: 4px;
+            font-weight: bold;
+        }
+    """
+
+# ============================================================================
+# DIALOG SPECIFIC STYLES - Dark Theme Only
+# ============================================================================
+
+def get_dialog_style():
+    """General dialog style - Dark theme only"""
+    return """
+        QDialog {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+        }
+        
+        QWidget {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+        }
+    """
+
+def get_message_box_style():
+    """Message box style - Dark theme only"""
+    return """
+        QMessageBox {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+        }
+        
+        QMessageBox QPushButton {
+            background-color: #3498db;
+            color: white;
             border: none;
             border-radius: 4px;
             padding: 8px 16px;
-            text-align: center;
-            min-height: 40px;
-            font-size: 12px;
             font-weight: bold;
-            margin: 2px;
+            min-width: 80px;
         }
-        QPushButton:hover {
+        
+        QMessageBox QPushButton:hover {
             background-color: #2980b9;
         }
-        QPushButton:pressed {
-            background-color: #21618c;
-        }
-        QPushButton:disabled {
-            background-color: #7f8c8d;
-            color: #bdc3c7;
-        }
     """
 
-def get_model3d_error_label_style(is_dark_theme=False):
-    """Error label style"""
-    return """
-        QLabel {
-            color: #e74c3c;
-            font-size: 11px;
-            padding: 10px;
-            background-color: rgba(231, 76, 60, 0.1);
-            border: 1px solid #e74c3c;
-            border-radius: 4px;
-        }
-    """
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
 
+def apply_dark_theme_to_widget(widget):
+    """Apply comprehensive dark theme to any widget"""
+    widget.setStyleSheet(f"""
+        {get_dialog_style()}
+        {get_standard_button_style()}
+        {get_input_field_style()}
+        {get_combobox_style()}
+        {get_checkbox_style()}
+        {get_radiobutton_style()}
+        {get_groupbox_style()}
+        {get_label_style()}
+        {get_text_edit_style()}
+        {get_progress_bar_style()}
+        {get_tab_widget_style()}
+        {get_scroll_bar_style()}
+    """)
+
+def get_complete_dark_theme():
+    """Get complete dark theme stylesheet"""
+    return f"""
+        {get_dialog_style()}
+        {get_standard_button_style()}
+        {get_input_field_style()}
+        {get_combobox_style()}
+        {get_checkbox_style()}
+        {get_radiobutton_style()}
+        {get_groupbox_style()}
+        {get_label_style()}
+        {get_text_edit_style()}
+        {get_progress_bar_style()}
+        {get_slider_style()}
+        {get_tab_widget_style()}
+        {get_scroll_bar_style()}
+        {get_list_widget_style()}
+        {get_tree_widget_style()}
+        {get_table_widget_style()}
+        {get_message_box_style()}
+    """

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ui/panel/model_tab_left/location_controls.py
-CLEANED - No hardcoded styles
+CLEANED - No hardcoded styles, no debug prints
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QGroupBox, QComboBox, QPushButton, QDoubleSpinBox)
@@ -145,7 +145,6 @@ class LocationControls(QWidget):
             btn.setToolTip(tooltip)
             btn.setCheckable(True)
             btn.setFixedSize(55, 55)
-            btn.setObjectName("weatherButton")  # For styling
             btn.clicked.connect(lambda checked, f=factor, b=btn: self._on_weather_selected(f, b))
             
             weather_buttons_layout.addWidget(btn)

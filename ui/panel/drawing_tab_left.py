@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Drawing Tab Panel - FIXED VERSION with proper styling from reference
+Drawing Tab Panel - Following standard button styling, size, colors
 """
 
 import traceback
@@ -13,7 +13,7 @@ from PyQt5.QtGui import QFont, QPalette, QPixmap, QPainter, QPen, QBrush, QColor
 
 class DrawingTabPanel(QWidget):
     """
-    Drawing Tab Panel - WITH CORRECTED STYLING from reference code
+    Drawing Tab Panel - Following standard button styling from control panel
     """
     
     # Required signals that main window expects
@@ -32,12 +32,12 @@ class DrawingTabPanel(QWidget):
         super().__init__()
         self.main_window = main_window
         
-        print("🎨 Initializing Drawing Tab Panel (CORRECTED STYLING)...")
+        print("🎨 Initializing Drawing Tab Panel (STANDARD BUTTON STYLING)...")
         
         # Initialize core attributes
         self._initialize_attributes()
         
-        # Setup UI
+        # Setup UI with standard styling
         self._setup_ui()
         
         # Initialize measurements safely
@@ -46,7 +46,7 @@ class DrawingTabPanel(QWidget):
         # Start completion checking timer
         self._start_completion_timer()
         
-        print("✅ Drawing Tab Panel initialized successfully (CORRECTED)")
+        print("✅ Drawing Tab Panel initialized with standard button styling")
     
     def _initialize_attributes(self):
         """Initialize all attributes with safe defaults"""
@@ -86,43 +86,90 @@ class DrawingTabPanel(QWidget):
         print("✅ Attributes initialized with improved tracking")
     
     def _setup_ui(self):
-        """Setup the complete UI layout without tips section"""
+        """Setup the complete UI layout with standard button styling"""
         try:
-            print("🔧 Setting up Drawing Tab UI (CORRECTED STYLING)...")
+            print("🔧 Setting up Drawing Tab UI (STANDARD BUTTON STYLING)...")
+            
+            # Apply control panel styling to the main widget
+            self.setStyleSheet("""
+                QWidget {
+                    background-color: #3a4f5c;
+                }
+            """)
             
             # Main layout
             main_layout = QVBoxLayout(self)
             main_layout.setContentsMargins(10, 10, 10, 10)
             main_layout.setSpacing(15)
             
-            # Create main sections (NO TIPS SECTION)
+            # Create main sections following standard pattern
             self._create_scale_section(main_layout)
-            self._create_drawing_tools_section(main_layout)  # FIXED STYLING
-            self._create_measurements_section(main_layout)   # FIXED STYLING
+            self._create_drawing_tools_section(main_layout)
+            self._create_measurements_section(main_layout)
             
             # Add stretch before generate button
             main_layout.addStretch()
             
             # Generate button at bottom (standalone)
-            self._create_generate_section(main_layout)  # FIXED STYLING
+            self._create_generate_section(main_layout)
             
-            print("✅ Drawing Tab UI setup completed with corrected styling")
+            print("✅ Drawing Tab UI setup completed with standard styling")
             
         except Exception as e:
             print(f"❌ Error setting up Drawing Tab UI: {e}")
             traceback.print_exc()
     
     def _create_scale_section(self, parent_layout):
-        """Create the scale settings section"""
+        """Create the scale settings section with standard styling"""
         try:
-            # Scale group
+            # Scale group with standard styling
             scale_group = QGroupBox("📏 Scale Settings")
+            scale_group.setStyleSheet("""
+                QGroupBox {
+                    background-color: #34495e !important;
+                    border: 2px solid #5dade2 !important;
+                    border-radius: 8px !important;
+                    margin-top: 15px !important;
+                    padding-top: 15px !important;
+                    padding-left: 10px !important;
+                    padding-right: 10px !important;
+                    padding-bottom: 10px !important;
+                    font-weight: bold !important;
+                    font-size: 13px !important;
+                    color: #ffffff !important;
+                }
+                
+                QGroupBox::title {
+                    subcontrol-origin: margin !important;
+                    subcontrol-position: top center !important;
+                    padding: 4px 15px !important;
+                    margin-top: 1px !important;
+                    color: #5dade2 !important;
+                    background-color: #34495e !important;
+                    font-size: 20px !important;
+                    font-weight: bold !important;
+                    border: none !important;
+                    border-radius: 0px !important;
+                }
+            """)
+            
             scale_layout = QVBoxLayout(scale_group)
             scale_layout.setContentsMargins(10, 15, 10, 10)
             
             # Scale input row
             scale_row = QHBoxLayout()
-            scale_row.addWidget(QLabel("Scale (m/pixel):"))
+            
+            scale_label = QLabel("Scale (m/pixel):")
+            scale_label.setStyleSheet("""
+                QLabel {
+                    color: #ffffff !important;
+                    background-color: transparent !important;
+                    border: none !important;
+                    font-size: 12px !important;
+                    font-weight: normal !important;
+                }
+            """)
+            scale_row.addWidget(scale_label)
             
             self.scale_input = QComboBox()
             self.scale_input.addItems(["0.005", "0.01", "0.02", "0.05", "0.1", "0.2", "0.5", "1.0"])
@@ -131,134 +178,279 @@ class DrawingTabPanel(QWidget):
             self.scale_input.currentTextChanged.connect(self._on_scale_changed)
             self.scale_input.setToolTip("Set the scale factor for measurements")
             
+            # Standard ComboBox styling
+            self.scale_input.setStyleSheet("""
+                QComboBox {
+                    background-color: #2c3e50 !important;
+                    color: #ffffff !important;
+                    border: 2px solid #5dade2 !important;
+                    border-radius: 6px !important;
+                    padding: 6px !important;
+                    min-height: 30px !important;
+                    font-size: 13px !important;
+                }
+                
+                QComboBox:focus {
+                    border: 2px solid #48a1d6 !important;
+                    background-color: #2c3e50 !important;
+                }
+                
+                QComboBox::drop-down {
+                    border: none !important;
+                    background-color: #5dade2 !important;
+                    width: 25px !important;
+                    border-top-right-radius: 6px !important;
+                    border-bottom-right-radius: 6px !important;
+                }
+                
+                QComboBox::down-arrow {
+                    image: none !important;
+                    border-left: 5px solid transparent !important;
+                    border-right: 5px solid transparent !important;
+                    border-top: 6px solid white !important;
+                    margin-right: 5px !important;
+                }
+            """)
+            
             scale_row.addWidget(self.scale_input)
             scale_layout.addLayout(scale_row)
             
             parent_layout.addWidget(scale_group)
             
-            print("✅ Scale section created")
+            print("✅ Scale section created with standard styling")
             
         except Exception as e:
             print(f"❌ Error creating scale section: {e}")
     
     def _create_drawing_tools_section(self, parent_layout):
-        """Create the drawing tools section with CORRECTED angle snap button styling"""
+        """Create the drawing tools section with STANDARD BUTTON STYLING"""
         try:
-            # Drawing tools group
+            # Drawing tools group with standard styling
             tools_group = QGroupBox("✏️ Drawing Tools")
+            tools_group.setStyleSheet("""
+                QGroupBox {
+                    background-color: #34495e !important;
+                    border: 2px solid #5dade2 !important;
+                    border-radius: 8px !important;
+                    margin-top: 15px !important;
+                    padding-top: 15px !important;
+                    padding-left: 10px !important;
+                    padding-right: 10px !important;
+                    padding-bottom: 10px !important;
+                    font-weight: bold !important;
+                    font-size: 13px !important;
+                    color: #ffffff !important;
+                }
+                
+                QGroupBox::title {
+                    subcontrol-origin: margin !important;
+                    subcontrol-position: top center !important;
+                    padding: 4px 15px !important;
+                    margin-top: 1px !important;
+                    color: #5dade2 !important;
+                    background-color: #34495e !important;
+                    font-size: 20px !important;
+                    font-weight: bold !important;
+                    border: none !important;
+                    border-radius: 0px !important;
+                }
+            """)
+            
             tools_layout = QVBoxLayout(tools_group)
             tools_layout.setContentsMargins(10, 15, 10, 10)
             tools_layout.setSpacing(10)
             
-            # CORRECTED: Angle snap button with EXACT styling from reference
+            # STANDARD: Angle snap button with EXACT standard styling
             self.angle_snap_btn = QPushButton("📐 90° Angle Snap: ON")
-            self.angle_snap_btn.setMinimumHeight(35)
+            self.angle_snap_btn.setMinimumHeight(32)  # STANDARD HEIGHT
             self.angle_snap_btn.setCheckable(True)
             self.angle_snap_btn.setChecked(True)
             self.angle_snap_btn.clicked.connect(self._on_angle_snap_clicked)
             self.angle_snap_btn.setToolTip("Toggle 90-degree angle snapping for precise drawing")
             
-            # CORRECTED: EXACT style from reference code
+            # STANDARD BUTTON STYLING - EXACT from control panel
             self.angle_snap_btn.setStyleSheet("""
                 QPushButton {
-                    background-color: #27ae60;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    font-weight: bold;
-                    font-size: 12px;
-                    padding: 8px 12px;
-                    text-align: center;
+                    background-color: #5dade2 !important;
+                    color: #ffffff !important;
+                    border: 2px solid #5dade2 !important;
+                    border-radius: 6px !important;
+                    padding: 8px 12px !important;
+                    font-weight: bold !important;
+                    font-size: 13px !important;
+                    min-height: 32px !important;
+                    text-align: center !important;
                 }
+                
                 QPushButton:hover {
-                    background-color: #229954;
+                    background-color: #3498db !important;
+                    border: 2px solid #3498db !important;
+                    color: #ffffff !important;
                 }
+                
                 QPushButton:pressed {
-                    background-color: #1e8449;
+                    background-color: #2980b9 !important;
+                    border: 2px solid #2980b9 !important;
+                    padding: 9px 11px 7px 13px !important;
                 }
-                QPushButton:!checked {
-                    background-color: #6c757d;
+                
+                QPushButton:checked {
+                    background-color: #e74c3c !important;
+                    border: 2px solid #e74c3c !important;
                 }
-                QPushButton:!checked:hover {
-                    background-color: #5a6268;
+                
+                QPushButton:checked:hover {
+                    background-color: #c0392b !important;
+                    border: 2px solid #c0392b !important;
+                }
+                
+                QPushButton:disabled {
+                    background-color: #7f8c8d !important;
+                    border: 2px solid #7f8c8d !important;
+                    color: #95a5a6 !important;
                 }
             """)
             
             tools_layout.addWidget(self.angle_snap_btn)
             
-            # CORRECTED: Clear button with EXACT styling from reference
+            # STANDARD: Clear button with EXACT standard styling
             self.clear_btn = QPushButton("🗑️ Clear Drawing")
-            self.clear_btn.setMinimumHeight(35)
+            self.clear_btn.setMinimumHeight(32)  # STANDARD HEIGHT
             self.clear_btn.setToolTip("Clear the current drawing and reset measurements")
             self.clear_btn.clicked.connect(self._handle_clear_drawing)
             
-            # CORRECTED: EXACT style from reference code
+            # STANDARD BUTTON STYLING - EXACT from control panel
             self.clear_btn.setStyleSheet("""
                 QPushButton {
-                    background-color: #dc3545;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    font-weight: bold;
-                    font-size: 12px;
-                    padding: 8px;
-                    text-align: center;
+                    background-color: #5dade2 !important;
+                    color: #ffffff !important;
+                    border: 2px solid #5dade2 !important;
+                    border-radius: 6px !important;
+                    padding: 8px 12px !important;
+                    font-weight: bold !important;
+                    font-size: 13px !important;
+                    min-height: 32px !important;
+                    text-align: center !important;
                 }
+                
                 QPushButton:hover {
-                    background-color: #c82333;
+                    background-color: #3498db !important;
+                    border: 2px solid #3498db !important;
+                    color: #ffffff !important;
                 }
+                
                 QPushButton:pressed {
-                    background-color: #bd2130;
+                    background-color: #2980b9 !important;
+                    border: 2px solid #2980b9 !important;
+                    padding: 9px 11px 7px 13px !important;
+                }
+                
+                QPushButton:disabled {
+                    background-color: #7f8c8d !important;
+                    border: 2px solid #7f8c8d !important;
+                    color: #95a5a6 !important;
                 }
             """)
             
             tools_layout.addWidget(self.clear_btn)
             parent_layout.addWidget(tools_group)
             
-            print("✅ Drawing tools section created with CORRECTED styling")
+            print("✅ Drawing tools section created with STANDARD BUTTON STYLING")
             
         except Exception as e:
             print(f"❌ Error creating drawing tools section: {e}")
     
     def _create_measurements_section(self, parent_layout):
-        """Create the measurements display section with CORRECTED styling"""
+        """Create the measurements display section with standard styling"""
         try:
-            # Measurements group
+            # Measurements group with standard styling
             measurements_group = QGroupBox("📊 Polygon Information")
+            measurements_group.setStyleSheet("""
+                QGroupBox {
+                    background-color: #34495e !important;
+                    border: 2px solid #5dade2 !important;
+                    border-radius: 8px !important;
+                    margin-top: 15px !important;
+                    padding-top: 15px !important;
+                    padding-left: 10px !important;
+                    padding-right: 10px !important;
+                    padding-bottom: 10px !important;
+                    font-weight: bold !important;
+                    font-size: 13px !important;
+                    color: #ffffff !important;
+                }
+                
+                QGroupBox::title {
+                    subcontrol-origin: margin !important;
+                    subcontrol-position: top center !important;
+                    padding: 4px 15px !important;
+                    margin-top: 1px !important;
+                    color: #5dade2 !important;
+                    background-color: #34495e !important;
+                    font-size: 20px !important;
+                    font-weight: bold !important;
+                    border: none !important;
+                    border-radius: 0px !important;
+                }
+            """)
+            
             measurements_layout = QVBoxLayout(measurements_group)
             measurements_layout.setContentsMargins(10, 15, 10, 10)
             
-            # CORRECTED: Measurements display with EXACT styling from reference
+            # Measurements display with standard styling
             self.measurements_display = QTextEdit()
             self.measurements_display.setReadOnly(True)
             self.measurements_display.setMinimumHeight(120)
             self.measurements_display.setMaximumHeight(250)
             self.measurements_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             
-            # CORRECTED: EXACT styling from reference code
+            # Standard TextEdit styling
             self.measurements_display.setStyleSheet("""
                 QTextEdit {
-                    background-color: #f8f9fa;
-                    border: 1px solid #dee2e6;
-                    border-radius: 5px;
-                    padding: 10px;
+                    background-color: #2c3e50 !important;
+                    color: #ffffff !important;
+                    border: 2px solid #5dade2 !important;
+                    border-radius: 6px !important;
+                    padding: 8px !important;
+                    font-size: 12px !important;
                     font-family: 'Segoe UI', sans-serif;
-                    font-size: 12px;
-                    color: #2c3e50;
                     line-height: 1.4;
                 }
+                
+                QTextEdit:focus {
+                    border: 2px solid #48a1d6 !important;
+                    background-color: #2c3e50 !important;
+                }
+                
                 QScrollBar:vertical {
-                    background: #f1f3f4;
+                    background-color: #2c3e50 !important;
                     width: 12px;
                     border-radius: 6px;
+                    border: 1px solid #5dade2 !important;
+                    margin: 0px;
                 }
+                
                 QScrollBar::handle:vertical {
-                    background: #c1c1c1;
-                    border-radius: 6px;
-                    min-height: 20px;
+                    background-color: #5dade2 !important;
+                    border-radius: 5px;
+                    min-height: 30px;
+                    margin: 1px;
                 }
+                
                 QScrollBar::handle:vertical:hover {
-                    background: #a8a8a8;
+                    background-color: #48a1d6 !important;
+                }
+                
+                QScrollBar::add-line:vertical, 
+                QScrollBar::sub-line:vertical {
+                    background: none !important;
+                    border: none !important;
+                    height: 0px;
+                }
+                
+                QScrollBar::add-page:vertical, 
+                QScrollBar::sub-page:vertical {
+                    background: none !important;
                 }
             """)
             
@@ -269,54 +461,66 @@ class DrawingTabPanel(QWidget):
             measurements_layout.addWidget(self.measurements_display)
             parent_layout.addWidget(measurements_group)
             
-            print("✅ Measurements section created with CORRECTED styling")
+            print("✅ Measurements section created with standard styling")
             
         except Exception as e:
             print(f"❌ Error creating measurements section: {e}")
     
     def _create_generate_section(self, parent_layout):
-        """Create standalone generate button section with CORRECTED styling"""
+        """Create standalone generate button section with STANDARD GENERATE BUTTON STYLING"""
         try:
-            # CORRECTED: Generate button with EXACT styling from reference
+            # STANDARD: Generate button with EXACT generate button styling from control panel
             self.generate_btn = QPushButton("🏗️ Generate 3D Model")
-            self.generate_btn.setMinimumHeight(50)
+            self.generate_btn.setMinimumHeight(32)  # STANDARD HEIGHT (not 50)
             self.generate_btn.setToolTip("Generate 3D building model from completed polygon")
             self.generate_btn.clicked.connect(self._handle_generate_model)
             self.generate_btn.setEnabled(False)
             
-            # CORRECTED: EXACT style from reference code
+            # STANDARD GENERATE BUTTON STYLING - EXACT from control panel
             self.generate_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #28a745;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    font-weight: bold;
-                    font-size: 14px;
-                    padding: 12px;
-                    text-align: center;
+                QPushButton:enabled {
+                    background-color: #e74c3c !important;
+                    border: 2px solid #e74c3c !important;
+                    color: #ffffff !important;
+                    font-size: 13px !important;
+                    font-weight: bold !important;
+                    border-radius: 6px !important;
+                    padding: 8px 12px !important;
+                    min-height: 32px !important;
+                    text-align: center !important;
                 }
-                QPushButton:hover:enabled {
-                    background-color: #218838;
+                
+                QPushButton:enabled:hover {
+                    background-color: #c0392b !important;
+                    border: 2px solid #c0392b !important;
                 }
-                QPushButton:pressed:enabled {
-                    background-color: #1e7e34;
+                
+                QPushButton:enabled:pressed {
+                    background-color: #a93226 !important;
+                    border: 2px solid #a93226 !important;
+                    padding: 9px 11px 7px 13px !important;
                 }
+                
                 QPushButton:disabled {
-                    background-color: #6c757d;
-                    color: #adb5bd;
+                    background-color: #7f8c8d !important;
+                    border: 2px solid #7f8c8d !important;
+                    color: #95a5a6 !important;
+                    border-radius: 6px !important;
+                    padding: 8px 12px !important;
+                    min-height: 32px !important;
+                    text-align: center !important;
                 }
             """)
             
             parent_layout.addWidget(self.generate_btn)
             
-            print("✅ Generate section created with CORRECTED styling")
+            print("✅ Generate section created with STANDARD GENERATE BUTTON STYLING")
             
         except Exception as e:
             print(f"❌ Error creating generate section: {e}")
     
     # ==========================================
-    # SIGNAL HANDLERS (keeping all the working logic from reference)
+    # SIGNAL HANDLERS (keeping all the working logic)
     # ==========================================
     
     def _on_scale_changed(self, text):
@@ -341,7 +545,7 @@ class DrawingTabPanel(QWidget):
             print(f"⚠ Invalid scale format: {text}")
     
     def _on_angle_snap_clicked(self):
-        """CORRECTED: Handle angle snap button toggle with proper functionality"""
+        """Handle angle snap button toggle with proper functionality"""
         try:
             self.angle_snap_enabled = self.angle_snap_btn.isChecked()
             

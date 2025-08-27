@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced Project Wizard with edit mode support
+Enhanced Project Wizard with edit mode support - Dark theme only
 """
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, 
                             QStackedWidget, QProgressBar, QLabel, QMessageBox,
@@ -21,7 +21,7 @@ except ImportError:
                                TechnicalStep, SummaryStep)
 
 class ProjectWizard(QDialog):
-    """Enhanced Project Creation/Edit Wizard"""
+    """Enhanced Project Creation/Edit Wizard - Dark theme only"""
     
     project_created = pyqtSignal(dict)
     
@@ -64,99 +64,89 @@ class ProjectWizard(QDialog):
         # Main content area
         self._create_content_section(layout)
         
-        # Navigation section
+        # Navigation buttons
         self._create_navigation_section(layout)
     
     def _create_header_section(self, layout):
-        """Create header section"""
+        """Create wizard header with title"""
         header_frame = QFrame()
-        header_frame.setObjectName("headerFrame")
+        header_frame.setFixedHeight(60)
         header_layout = QVBoxLayout(header_frame)
-        header_layout.setContentsMargins(25, 20, 25, 15)
-        header_layout.setSpacing(8)
         
-        # Main title
-        title_text = "✏️ Edit Solar Project" if self.edit_mode else "🚀 Create New Solar Project"
-        title_label = QLabel(title_text)
-        title_label.setFont(QFont("Arial", 16, QFont.Bold))
-        title_label.setObjectName("titleLabel")
-        header_layout.addWidget(title_label)
-        
-        # Subtitle
-        subtitle_text = "Update project information" if self.edit_mode else "Setup your new solar installation project"
-        subtitle_label = QLabel(subtitle_text)
-        subtitle_label.setObjectName("subtitleLabel")
-        header_layout.addWidget(subtitle_label)
+        # Title
+        title = QLabel("✏️ Edit Project" if self.edit_mode else "🚀 Create New Project")
+        title.setAlignment(Qt.AlignCenter)
+        title.setFont(QFont("", 16, QFont.Bold))
+        header_layout.addWidget(title)
         
         layout.addWidget(header_frame)
     
     def _create_progress_section(self, layout):
-        """Create progress section"""
+        """Create progress bar and step indicator"""
         progress_frame = QFrame()
-        progress_frame.setObjectName("progressFrame")
+        progress_frame.setFixedHeight(80)
         progress_layout = QVBoxLayout(progress_frame)
-        progress_layout.setContentsMargins(25, 15, 25, 15)
         
-        # Step indicator
-        step_layout = QHBoxLayout()
+        # Step label
         self.step_label = QLabel("Step 1 of 5: Basic Information")
-        self.step_label.setFont(QFont("Arial", 12, QFont.Bold))
-        self.step_label.setObjectName("stepLabel")
-        step_layout.addWidget(self.step_label)
-        step_layout.addStretch()
-        progress_layout.addLayout(step_layout)
+        self.step_label.setAlignment(Qt.AlignCenter)
+        self.step_label.setFont(QFont("", 12))
+        progress_layout.addWidget(self.step_label)
         
         # Progress bar
         self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 5)
+        self.progress_bar.setMinimum(1)
+        self.progress_bar.setMaximum(5)
         self.progress_bar.setValue(1)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setMinimumHeight(25)
+        self.progress_bar.setTextVisible(True)
         progress_layout.addWidget(self.progress_bar)
         
         layout.addWidget(progress_frame)
     
     def _create_content_section(self, layout):
-        """Create main content section"""
+        """Create main content area with stacked widget"""
+        # Content frame with border
+        content_frame = QFrame()
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Stacked widget for steps
         self.stack = QStackedWidget()
-        self.stack.setObjectName("contentStack")
-        layout.addWidget(self.stack)
+        content_layout.addWidget(self.stack)
+        
+        layout.addWidget(content_frame)
     
     def _create_navigation_section(self, layout):
-        """Create navigation section"""
+        """Create navigation buttons"""
         nav_frame = QFrame()
-        nav_frame.setObjectName("navFrame")
+        nav_frame.setFixedHeight(60)
         nav_layout = QHBoxLayout(nav_frame)
-        nav_layout.setContentsMargins(25, 20, 25, 20)
-        nav_layout.setSpacing(15)
+        nav_layout.setContentsMargins(20, 10, 20, 10)
+        
+        # Cancel button
+        self.cancel_btn = QPushButton("❌ Cancel")
+        self.cancel_btn.clicked.connect(self.reject)
+        nav_layout.addWidget(self.cancel_btn)
+        
+        nav_layout.addStretch()
         
         # Back button
         self.back_btn = QPushButton("⬅️ Back")
         self.back_btn.clicked.connect(self._go_back)
         self.back_btn.setEnabled(False)
-        self.back_btn.setMinimumWidth(100)
         nav_layout.addWidget(self.back_btn)
         
-        nav_layout.addStretch()
-        
-        # Cancel button
-        cancel_btn = QPushButton("❌ Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        cancel_btn.setMinimumWidth(100)
-        nav_layout.addWidget(cancel_btn)
-        
         # Next/Finish button
-        next_text = "✅ Update Project" if self.edit_mode else "Next ➡️"
-        self.next_btn = QPushButton(next_text)
+        self.next_btn = QPushButton("Next ➡️")
         self.next_btn.clicked.connect(self._go_next)
-        self.next_btn.setMinimumWidth(120)
         nav_layout.addWidget(self.next_btn)
         
         layout.addWidget(nav_frame)
     
     def _create_steps(self):
-        """Create all wizard steps"""
+        """Create wizard steps"""
         try:
+            # Create step instances
             self.steps = [
                 BasicInfoStep(self),
                 LocationStep(self),
@@ -173,58 +163,52 @@ class ProjectWizard(QDialog):
             
         except Exception as e:
             print(f"❌ Error creating wizard steps: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to create wizard steps: {e}")
+            # Create a fallback empty widget if step creation fails
+            fallback = QWidget()
+            self.stack.addWidget(fallback)
+            self.steps = [fallback]
     
     def _load_existing_data(self):
         """Load existing project data if in edit mode"""
-        if self.edit_mode and self.existing_data:
-            try:
-                print("📂 Loading existing project data into wizard...")
-                for step in self.steps:
-                    if hasattr(step, 'load_data'):
-                        step.load_data(self.existing_data)
-                print("✅ Successfully loaded existing project data")
-            except Exception as e:
-                print(f"⚠️ Error loading existing data: {e}")
+        if not self.edit_mode or not self.existing_data:
+            return
+            
+        try:
+            # Load data into each step
+            for step in self.steps:
+                if hasattr(step, 'load_data'):
+                    step.load_data(self.existing_data)
+            print("✅ Successfully loaded existing project data")
+        except Exception as e:
+            print(f"⚠️ Error loading existing data: {e}")
     
     def _apply_theme(self):
-        """Apply theme styling using separate CSS"""
+        """Apply dark theme styling only"""
         try:
-            # Check if parent has dark theme
-            dark_theme = False
-            if self.parent_window and hasattr(self.parent_window, 'config'):
-                dark_theme = getattr(self.parent_window.config, 'dark_theme', False)
+            print("🎨 Applying dark theme to wizard...")
             
-            print(f"🎨 Applying {'dark' if dark_theme else 'light'} theme to wizard...")
+            # Always use dark theme
+            self.setStyleSheet(WizardStyles.get_dark_theme())
             
-            # Get styles from external module
-            if dark_theme:
-                self.setStyleSheet(WizardStyles.get_dark_theme())
-            else:
-                self.setStyleSheet(WizardStyles.get_light_theme())
-            
-            # Force dialog background
-            self._force_dialog_background(dark_theme)
+            # Force dialog background to dark
+            self._force_dialog_background()
             
             # Apply theme to all steps
-            self._apply_theme_to_all_steps(dark_theme)
+            self._apply_theme_to_all_steps()
             
-            print("✅ Theme applied successfully")
+            print("✅ Dark theme applied successfully")
             
         except Exception as e:
             print(f"⚠️ Error applying theme: {e}")    
     
-    def _force_dialog_background(self, dark_theme):
-        """Force dialog background using palette"""
+    def _force_dialog_background(self):
+        """Force dark dialog background"""
         self.setAutoFillBackground(True)
         palette = self.palette()
         
-        if dark_theme:
-            palette.setColor(palette.Window, QColor("#2c3e50"))
-            palette.setColor(palette.WindowText, QColor("#ecf0f1"))
-        else:
-            palette.setColor(palette.Window, QColor("#ffffff"))
-            palette.setColor(palette.WindowText, QColor("#2c3e50"))
+        # Always use dark theme colors
+        palette.setColor(palette.Window, QColor("#2c3e50"))
+        palette.setColor(palette.WindowText, QColor("#ecf0f1"))
         
         self.setPalette(palette)
         
@@ -233,21 +217,19 @@ class ProjectWizard(QDialog):
             self.stack.setAutoFillBackground(True)
             self.stack.setPalette(palette)
     
-    def _apply_theme_to_all_steps(self, dark_theme):
-        """Apply theme to all step widgets"""
+    def _apply_theme_to_all_steps(self):
+        """Apply dark theme to all step widgets"""
         if not self.steps:
             return
         
-        bg_color = QColor("#2c3e50") if dark_theme else QColor("#ffffff")
-        text_color = QColor("#ecf0f1") if dark_theme else QColor("#2c3e50")
+        # Always use dark theme colors
+        bg_color = QColor("#2c3e50")
+        text_color = QColor("#ecf0f1")
         
         for i, step in enumerate(self.steps):
             try:
-                # Apply CSS theme from external module
-                if dark_theme:
-                    step.setStyleSheet(WizardStyles.get_dark_theme())
-                else:
-                    step.setStyleSheet(WizardStyles.get_light_theme())
+                # Always apply dark theme CSS
+                step.setStyleSheet(WizardStyles.get_dark_theme())
                 
                 # Force background with palette
                 step.setAutoFillBackground(True)
@@ -256,7 +238,7 @@ class ProjectWizard(QDialog):
                 step_palette.setColor(step_palette.WindowText, text_color)
                 step.setPalette(step_palette)
                 
-                print(f"✅ Applied theme to step {i+1}: {step.__class__.__name__}")
+                print(f"✅ Applied dark theme to step {i+1}: {step.__class__.__name__}")
                 
             except Exception as e:
                 print(f"⚠️ Error applying theme to step {i+1}: {e}")
@@ -296,129 +278,111 @@ class ProjectWizard(QDialog):
             # Update navigation buttons
             self.back_btn.setEnabled(self.current_step > 0)
             
-            if self.current_step == len(self.steps) - 1:
-                finish_text = "✅ Update Project" if self.edit_mode else "✅ Create Project"
-                self.next_btn.setText(finish_text)
-            else:
-                self.next_btn.setText("Next ➡️")
+            # Update next/finish button
+            is_last_step = self.current_step >= len(self.steps) - 1
+            self.next_btn.setText("✅ Finish" if is_last_step else "Next ➡️")
             
-            # Update summary if on last step
-            if self.current_step == len(self.steps) - 1:
-                self._update_summary()
+            print(f"📍 Updated display for step {self.current_step + 1}")
             
         except Exception as e:
             print(f"⚠️ Error updating step display: {e}")
     
-    def _update_summary(self):
-        """Update summary step with collected data"""
-        try:
-            if len(self.steps) > 0:
-                summary_step = self.steps[-1]
-                if hasattr(summary_step, 'update_summary'):
-                    # Collect all data
-                    all_data = {}
-                    for step in self.steps[:-1]:  # Exclude summary step itself
-                        if hasattr(step, 'get_data'):
-                            step_data = step.get_data()
-                            all_data.update(step_data)
-                    
-                    summary_step.update_summary(all_data)
-        except Exception as e:
-            print(f"⚠️ Error updating summary: {e}")
+    def _go_back(self):
+        """Go to previous step"""
+        if self.current_step > 0:
+            self.current_step -= 1
+            self._update_step_display()
+            self._ensure_theme_applied()
     
     def _go_next(self):
-        """Go to next step or finish wizard"""
+        """Go to next step or finish"""
         try:
             # Validate current step
             current_step_widget = self.steps[self.current_step]
-            if hasattr(current_step_widget, 'validate') and not current_step_widget.validate():
-                return
+            if hasattr(current_step_widget, 'validate_step'):
+                if not current_step_widget.validate_step():
+                    return
             
             # Collect data from current step
             if hasattr(current_step_widget, 'get_data'):
                 step_data = current_step_widget.get_data()
-                self.project_data.update(step_data)
+                if step_data:
+                    self.project_data.update(step_data)
             
             # Check if this is the last step
-            if self.current_step == len(self.steps) - 1:
+            if self.current_step >= len(self.steps) - 1:
                 self._finish_wizard()
-                return
-            
-            # Move to next step
-            self.current_step += 1
-            self._update_step_display()
-            
-        except Exception as e:
-            print(f"⚠️ Error going to next step: {e}")
-            QMessageBox.warning(self, "Error", f"Error proceeding to next step: {e}")
-    
-    def _go_back(self):
-        """Go to previous step"""
-        try:
-            if self.current_step > 0:
-                self.current_step -= 1
+            else:
+                # Go to next step
+                self.current_step += 1
                 self._update_step_display()
+                self._ensure_theme_applied()
+                
         except Exception as e:
-            print(f"⚠️ Error going back: {e}")
+            print(f"❌ Error in go_next: {e}")
+            QMessageBox.warning(self, "Error", f"An error occurred: {e}")
     
     def _finish_wizard(self):
-        """Finish wizard and emit project data"""
+        """Finish the wizard and emit project data"""
         try:
-            # Collect final data from all steps
+            # Collect data from all steps
             final_data = {}
-            for step in self.steps[:-1]:  # Exclude summary step
+            
+            for i, step in enumerate(self.steps):
                 if hasattr(step, 'get_data'):
                     step_data = step.get_data()
-                    final_data.update(step_data)
+                    if step_data:
+                        final_data.update(step_data)
             
             # Add metadata
-            if self.edit_mode:
-                # Keep existing metadata but update modified date
-                final_data['metadata'] = self.existing_data.get('metadata', {})
-                final_data['metadata']['modified_date'] = datetime.now().isoformat()
-            else:
-                # Create new metadata
-                final_data['metadata'] = {
-                    "created_date": datetime.now().isoformat(),
-                    "modified_date": datetime.now().isoformat(),
-                    "version": "2.0.0",
-                    "software": "PVmizer GEO",
-                    "project_id": f"PVG_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                }
+            final_data['_metadata'] = {
+                'created_at': datetime.now().isoformat() if not self.edit_mode else self.existing_data.get('_metadata', {}).get('created_at'),
+                'modified_at': datetime.now().isoformat(),
+                'version': '1.0',
+                'wizard_type': 'edit' if self.edit_mode else 'create'
+            }
             
-            # Add design data section if not exists
-            if 'design_data' not in final_data:
-                final_data['design_data'] = {
-                    "roof_outline": [],
-                    "solar_panels": [],
-                    "system_calculations": {}
-                }
-            
-            # Emit project data
+            # Emit signal with project data
             self.project_created.emit(final_data)
             
             # Show success message
-            project_name = final_data.get('basic_info', {}).get('project_name', 'Untitled Project')
             action = "updated" if self.edit_mode else "created"
-            QMessageBox.information(
-                self, 
-                f"Project {action.title()}", 
-                f"Project '{project_name}' {action} successfully!"
-            )
+            project_name = final_data.get('basic_info', {}).get('project_name', 'Unnamed Project')
+            QMessageBox.information(self, "Success", f"Project '{project_name}' {action} successfully!")
             
-            # Close dialog
             self.accept()
             
         except Exception as e:
-            error_msg = f"Failed to {'update' if self.edit_mode else 'create'} project: {str(e)}"
-            print(f"❌ {error_msg}")
-            QMessageBox.critical(self, "Error", error_msg)
+            print(f"❌ Error finishing wizard: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to complete project: {e}")
     
-    def showEvent(self, event):
-        """Override showEvent to ensure proper theming"""
-        super().showEvent(event)
-        # Re-apply theme when dialog is shown
-        QTimer.singleShot(50, self._ensure_theme_applied)
-
-# Backward compatibility alias
-ProjectDialog = ProjectWizard
+    def get_current_data(self):
+        """Get current project data for validation"""
+        return self.project_data.copy()
+    
+    def closeEvent(self, event):
+        """Handle close event"""
+        if self.project_data:
+            reply = QMessageBox.question(
+                self, 
+                "Confirm Exit",
+                "You have unsaved changes. Are you sure you want to exit?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            
+            if reply == QMessageBox.No:
+                event.ignore()
+                return
+        
+        event.accept()
+    
+    def keyPressEvent(self, event):
+        """Handle key press events"""
+        if event.key() == Qt.Key_Escape:
+            self.reject()
+        elif event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            if not (event.modifiers() & Qt.ControlModifier):
+                self._go_next()
+        else:
+            super().keyPressEvent(event)

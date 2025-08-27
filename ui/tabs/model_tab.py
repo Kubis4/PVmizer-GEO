@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ui/tabs/model_tab.py - Complete version with environment integration and debug
+ui/tabs/model_tab.py - Complete version with environment integration
 """
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame
 from PyQt5.QtCore import pyqtSignal, Qt, QTimer
@@ -29,7 +29,7 @@ except ImportError as e:
     ENHANCED_SUN_AVAILABLE = False
 
 class ModelTab(QWidget):
-    """Model Tab with environment integration and debug capabilities"""
+    """Model Tab with environment integration"""
     
     building_generated = pyqtSignal(object)
     model_updated = pyqtSignal(object)
@@ -43,7 +43,7 @@ class ModelTab(QWidget):
         
         self.current_building = None
         self.current_roof = None
-        self.environment_tab = None  # Initialize environment_tab reference
+        self.environment_tab = None
         self.plotter = None
         self.vtk_widget = None
         
@@ -535,10 +535,8 @@ class ModelTab(QWidget):
             else:
                 self.current_roof = None
             
-            # IMPORTANT: Reconnect environment tab to new roof
+            # Reconnect environment tab to new roof
             if self.current_roof:
-                print(f"✅ Created {roof_type} roof")
-                
                 # Initialize the roof if it has the method
                 if hasattr(self.current_roof, 'initialize_roof'):
                     if hasattr(self.current_roof, 'dimensions'):
@@ -558,73 +556,52 @@ class ModelTab(QWidget):
             self.roof_generated.emit(self.current_roof)
                 
         except Exception as e:
-            print(f"❌ Error creating roof: {e}")
-            import traceback
-            traceback.print_exc()
             self.current_roof = None
 
     def connect_environment_tab(self, environment_tab):
-        """Connect environment tab to current roof - FIXED FOR PyQt5"""
+        """Connect environment tab to current roof"""
         try:
             if not environment_tab:
-                print("⚠️ No environment tab provided")
                 return False
             
             # Store reference
             self.environment_tab = environment_tab
-            print("✅ Stored environment_tab reference")
             
             # Connect the signal
             if hasattr(environment_tab, 'environment_action_requested'):
                 # Disconnect any previous connections
                 try:
                     environment_tab.environment_action_requested.disconnect()
-                    print("✅ Disconnected previous connections")
                 except:
-                    print("ℹ️ No previous connections to disconnect")
+                    pass
                 
                 # Connect to our handler
                 environment_tab.environment_action_requested.connect(
                     self._handle_environment_tab_action
                 )
-                print("✅ Connected signal to _handle_environment_tab_action")
-                
-                # REMOVED THE .receivers() CHECK - IT DOESN'T EXIST IN PyQt5
-                # Just return True since we connected successfully
-                print(f"✅ Environment tab connected successfully")
                 
                 return True
             else:
-                print("❌ EnvironmentTab missing environment_action_requested signal!")
                 return False
             
         except Exception as e:
-            print(f"❌ Error connecting environment tab: {e}")
-            import traceback
-            traceback.print_exc()
             return False
 
     def _handle_environment_tab_action(self, action_type, parameters):
         """Handle actions from EnvironmentTab - routes to current roof"""
         try:
-            print(f"📡 ModelTab received environment action: {action_type}")
-            print(f"   Parameters: {parameters}")
-            
             # Special handling for test connection
             if action_type == 'test_connection':
-                print("✅ Test connection received successfully!")
                 return True
             
             if not self.current_roof:
-                print("⚠️ No current roof to handle environment action")
                 # If it's just toggle points and no roof, ignore
                 if action_type == 'toggle_attachment_points':
-                    print("   Ignoring toggle points - no roof yet")
+                    pass
                 return False
             
             # Route the action to the current roof's handle_environment_action
             if hasattr(self.current_roof, 'handle_environment_action'):
-                print(f"   Routing to {self.current_roof.__class__.__name__}.handle_environment_action")
                 self.current_roof.handle_environment_action(action_type, parameters)
                 
                 # Force render after environment action
@@ -633,366 +610,28 @@ class ModelTab(QWidget):
                 
                 return True
             else:
-                print(f"⚠️ Current roof doesn't support environment actions")
                 return False
                 
         except Exception as e:
-            print(f"❌ Error handling environment tab action: {e}")
-            import traceback
-            traceback.print_exc()
             return False
 
     def _reconnect_environment_tab(self):
         """Reconnect environment tab to current roof"""
         try:
             if not hasattr(self, 'environment_tab') or not self.environment_tab:
-                print("⚠️ No environment tab to reconnect")
                 return
             
             if not self.current_roof:
-                print("⚠️ No current roof to connect to")
                 return
-            
-            print(f"🔗 Reconnecting environment tab to {self.current_roof.__class__.__name__}")
             
             # The connection is already through our handler, just verify roof can handle it
             if hasattr(self.current_roof, 'handle_environment_action'):
-                print("   ✅ Roof has handle_environment_action method")
-                
                 # Test if environment manager exists
                 if hasattr(self.current_roof, 'environment_manager'):
-                    print("   ✅ Roof has environment_manager")
-                else:
-                    print("   ⚠️ Roof missing environment_manager")
-            else:
-                print("   ⚠️ Roof missing handle_environment_action method")
-            
-        except Exception as e:
-            print(f"⚠️ Error reconnecting environment tab: {e}")
-
-    # ==================== DEBUG AND TEST METHODS ====================
-
-    def test_environment_system(self):
-        """Comprehensive test of the environment system"""
-        print("\n" + "="*60)
-        print("ENVIRONMENT SYSTEM DIAGNOSTIC TEST")
-        print("="*60)
-        
-        # Check plotter
-        if self.plotter:
-            print(f"✅ Plotter exists: {type(self.plotter)}")
-        else:
-            print("❌ No plotter!")
-            return
-        
-        # Check current roof
-        if hasattr(self, 'current_roof') and self.current_roof:
-            roof = self.current_roof
-            print(f"✅ Current roof: {roof.__class__.__name__}")
-            
-            # Check environment manager
-            if hasattr(roof, 'environment_manager'):
-                env_mgr = roof.environment_manager
-                print(f"✅ Environment manager exists")
-                
-                # Check attachment points
-                if hasattr(env_mgr, 'environment_attachment_points'):
-                    points = env_mgr.environment_attachment_points
-                    print(f"✅ Attachment points: {len(points)} points")
-                    
-                    # Show first few points
-                    for i, point in enumerate(points[:3]):
-                        print(f"   Point {i}: {point['position']}, occupied: {point['occupied']}")
-                else:
-                    print("❌ No attachment points list")
-                
-                # Check if ground exists
-                if hasattr(env_mgr, 'ground_mesh') and env_mgr.ground_mesh:
-                    print(f"✅ Ground mesh exists")
-                else:
-                    print("❌ No ground mesh")
-                
-                # Try to show points manually
-                print("\n🔧 Attempting to show attachment points manually...")
-                try:
-                    env_mgr.show_environment_attachment_points()
-                    print("✅ Called show_environment_attachment_points()")
-                    
-                    # Force render
-                    if hasattr(self.plotter, 'render'):
-                        self.plotter.render()
-                        print("✅ Called render()")
-                        
-                except Exception as e:
-                    print(f"❌ Error showing points: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    
-            else:
-                print("❌ Roof has no environment_manager")
-        else:
-            print("⚠️ No current roof - create a building first")
-            
-        # Check environment tab connection
-        if hasattr(self, 'environment_tab') and self.environment_tab:
-            print("✅ Environment tab connected")
-        else:
-            print("❌ Environment tab NOT connected")
-        
-        print("="*60 + "\n")
-        return True
-
-    def test_add_visible_spheres(self):
-        """Test adding highly visible spheres to verify rendering works"""
-        if not self.plotter:
-            print("❌ No plotter")
-            return False
-        
-        print("\n🔴 Adding test spheres...")
-        
-        try:
-            # Add spheres at different positions with bright colors
-            test_positions = [
-                ([5, 0, 2], 'red', 0.5),
-                ([0, 5, 2], 'blue', 0.5),
-                ([-5, 0, 2], 'green', 0.5),
-                ([0, -5, 2], 'yellow', 0.5),
-                ([0, 0, 5], 'magenta', 0.8)  # One high up
-            ]
-            
-            for i, (pos, color, radius) in enumerate(test_positions):
-                sphere = pv.Sphere(center=pos, radius=radius)
-                actor = self.plotter.add_mesh(
-                    sphere,
-                    color=color,
-                    name=f'test_sphere_{color}',
-                    opacity=1.0,
-                    smooth_shading=True
-                )
-                print(f"  ✅ Added {color} sphere at {pos}")
-            
-            # Force render
-            if hasattr(self.plotter, 'render'):
-                self.plotter.render()
-            
-            # Reset camera to see all
-            if hasattr(self.plotter, 'reset_camera'):
-                self.plotter.reset_camera()
-                
-            print("✅ Test spheres added - you should see 5 colored spheres")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error adding test spheres: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    def test_manual_attachment_points(self):
-        """Manually create and show attachment points"""
-        if not self.current_roof:
-            print("❌ No roof - create building first")
-            return False
-        
-        if not self.plotter:
-            print("❌ No plotter")
-            return False
-        
-        print("\n🔵 Creating manual attachment points...")
-        
-        try:
-            # Create points in a circle around origin at ground level
-            radius = 10
-            num_points = 8
-            for i in range(num_points):
-                angle = (2 * np.pi * i) / num_points
-                x = radius * np.cos(angle)
-                y = radius * np.sin(angle)
-                z = 1.0  # 1 meter above ground for visibility
-                
-                # Create a sphere at each point
-                sphere = pv.Sphere(center=[x, y, z], radius=0.3)
-                self.plotter.add_mesh(
-                    sphere,
-                    color='black',
-                    name=f'manual_attachment_{i}',
-                    opacity=1.0
-                )
-                print(f"  Added black sphere at ({x:.1f}, {y:.1f}, {z})")
-            
-            # Add a larger central sphere for reference
-            center_sphere = pv.Sphere(center=[0, 0, 1], radius=0.5)
-            self.plotter.add_mesh(
-                center_sphere,
-                color='red',
-                name='center_reference',
-                opacity=1.0
-            )
-            print("  Added red reference sphere at center")
-            
-            # Force render
-            if hasattr(self.plotter, 'render'):
-                self.plotter.render()
-            
-            print("✅ Manual attachment points created")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error creating manual points: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    def force_show_attachment_points(self):
-        """Force show attachment points with maximum visibility"""
-        if not self.current_roof:
-            print("❌ No roof exists")
-            return False
-        
-        if not hasattr(self.current_roof, 'environment_manager'):
-            print("❌ No environment manager")
-            return False
-        
-        env_mgr = self.current_roof.environment_manager
-        
-        print("\n⚫ Forcing attachment points display...")
-        
-        try:
-            # First ensure points exist
-            if not env_mgr.environment_attachment_points:
-                print("❌ No attachment points exist - creating them...")
-                env_mgr._create_environment_attachment_points()
-            
-            points = env_mgr.environment_attachment_points
-            print(f"📍 Found {len(points)} attachment points")
-            
-            # Clear any existing actors
-            for i in range(50):
-                try:
-                    self.plotter.remove_actor(f'forced_attachment_{i}')
-                except:
                     pass
             
-            # Add each point as a visible sphere
-            for i, point_data in enumerate(points[:20]):  # Limit to first 20
-                pos = point_data['position']
-                # Raise the Z coordinate for visibility
-                visible_pos = [pos[0], pos[1], pos[2] + 1.0]
-                
-                sphere = pv.Sphere(center=visible_pos, radius=0.4)
-                color = 'red' if point_data['occupied'] else 'black'
-                
-                self.plotter.add_mesh(
-                    sphere,
-                    color=color,
-                    name=f'forced_attachment_{i}',
-                    opacity=1.0,
-                    smooth_shading=True
-                )
-                
-                if i < 3:  # Print first 3
-                    print(f"  Point {i}: {visible_pos} - {color}")
-            
-            # Add ground reference plane
-            ground_plane = pv.Plane(
-                center=(0, 0, 0),
-                direction=(0, 0, 1),
-                i_size=30,
-                j_size=30,
-                i_resolution=1,
-                j_resolution=1
-            )
-            self.plotter.add_mesh(
-                ground_plane,
-                color='gray',
-                opacity=0.3,
-                name='reference_ground'
-            )
-            
-            # Force render and reset camera
-            if hasattr(self.plotter, 'render'):
-                self.plotter.render()
-            
-            if hasattr(self.plotter, 'reset_camera'):
-                self.plotter.reset_camera()
-            
-            print("✅ Forced attachment points display complete")
-            print("   Black spheres = available, Red spheres = occupied")
-            return True
-            
         except Exception as e:
-            print(f"❌ Error forcing attachment points: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    def list_scene_actors(self):
-        """List all actors currently in the scene"""
-        if not self.plotter:
-            print("❌ No plotter")
-            return
-        
-        print("\n📋 Scene Contents:")
-        
-        try:
-            if hasattr(self.plotter, 'renderer'):
-                renderer = self.plotter.renderer
-                
-                # Get actors collection
-                actors = renderer.GetActors()
-                actors.InitTraversal()
-                
-                num_actors = actors.GetNumberOfItems()
-                print(f"Total actors in scene: {num_actors}")
-                
-                # List each actor
-                for i in range(min(num_actors, 20)):  # Limit to first 20
-                    actor = actors.GetNextActor()
-                    if actor:
-                        # Try to get bounds
-                        bounds = actor.GetBounds()
-                        if bounds:
-                            x_range = f"{bounds[0]:.1f} to {bounds[1]:.1f}"
-                            y_range = f"{bounds[2]:.1f} to {bounds[3]:.1f}"
-                            z_range = f"{bounds[4]:.1f} to {bounds[5]:.1f}"
-                            print(f"  Actor {i}: X[{x_range}], Y[{y_range}], Z[{z_range}]")
-                        else:
-                            print(f"  Actor {i}: {actor}")
-                
-                if num_actors > 20:
-                    print(f"  ... and {num_actors - 20} more actors")
-                    
-            else:
-                print("❌ No renderer available")
-                
-        except Exception as e:
-            print(f"❌ Error listing actors: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def debug_camera_position(self):
-        """Show current camera position and settings"""
-        if not self.plotter:
-            print("❌ No plotter")
-            return
-        
-        print("\n📷 Camera Information:")
-        
-        try:
-            if hasattr(self.plotter, 'camera_position'):
-                cam_pos = self.plotter.camera_position
-                print(f"Camera position: {cam_pos}")
-            
-            if hasattr(self.plotter, 'camera'):
-                camera = self.plotter.camera
-                print(f"Camera focal point: {camera.focal_point}")
-                print(f"Camera distance: {camera.distance}")
-                print(f"Camera clipping range: {camera.clipping_range}")
-                
-        except Exception as e:
-            print(f"❌ Error getting camera info: {e}")
-
-    # ==================== ENVIRONMENT AND PANEL METHODS ====================
+            pass
 
     def add_obstacle(self, obstacle_type, dimensions):
         """Add obstacle to current roof"""
@@ -1167,8 +806,6 @@ class ModelTab(QWidget):
         except Exception as e:
             return False
 
-    # ==================== UTILITY METHODS ====================
-
     def get_solar_performance(self):
         """Get solar performance metrics"""
         try:
@@ -1277,173 +914,21 @@ class ModelTab(QWidget):
         except:
             return None
 
-    def debug_environment_connection(self):
-        """Debug the entire environment connection chain"""
-        print("\n" + "="*60)
-        print("🔍 ENVIRONMENT CONNECTION DEBUG")
-        print("="*60)
-        
-        # 1. Check if environment tab exists
-        if hasattr(self, 'environment_tab') and self.environment_tab:
-            print("✅ Step 1: environment_tab exists")
-        else:
-            print("❌ Step 1: NO environment_tab reference!")
-            return
-        
-        # 2. Check if current roof exists
-        if hasattr(self, 'current_roof') and self.current_roof:
-            print(f"✅ Step 2: current_roof exists ({self.current_roof.__class__.__name__})")
-        else:
-            print("❌ Step 2: NO current_roof!")
-            return
-        
-        # 3. Check if roof has handle_environment_action
-        if hasattr(self.current_roof, 'handle_environment_action'):
-            print("✅ Step 3: Roof has handle_environment_action method")
-        else:
-            print("❌ Step 3: Roof missing handle_environment_action!")
-            return
-        
-        # 4. Check if roof has environment_manager
-        if hasattr(self.current_roof, 'environment_manager'):
-            print("✅ Step 4: Roof has environment_manager")
-            env_mgr = self.current_roof.environment_manager
-        else:
-            print("❌ Step 4: Roof missing environment_manager!")
-            return
-        
-        # 5. Check if environment_manager has handle method
-        if hasattr(env_mgr, 'handle_environment_action'):
-            print("✅ Step 5: environment_manager has handle_environment_action")
-        else:
-            print("❌ Step 5: environment_manager missing handle_environment_action!")
-            return
-        
-        # 6. Test direct call to environment manager
-        print("\n🧪 Testing direct calls...")
+    def pause_rendering(self):
+        """Pause PyVista rendering when switching away from Model tab"""
         try:
-            # Test showing attachment points directly
-            env_mgr.show_environment_attachment_points()
-            print("✅ Direct call to show_environment_attachment_points worked")
-            
-            # Check if plotter exists and can render
-            if self.plotter:
-                self.plotter.render()
-                print("✅ Plotter render called")
-            else:
-                print("❌ No plotter available!")
-                
+            if self.plotter and self.vtk_widget:
+                self.vtk_widget.setParent(None)
         except Exception as e:
-            print(f"❌ Direct call failed: {e}")
-            import traceback
-            traceback.print_exc()
-        
-        # 7. Check signal connection
-        print("\n📡 Checking signal connections...")
-        if hasattr(self.environment_tab, 'environment_action_requested'):
-            signal = self.environment_tab.environment_action_requested
-            
-            # Check if signal has any connections
-            try:
-                # This is PyQt5 specific way to check connections
-                receivers = signal.receivers(signal)
-                print(f"Signal has {receivers} receiver(s)")
-                
-                if receivers == 0:
-                    print("❌ Signal is NOT connected to anything!")
-                    print("\n🔧 Attempting to connect signal now...")
-                    
-                    # Try to connect it
-                    signal.connect(self._handle_environment_tab_action)
-                    print("✅ Connected signal to _handle_environment_tab_action")
-                    
-            except Exception as e:
-                print(f"⚠️ Could not check signal receivers: {e}")
-        
-        print("="*60 + "\n")
+            pass
 
-    # Updated connection method with better debugging:
-    def connect_environment_tab(self, environment_tab):
-        """Connect environment tab to current roof with debugging"""
+    def resume_rendering(self, layout=None):
+        """Resume PyVista rendering when switching back to Model tab"""
         try:
-            print("\n🔗 Connecting EnvironmentTab...")
-            
-            if not environment_tab:
-                print("❌ No environment tab provided")
-                return False
-            
-            # Store reference
-            self.environment_tab = environment_tab
-            print("✅ Stored environment_tab reference")
-            
-            # Check if signal exists
-            if not hasattr(environment_tab, 'environment_action_requested'):
-                print("❌ EnvironmentTab missing environment_action_requested signal!")
-                return False
-            
-            # Disconnect any previous connections
-            try:
-                environment_tab.environment_action_requested.disconnect()
-                print("✅ Disconnected previous connections")
-            except:
-                print("ℹ️ No previous connections to disconnect")
-            
-            # Connect to our handler
-            environment_tab.environment_action_requested.connect(
-                self._handle_environment_tab_action
-            )
-            print("✅ Connected signal to _handle_environment_tab_action")
-            
-            # Verify connection
-            receivers = environment_tab.environment_action_requested.receivers(
-                environment_tab.environment_action_requested
-            )
-            print(f"✅ Signal now has {receivers} receiver(s)")
-            
-            return True
-            
+            if self.plotter and self.vtk_widget:
+                if layout is None:
+                    # Try to re-add back to our own layout
+                    layout = self.layout().itemAt(0).widget().layout()
+                layout.addWidget(self.vtk_widget)
         except Exception as e:
-            print(f"❌ Error connecting environment tab: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    # Updated handler with more debugging:
-    def _handle_environment_tab_action(self, action_type, parameters):
-        """Handle actions from EnvironmentTab with debugging"""
-        try:
-            print(f"\n📨 ModelTab._handle_environment_tab_action called!")
-            print(f"   Action: {action_type}")
-            print(f"   Parameters: {parameters}")
-            
-            if not self.current_roof:
-                print("❌ No current roof to handle action")
-                return False
-            
-            print(f"✅ Have current roof: {self.current_roof.__class__.__name__}")
-            
-            # Check if roof has handler
-            if not hasattr(self.current_roof, 'handle_environment_action'):
-                print("❌ Roof doesn't have handle_environment_action method!")
-                return False
-            
-            print("✅ Calling roof.handle_environment_action...")
-            
-            # Call the roof's handler
-            self.current_roof.handle_environment_action(action_type, parameters)
-            
-            print("✅ Roof handler called successfully")
-            
-            # Force render
-            if self.plotter and hasattr(self.plotter, 'render'):
-                self.plotter.render()
-                print("✅ Forced render")
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error in _handle_environment_tab_action: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-        
+            pass

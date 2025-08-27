@@ -2,7 +2,13 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QDialogButtonBox, QRadioButto
                             QLabel, QPushButton, QGroupBox, QLineEdit, 
                             QGridLayout, QMessageBox, QButtonGroup)
 from PyQt5.QtCore import Qt
-from translations import _
+
+# Import the dialog styles
+try:
+    from ui.styles.dialog_styles import DialogStyles
+    DIALOG_STYLES_AVAILABLE = True
+except ImportError:
+    DIALOG_STYLES_AVAILABLE = False
 
 class RoofObstacleDialogs(QDialog):
    
@@ -15,26 +21,26 @@ class RoofObstacleDialogs(QDialog):
         self.dimensions = None
         self.use_default = True
         
-        # Default dimensions for different obstacle types
+        # Default dimensions for different obstacle types (removed translations)
         self.default_dimensions = {
-            _('chimney'): (1, 1, 3),          # width, length, height
-            _('roof_window'): (1.0, 2, 0.15),  # width, length, height
-            _('ventilation'): (0.4, 0.4, 0.5)  # diameter, diameter, height
+            'Chimney': (1, 1, 3),          # width, length, height
+            'Roof Window': (1.0, 2, 0.15),  # width, length, height
+            'Ventilation': (0.4, 0.4, 0.5)  # diameter, diameter, height
         }
         
         # Size limits based on obstacle type (in meters)
         self.size_limits = {
-            _('chimney'): {
+            'Chimney': {
                 "width": (0.3, 2),    # min, max
                 "length": (0.3, 2),
                 "height": (0.5, 5)
             },
-            _('roof_window'): {
+            'Roof Window': {
                 "width": (0.4, 2.0),
                 "length": (0.4, 2.5),
                 "height": (0.05, 0.3)
             },
-            _('ventilation'): {
+            'Ventilation': {
                 "width": (0.1, 1.0),    # diameter
                 "length": (0.1, 1.0),   # diameter (same as width)
                 "height": (0.2, 1.0)
@@ -42,60 +48,45 @@ class RoofObstacleDialogs(QDialog):
         }
         
         # Setup UI
-        self.setWindowTitle(_('obstacle_properties'))
-        self.setMinimumWidth(450)
+        self.setWindowTitle('Obstacle Properties')
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(500)
         
-        # ✅ CRITICAL: Apply centralized styling
-        self._apply_dialog_styling()
+        # Apply centralized styling
+        if DIALOG_STYLES_AVAILABLE:
+            self.setStyleSheet(DialogStyles.get_dark_dialog_style())
         
         self.setup_ui()
-    
-    def _apply_dialog_styling(self):
-        """Apply centralized dialog styling"""
-        try:
-            from ui.styles.dialog_styles import DialogStyles
-            
-            # Try to detect current theme from main window
-            theme = "dark"  # Default to dark
-            if hasattr(self.parent(), 'main_window') and hasattr(self.parent().main_window, 'theme_manager'):
-                theme = self.parent().main_window.theme_manager.current_theme
-            elif hasattr(self.parent(), 'theme_manager'):
-                theme = self.parent().theme_manager.current_theme
-            
-            # Apply appropriate style
-            if theme == "dark":
-                style = DialogStyles.get_dark_dialog_style()
-            else:
-                style = DialogStyles.get_light_dialog_style()
-            
-            self.setStyleSheet(style)
-            print("✅ Applied centralized dialog styling to obstacle dialog")
-            
-        except ImportError:
-            print("⚠️ Dialog styles not available, using default styling")
-        except Exception as e:
-            print(f"❌ Error applying dialog styling: {e}")
     
     def setup_ui(self):
         """Set up the dialog UI"""
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
         self.setLayout(main_layout)
         
         # Title label
-        title_label = QLabel(_('obstacle_selection_properties'))
-        title_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        title_label = DialogStyles.create_styled_label('Obstacle Selection & Properties', 'title') if DIALOG_STYLES_AVAILABLE else QLabel('Obstacle Selection & Properties')
         title_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(title_label)
         
+        # Description
+        description = DialogStyles.create_styled_label('Select an obstacle type and configure its dimensions.', 'description') if DIALOG_STYLES_AVAILABLE else QLabel('Select an obstacle type and configure its dimensions.')
+        description.setWordWrap(True)
+        description.setAlignment(Qt.AlignCenter)
+        main_layout.addWidget(description)
+        
         # Type selection group
-        type_group = QGroupBox(_('select_obstacle_type'))
+        type_group = QGroupBox('🏗️ Select Obstacle Type')
         type_layout = QVBoxLayout()
+        type_layout.setContentsMargins(15, 15, 15, 15)
+        type_layout.setSpacing(10)
         type_group.setLayout(type_layout)
         main_layout.addWidget(type_group)
         
         # Radio buttons for obstacle types
         self.type_group = QButtonGroup(self)
-        obstacle_types = [_('chimney'), _('roof_window'), _('ventilation')]
+        obstacle_types = ['Chimney', 'Roof Window', 'Ventilation']
         
         self.type_radios = {}
         for i, obs_type in enumerate(obstacle_types):
@@ -105,14 +96,16 @@ class RoofObstacleDialogs(QDialog):
             self.type_radios[obs_type] = radio
         
         # Default select first option
-        self.type_radios[_('chimney')].setChecked(True)
+        self.type_radios['Chimney'].setChecked(True)
         
         # Connect the type selection to update dimensions
         self.type_group.buttonClicked.connect(self.update_dimension_labels)
         
         # Dimensions group
-        dim_group = QGroupBox(_('dimensions'))
+        dim_group = QGroupBox('📐 Dimensions')
         dim_layout = QVBoxLayout()
+        dim_layout.setContentsMargins(15, 15, 15, 15)
+        dim_layout.setSpacing(10)
         dim_group.setLayout(dim_layout)
         main_layout.addWidget(dim_group)
         
@@ -123,49 +116,55 @@ class RoofObstacleDialogs(QDialog):
         # Radio button group for default/custom selection
         self.dim_option_group = QButtonGroup(self)
         
-        self.default_radio = QRadioButton(_('use_default_dimensions'))
+        self.default_radio = QRadioButton('Use Default Dimensions')
         self.default_radio.setChecked(True)
         radio_layout.addWidget(self.default_radio)
         self.dim_option_group.addButton(self.default_radio)
         
         # Add default dimension label
         self.default_label = QLabel()
-        self.default_label.setStyleSheet("color: gray; margin-left: 20px;")
         radio_layout.addWidget(self.default_label)
         
-        self.custom_radio = QRadioButton(_('use_custom_dimensions'))
+        self.custom_radio = QRadioButton('Use Custom Dimensions')
         radio_layout.addWidget(self.custom_radio)
         self.dim_option_group.addButton(self.custom_radio)
         
         # Size limits label
         self.limits_label = QLabel()
-        self.limits_label.setStyleSheet("color: gray; margin-left: 20px;")
         radio_layout.addWidget(self.limits_label)
         
         # Group for dimension input fields
-        input_group = QGroupBox(_('custom_dimensions_meters'))
+        input_group = QGroupBox('📏 Custom Dimensions (meters)')
         input_layout = QGridLayout()
+        input_layout.setContentsMargins(15, 15, 15, 15)
+        input_layout.setSpacing(10)
         input_group.setLayout(input_layout)
         dim_layout.addWidget(input_group)
         
         # Width/Diameter input
-        self.width_label = QLabel(_('width'))
+        width_label = DialogStyles.create_styled_label('Width:', 'form') if DIALOG_STYLES_AVAILABLE else QLabel('Width:')
+        self.width_label = width_label
         input_layout.addWidget(self.width_label, 0, 0)
         self.width_input = QLineEdit()
         self.width_input.setEnabled(False)  # Initially disabled
+        self.width_input.setPlaceholderText("Enter width in meters")
         input_layout.addWidget(self.width_input, 0, 1)
         
         # Length input
-        self.length_label = QLabel(_('length'))
+        length_label = DialogStyles.create_styled_label('Length:', 'form') if DIALOG_STYLES_AVAILABLE else QLabel('Length:')
+        self.length_label = length_label
         input_layout.addWidget(self.length_label, 1, 0)
         self.length_input = QLineEdit()
         self.length_input.setEnabled(False)  # Initially disabled
+        self.length_input.setPlaceholderText("Enter length in meters")
         input_layout.addWidget(self.length_input, 1, 1)
         
         # Height input
-        input_layout.addWidget(QLabel(_('height')), 2, 0)
+        height_label = DialogStyles.create_styled_label('Height:', 'form') if DIALOG_STYLES_AVAILABLE else QLabel('Height:')
+        input_layout.addWidget(height_label, 2, 0)
         self.height_input = QLineEdit()
         self.height_input.setEnabled(False)  # Initially disabled
+        self.height_input.setPlaceholderText("Enter height in meters")
         input_layout.addWidget(self.height_input, 2, 1)
         
         # Connect radio buttons to enable/disable fields
@@ -174,21 +173,16 @@ class RoofObstacleDialogs(QDialog):
         # Set initial values based on default selection (Chimney)
         self.update_dimension_labels()
         
-        # Replace horizontal button layout with a QDialogButtonBox
+        # Button box
         button_box = QDialogButtonBox()
         main_layout.addWidget(button_box)
         
         # Create and style the OK button
-        self.ok_button = QPushButton(_('place_obstacle'))
-        self.ok_button.setMinimumWidth(120)
-        self.ok_button.setMinimumHeight(40)
-        self.ok_button.setStyleSheet("font-weight: bold; font-size: 12px;")
+        self.ok_button = QPushButton('Place Obstacle')
         
         # Create and style the Cancel button (red)
-        cancel_button = QPushButton(_('cancel'))
-        cancel_button.setMinimumHeight(40)
-        cancel_button.setMinimumWidth(120)
-        cancel_button.setStyleSheet("background-color: #d9534f; color: white; font-size: 12px;")
+        cancel_button = QPushButton('Cancel')
+        cancel_button.setObjectName("cancel_button")
         
         # Add buttons to the button box
         button_box.addButton(self.ok_button, QDialogButtonBox.AcceptRole)
@@ -211,36 +205,23 @@ class RoofObstacleDialogs(QDialog):
             dims = self.default_dimensions[self.selected_type]
             
             # Special handling for ventilation (diameter vs width/length)
-            if self.selected_type == _('ventilation'):
-                self.width_label.setText(_('diameter'))
-                self.length_label.setText(_('diameter'))
-                self.length_label.setStyleSheet("color: gray;")
+            if self.selected_type == 'Ventilation':
+                self.width_label.setText('Diameter:')
+                self.length_label.setText('Diameter:')
                 self.length_input.setEnabled(False)  # Always disabled for ventilation
                 
                 # Update default label
-                self.default_label.setText(
-                    _('default_ventilation_format').format(
-                        diameter=dims[0],
-                        height=dims[2]
-                    )
-                )
+                self.default_label.setText(f'Default: Diameter {dims[0]}m, Height {dims[2]}m')
             else:
-                self.width_label.setText(_('width'))
-                self.length_label.setText(_('length'))
-                self.length_label.setStyleSheet("")
+                self.width_label.setText('Width:')
+                self.length_label.setText('Length:')
                 
                 # Only enable length if custom dimensions and not ventilation
-                should_enable = self.custom_radio.isChecked() and self.selected_type != _('ventilation')
+                should_enable = self.custom_radio.isChecked() and self.selected_type != 'Ventilation'
                 self.length_input.setEnabled(should_enable)
                 
                 # Update default label
-                self.default_label.setText(
-                    _('default_dimensions_format').format(
-                        width=dims[0],
-                        length=dims[1],
-                        height=dims[2]
-                    )
-                )
+                self.default_label.setText(f'Default: {dims[0]}m × {dims[1]}m × {dims[2]}m (W×L×H)')
             
             # Update limit information
             limits = self.size_limits.get(
@@ -249,22 +230,10 @@ class RoofObstacleDialogs(QDialog):
             )
             
             # Different label for ventilation
-            if self.selected_type == _('ventilation'):
-                limit_text = _('ventilation_limits_format').format(
-                    min_diameter=limits['width'][0],
-                    max_diameter=limits['width'][1],
-                    min_height=limits['height'][0],
-                    max_height=limits['height'][1]
-                )
+            if self.selected_type == 'Ventilation':
+                limit_text = f'Limits: Diameter {limits["width"][0]}-{limits["width"][1]}m, Height {limits["height"][0]}-{limits["height"][1]}m'
             else:
-                limit_text = _('size_limits_format').format(
-                    min_width=limits['width'][0],
-                    max_width=limits['width'][1],
-                    min_length=limits['length'][0],
-                    max_length=limits['length'][1],
-                    min_height=limits['height'][0],
-                    max_height=limits['height'][1]
-                )
+                limit_text = f'Limits: Width {limits["width"][0]}-{limits["width"][1]}m, Length {limits["length"][0]}-{limits["length"][1]}m, Height {limits["height"][0]}-{limits["height"][1]}m'
             
             self.limits_label.setText(limit_text)
             
@@ -281,7 +250,7 @@ class RoofObstacleDialogs(QDialog):
         self.width_input.setEnabled(enabled)
         
         # Length is special case - only enabled for non-ventilation custom dimensions
-        if self.selected_type == _('ventilation'):
+        if self.selected_type == 'Ventilation':
             self.length_input.setEnabled(False)  # Always disabled for ventilation
         else:
             self.length_input.setEnabled(enabled)
@@ -317,46 +286,34 @@ class RoofObstacleDialogs(QDialog):
                 height = float(self.height_input.text())
                 
                 # Validate against limits
-                dim_name = _('diameter') if self.selected_type == _('ventilation') else _('width')
+                dim_name = 'Diameter' if self.selected_type == 'Ventilation' else 'Width'
                 
                 if width < limits['width'][0] or width > limits['width'][1]:
                     QMessageBox.warning(
                         self, 
-                        _('invalid_dimensions'), 
-                        _('dimension_range_error').format(
-                            dimension=dim_name,
-                            min=limits['width'][0],
-                            max=limits['width'][1]
-                        )
+                        'Invalid Dimensions', 
+                        f'{dim_name} must be between {limits["width"][0]} and {limits["width"][1]} meters.'
                     )
                     return
                 
-                if self.selected_type != _('ventilation') and (length < limits['length'][0] or length > limits['length'][1]):
+                if self.selected_type != 'Ventilation' and (length < limits['length'][0] or length > limits['length'][1]):
                     QMessageBox.warning(
                         self, 
-                        _('invalid_dimensions'), 
-                        _('dimension_range_error').format(
-                            dimension=_('length'),
-                            min=limits['length'][0],
-                            max=limits['length'][1]
-                        )
+                        'Invalid Dimensions', 
+                        f'Length must be between {limits["length"][0]} and {limits["length"][1]} meters.'
                     )
                     return
                 
                 if height < limits['height'][0] or height > limits['height'][1]:
                     QMessageBox.warning(
                         self, 
-                        _('invalid_dimensions'), 
-                        _('dimension_range_error').format(
-                            dimension=_('height'),
-                            min=limits['height'][0],
-                            max=limits['height'][1]
-                        )
+                        'Invalid Dimensions', 
+                        f'Height must be between {limits["height"][0]} and {limits["height"][1]} meters.'
                     )
                     return
                 
                 # For ventilation, enforce same width and length (diameter)
-                if self.selected_type == _('ventilation'):
+                if self.selected_type == 'Ventilation':
                     length = width
                 
                 # Store validated dimensions
@@ -366,8 +323,8 @@ class RoofObstacleDialogs(QDialog):
             except ValueError:
                 QMessageBox.warning(
                     self, 
-                    _('invalid_input'), 
-                    _('enter_valid_numbers')
+                    'Invalid Input', 
+                    'Please enter valid numbers for all dimensions.'
                 )
                 return
     

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced Toolbar Manager - Fixed edit icon, simplified center, question mark help
+Enhanced Toolbar Manager - Dark Theme Only
 PVmizer GEO - Professional geospatial design tool
 """
 from PyQt5.QtWidgets import (QToolBar, QAction, QWidget, QSizePolicy, QMessageBox, 
@@ -15,28 +15,23 @@ from datetime import datetime
 # Import text content
 try:
     from ui.toolbar.toolbar_texts import ToolbarTexts
-    print("✅ Toolbar texts loaded successfully")
 except ImportError:
-    print("⚠ Warning: toolbar_texts not found. Using fallback text.")
     ToolbarTexts = None
 
 # Import styling
 try:
     from ui.styles.toolbar_styles import ToolbarStyles
-    print("✅ Toolbar styles loaded successfully")
 except ImportError:
-    print("⚠ Warning: toolbar_styles not found. Using fallback styling.")
     ToolbarStyles = None
 
 # Import the separate ProjectWizard class
 try:
     from ui.wizard_form.project_wizard import ProjectWizard
 except ImportError:
-    print("⚠ Warning: ProjectWizard not found. Project management features will be limited.")
     ProjectWizard = None
 
 class ToolbarManager:
-    """Enhanced toolbar manager with improved styling"""
+    """Enhanced toolbar manager with dark theme styling"""
     
     def __init__(self, main_window):
         self.main_window = main_window
@@ -52,8 +47,6 @@ class ToolbarManager:
         self.save_as_action = None
         self.edit_action = None
         self.close_action = None
-        
-        print("📋 Enhanced ToolbarManager initialized")
     
     def setup_toolbar(self):
         """Setup the enhanced toolbar"""
@@ -97,7 +90,6 @@ class ToolbarManager:
         
         self.toolbar.addSeparator()
         
-        # FIXED: Back to question mark but keep blue button
         help_btn = self._create_button("❓ Help", "Show help information", "help")
         help_btn.clicked.connect(self._show_help)
         self.toolbar.addWidget(help_btn)
@@ -109,25 +101,21 @@ class ToolbarManager:
         
         self._setup_keyboard_shortcuts()
         self.update_project_display()
-        
-        print("✅ Enhanced toolbar setup complete")
     
     def _apply_toolbar_styling(self):
         """Apply enhanced styling to the main toolbar"""
         try:
-            dark_theme = self._is_dark_theme()
             if ToolbarStyles:
-                self.toolbar.setStyleSheet(ToolbarStyles.get_toolbar_style(dark_theme))
-            
+                self.toolbar.setStyleSheet(ToolbarStyles.get_toolbar_style(True))
         except Exception as e:
-            print(f"⚠️ Error applying toolbar styling: {e}")
+            pass
     
     def _create_button(self, text, tooltip, button_type="default"):
         """Create a styled button with FIXED width"""
         button = QToolButton()
         button.setText(text)
         button.setToolTip(tooltip)
-        button.setFixedSize(120, 50)  # FIXED size instead of minimum
+        button.setFixedSize(120, 50)
         button.setFont(QFont("Segoe UI", 10, QFont.Bold))
         
         self._apply_button_styling(button, button_type)
@@ -139,7 +127,7 @@ class ToolbarManager:
         button.setText(text)
         button.setToolTip(tooltip)
         button.setPopupMode(QToolButton.InstantPopup)
-        button.setFixedSize(120, 50)  # FIXED size instead of minimum
+        button.setFixedSize(120, 50)
         button.setFont(QFont("Segoe UI", 10, QFont.Bold))
         
         self._apply_dropdown_styling(button)
@@ -148,33 +136,27 @@ class ToolbarManager:
     def _apply_button_styling(self, button, button_type):
         """Apply styling based on button type"""
         try:
-            dark_theme = self._is_dark_theme()
-            
             if not ToolbarStyles:
                 return
             
             if button_type == "primary":
-                button.setStyleSheet(ToolbarStyles.get_button_style(dark_theme))
+                button.setStyleSheet(ToolbarStyles.get_button_style(True))
             elif button_type == "danger":
-                button.setStyleSheet(ToolbarStyles.get_exit_button_style(dark_theme))
+                button.setStyleSheet(ToolbarStyles.get_exit_button_style(True))
             elif button_type == "help":
-                button.setStyleSheet(ToolbarStyles.get_button_style(dark_theme))
+                button.setStyleSheet(ToolbarStyles.get_button_style(True))
             else:  # default
-                button.setStyleSheet(ToolbarStyles.get_button_style(dark_theme))
-            
+                button.setStyleSheet(ToolbarStyles.get_button_style(True))
         except Exception as e:
-            print(f"⚠️ Error applying button styling: {e}")
+            pass
     
     def _apply_dropdown_styling(self, button):
         """Apply dropdown-specific styling"""
         try:
-            dark_theme = self._is_dark_theme()
-            
             if ToolbarStyles:
-                button.setStyleSheet(ToolbarStyles.get_dropdown_button_style(dark_theme))
-            
+                button.setStyleSheet(ToolbarStyles.get_dropdown_button_style(True))
         except Exception as e:
-            print(f"⚠️ Error applying dropdown styling: {e}")
+            pass
     
     def _create_simple_project_display(self):
         """SIMPLIFIED: Create single container with just project name and client name"""
@@ -183,7 +165,7 @@ class ToolbarManager:
         frame.setMinimumWidth(280)
         frame.setMaximumWidth(400)
         frame.setMinimumHeight(40)
-        frame.setCursor(Qt.PointingHandCursor)  # Change cursor to hand
+        frame.setCursor(Qt.PointingHandCursor)
         
         # Simple layout
         layout = QHBoxLayout(frame)
@@ -212,26 +194,20 @@ class ToolbarManager:
     def _apply_simple_project_styling(self, frame):
         """Apply simple, clean styling to project display"""
         try:
-            dark_theme = self._is_dark_theme()
-            
             if ToolbarStyles:
-                base_style = ToolbarStyles.get_project_frame_style(dark_theme)
+                base_style = ToolbarStyles.get_project_frame_style(True)
                 hover_style = """
                     QFrame:hover { 
-                        background-color: %s; 
-                        border: 1px solid %s;
+                        background-color: #34495e; 
+                        border: 1px solid #3498db;
                     }
-                """ % (
-                    "#34495e" if dark_theme else "#e3f2fd",
-                    "#3498db" if dark_theme else "#3498db"
-                )
+                """
                 frame.setStyleSheet(base_style + hover_style)
-            
         except Exception as e:
-            print(f"⚠️ Error applying simple project styling: {e}")
+            pass
     
     def _setup_project_menu(self, button):
-        """Setup project menu with FIXED edit icon alignment"""
+        """Setup project menu"""
         self.project_menu = QMenu(self.main_window)
         self._apply_menu_styling(self.project_menu)
         
@@ -264,13 +240,11 @@ class ToolbarManager:
         
         self.project_menu.addSeparator()
         
-        # FIXED: Edit Project with proper icon alignment
-        self.edit_action = QAction("📝 Edit Project", self.main_window)  # Changed from ✏️ to 📝
+        # Edit Project
+        self.edit_action = QAction("📝 Edit Project", self.main_window)
         self.edit_action.triggered.connect(self._edit_current_project)
         self.edit_action.setEnabled(False)
         self.project_menu.addAction(self.edit_action)
-        
-        # Project Info is now available by clicking on the project display in the toolbar
         
         self.project_menu.addSeparator()
         
@@ -289,14 +263,6 @@ class ToolbarManager:
         """Setup simplified settings menu"""
         self.settings_menu = QMenu(self.main_window)
         self._apply_menu_styling(self.settings_menu)
-        
-        # Theme toggle
-        current_theme = "Dark" if self._is_dark_theme() else "Light"
-        toggle_action = QAction(f"🌓 Switch to {'Light' if current_theme == 'Dark' else 'Dark'} Theme", self.main_window)
-        toggle_action.triggered.connect(self._toggle_theme)
-        self.settings_menu.addAction(toggle_action)
-        
-        self.settings_menu.addSeparator()
         
         # About
         about_action = QAction("📋 About", self.main_window)
@@ -324,13 +290,10 @@ class ToolbarManager:
     def _apply_menu_styling(self, menu):
         """Apply enhanced menu styling"""
         try:
-            dark_theme = self._is_dark_theme()
-            
             if ToolbarStyles:
-                menu.setStyleSheet(ToolbarStyles.get_menu_style(dark_theme))
-            
+                menu.setStyleSheet(ToolbarStyles.get_menu_style(True))
         except Exception as e:
-            print(f"⚠️ Error applying menu styling: {e}")
+            pass
     
     def _setup_keyboard_shortcuts(self):
         """Setup keyboard shortcuts"""
@@ -348,11 +311,6 @@ class ToolbarManager:
             action.setShortcut(shortcut)
             action.triggered.connect(method)
             self.main_window.addAction(action)
-    
-    def _is_dark_theme(self):
-        """Check if dark theme is active"""
-        return (hasattr(self.main_window, 'config') and 
-                getattr(self.main_window.config, 'dark_theme', False))
     
     def update_project_display(self, project_name=None, client_name=None):
         """Update simple project display"""
@@ -382,13 +340,11 @@ class ToolbarManager:
                 self.project_display_frame.setToolTip(tooltip)
         
         except Exception as e:
-            print(f"⚠️ Error updating project display: {e}")
+            pass
     
     def refresh_toolbar_theme(self):
         """Refresh toolbar styling when theme changes"""
         try:
-            print("🎨 Refreshing toolbar theme...")
-            
             if self.toolbar:
                 self._apply_toolbar_styling()
             
@@ -416,11 +372,8 @@ class ToolbarManager:
                 if menu:
                     self._apply_menu_styling(menu)
             
-            self._update_settings_menu()
-            print("✅ Toolbar theme refreshed")
-            
         except Exception as e:
-            print(f"⚠️ Error refreshing toolbar theme: {e}")
+            pass
     
     # =======================================
     # **PROJECT MANAGEMENT METHODS**
@@ -439,7 +392,7 @@ class ToolbarManager:
             wizard.exec_()
             
         except Exception as e:
-            print(f"❌ Error opening new project wizard: {e}")
+            pass
     
     def _edit_current_project(self):
         """Edit current project"""
@@ -458,7 +411,7 @@ class ToolbarManager:
             wizard.exec_()
             
         except Exception as e:
-            print(f"❌ Error opening edit project wizard: {e}")
+            pass
     
     def _on_project_created(self, project_data):
         """Handle project creation"""
@@ -467,11 +420,8 @@ class ToolbarManager:
             self._update_ui_for_active_project()
             self._auto_save_project()
             
-            project_name = project_data['basic_info']['project_name']
-            print(f"✅ Project '{project_name}' created")
-            
         except Exception as e:
-            print(f"❌ Error handling project creation: {e}")
+            pass
     
     def _on_project_updated(self, project_data):
         """Handle project update"""
@@ -481,10 +431,9 @@ class ToolbarManager:
             
             project_name = project_data['basic_info']['project_name']
             self.main_window.statusBar().showMessage(f"Project '{project_name}' updated")
-            print(f"✅ Project '{project_name}' updated")
             
         except Exception as e:
-            print(f"❌ Error handling project update: {e}")
+            pass
     
     def _load_project(self):
         """Load project from file"""
@@ -506,13 +455,11 @@ class ToolbarManager:
                     
                     project_name = project_data['basic_info']['project_name']
                     self.main_window.statusBar().showMessage(f"Project '{project_name}' loaded")
-                    print(f"✅ Project loaded from {file_path}")
                 else:
                     QMessageBox.warning(self.main_window, "Invalid Project", 
                                        "The selected file is not a valid PVmizer GEO project.")
                     
         except Exception as e:
-            print(f"❌ Error loading project: {e}")
             QMessageBox.critical(self.main_window, "Load Error", f"Failed to load project: {str(e)}")
     
     def _save_project(self):
@@ -531,7 +478,6 @@ class ToolbarManager:
             self._save_project_to_path(file_path)
             
         except Exception as e:
-            print(f"❌ Error saving project: {e}")
             QMessageBox.critical(self.main_window, "Save Error", f"Failed to save project: {str(e)}")
     
     def _save_project_as(self):
@@ -556,7 +502,6 @@ class ToolbarManager:
                 self._save_project_to_path(file_path)
                 
         except Exception as e:
-            print(f"❌ Error saving project as: {e}")
             QMessageBox.critical(self.main_window, "Save Error", f"Failed to save project: {str(e)}")
     
     def _save_project_to_path(self, file_path):
@@ -569,7 +514,6 @@ class ToolbarManager:
                 json.dump(self.current_project, f, indent=2, ensure_ascii=False)
             
             self.main_window.statusBar().showMessage(f"Project saved to {os.path.basename(file_path)}")
-            print(f"✅ Project saved to {file_path}")
             
         except Exception as e:
             raise Exception(f"Failed to save to {file_path}: {str(e)}")
@@ -594,10 +538,9 @@ class ToolbarManager:
                 self.main_window.statusBar().showMessage("Project closed")
                 self._update_project_menu_state(False)
                 self.update_project_display()
-                print("✅ Project closed")
                 
         except Exception as e:
-            print(f"❌ Error closing project: {e}")
+            pass
     
     def _show_project_info_dialog(self):
         """Show project information in a dialog with Edit button"""
@@ -623,7 +566,7 @@ class ToolbarManager:
             
             # Create a container widget with explicit ID for styling
             container = QWidget()
-            container.setObjectName("container")  # Important for CSS targeting
+            container.setObjectName("container")
             container_layout = QVBoxLayout(container)
             
             # Add info label to container
@@ -660,11 +603,9 @@ class ToolbarManager:
             
             # Apply styling with direct background control
             try:
-                dark_theme = self._is_dark_theme()
-                
                 if ToolbarStyles:
                     # Get styles and colors
-                    dialog_style, bg_color, text_color = ToolbarStyles.get_dialog_style(dark_theme)
+                    dialog_style, bg_color, text_color = ToolbarStyles.get_dialog_style(True)
                     
                     # Apply dialog style
                     dialog.setStyleSheet(dialog_style)
@@ -681,14 +622,13 @@ class ToolbarManager:
                     container.setAutoFillBackground(True)
                 
             except Exception as e:
-                print(f"⚠️ Error applying dialog styling: {e}")
+                pass
             
             # Show dialog
             dialog.exec_()
             
         except Exception as e:
-            print(f"❌ Error showing project info dialog: {e}")
-
+            pass
 
     def _auto_save_project(self):
         """Auto-save project"""
@@ -709,10 +649,8 @@ class ToolbarManager:
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(self.current_project, f, indent=2, ensure_ascii=False)
             
-            print(f"✅ Project auto-saved to {file_path}")
-            
         except Exception as e:
-            print(f"⚠ Auto-save failed: {e}")
+            pass
     
     def _validate_project_data(self, data):
         """Validate project data"""
@@ -721,17 +659,14 @@ class ToolbarManager:
             
             for key in required_keys:
                 if key not in data:
-                    print(f"Missing required key: {key}")
                     return False
             
             if 'project_name' not in data['basic_info']:
-                print("Missing project_name in basic_info")
                 return False
                 
             return True
             
         except Exception as e:
-            print(f"Validation error: {e}")
             return False
     
     def _update_ui_for_active_project(self):
@@ -748,7 +683,7 @@ class ToolbarManager:
                 self.main_window.statusBar().showMessage(f"Project '{project_name}' is active")
         
         except Exception as e:
-            print(f"❌ Error updating UI for active project: {e}")
+            pass
     
     def _update_project_menu_state(self, project_active):
         """Update project menu state"""
@@ -760,7 +695,7 @@ class ToolbarManager:
                     action.setEnabled(project_active)
                     
         except Exception as e:
-            print(f"Error updating project menu state: {e}")
+            pass
     
     def _get_projects_directory(self):
         """Get projects directory"""
@@ -788,7 +723,7 @@ class ToolbarManager:
             )
             
         except Exception as e:
-            print(f"❌ Error exporting project data: {e}")
+            pass
     
     def _export_3d_model(self):
         """Export 3D model"""
@@ -799,7 +734,7 @@ class ToolbarManager:
                 ToolbarTexts.get_export_info_text("model") if ToolbarTexts else "Export feature not implemented yet."
             )
         except Exception as e:
-            print(f"Error showing 3D export dialog: {e}")
+            pass
     
     def _export_report(self):
         """Export report"""
@@ -810,7 +745,7 @@ class ToolbarManager:
                 ToolbarTexts.get_export_info_text("report") if ToolbarTexts else "Export feature not implemented yet."
             )
         except Exception as e:
-            print(f"Error showing report export dialog: {e}")
+            pass
     
     # =======================================
     # **SETTINGS & APPLICATION METHODS**
@@ -830,30 +765,7 @@ class ToolbarManager:
             else:
                 self.main_window.statusBar().showMessage("Satellite view not available")
         except Exception as e:
-            print(f"Error navigating to home: {e}")
-    
-    def _toggle_theme(self):
-        """Toggle theme"""
-        try:
-            self.main_window.theme_manager.toggle_theme()
-            self._update_settings_menu()
-            QTimer.singleShot(100, self.refresh_toolbar_theme)
-        except Exception as e:
-            print(f"Error toggling theme: {e}")
-    
-    def _update_settings_menu(self):
-        """Update settings menu text"""
-        try:
-            if self.settings_menu:
-                actions = self.settings_menu.actions()
-                for action in actions:
-                    if "Switch to" in action.text():
-                        current_theme = "Dark" if self._is_dark_theme() else "Light"
-                        new_theme = "Light" if current_theme == "Dark" else "Dark"
-                        action.setText(f"🌓 Switch to {new_theme} Theme")
-                        break
-        except Exception as e:
-            print(f"Error updating settings menu: {e}")
+            pass
     
     def _exit_application(self):
         """Exit application"""
@@ -873,26 +785,20 @@ class ToolbarManager:
             )
             
             if reply == QMessageBox.Yes:
-                print("🚪 User confirmed exit - closing application...")
-                
                 if hasattr(self.main_window, 'config'):
                     try:
                         self.main_window.config.save_settings()
-                        print("💾 Configuration saved")
                     except Exception as e:
-                        print(f"⚠ Error saving configuration: {e}")
+                        pass
                 
                 self.main_window.close()
                 
                 from PyQt5.QtWidgets import QApplication
                 QApplication.quit()
-                
             else:
-                print("🚫 User cancelled exit")
                 self.main_window.statusBar().showMessage("Exit cancelled")
                 
         except Exception as e:
-            print(f"❌ Error during exit: {e}")
             self.main_window.close()
     
     def _create_styled_message_box(self, title, text, icon=QMessageBox.Information):
@@ -903,37 +809,25 @@ class ToolbarManager:
         msg_box.setText(text)
         
         try:
-            dark_theme = self._is_dark_theme()
             if ToolbarStyles:
-                # Use a special message box style from ToolbarStyles if available
-                # Note: You may need to add this method to the ToolbarStyles class
                 msg_box_style = """
                     QMessageBox {
-                        background-color: %s; color: %s;
-                        border: 2px solid %s; border-radius: 8px;
+                        background-color: #2c3e50; color: #ecf0f1;
+                        border: 2px solid #34495e; border-radius: 8px;
                     }
                     QMessageBox QLabel {
-                        color: %s; font-size: 13px; padding: 10px;
+                        color: #ecf0f1; font-size: 13px; padding: 10px;
                     }
                     QMessageBox QPushButton {
-                        background-color: %s; color: %s; border: none;
+                        background-color: #3498db; color: white; border: none;
                         border-radius: 6px; padding: 8px 16px; min-width: 80px; font-weight: bold;
                     }
-                    QMessageBox QPushButton:hover { background-color: %s; }
-                    QMessageBox QPushButton:pressed { background-color: %s; }
-                """ % (
-                    "#2c3e50" if dark_theme else "#ffffff",
-                    "#ecf0f1" if dark_theme else "#2c3e50",
-                    "#34495e" if dark_theme else "#bdc3c7",
-                    "#ecf0f1" if dark_theme else "#2c3e50",
-                    "#3498db" if dark_theme else "#3498db",
-                    "white" if dark_theme else "white",
-                    "#2980b9" if dark_theme else "#2980b9",
-                    "#21618c" if dark_theme else "#21618c"
-                )
+                    QMessageBox QPushButton:hover { background-color: #2980b9; }
+                    QMessageBox QPushButton:pressed { background-color: #21618c; }
+                """
                 msg_box.setStyleSheet(msg_box_style)
         except Exception as e:
-            print(f"Error applying message box styling: {e}")
+            pass
         
         return msg_box
     
@@ -941,11 +835,10 @@ class ToolbarManager:
         """Show about dialog"""
         try:
             if ToolbarTexts:
-                theme = "Dark" if self._is_dark_theme() else "Light"
                 enhanced_mode = getattr(self.main_window.config, 'enhanced_mode', False) if hasattr(self.main_window, 'config') else False
                 project_active = bool(self.current_project)
                 
-                about_text = ToolbarTexts.get_about_text(theme, enhanced_mode, project_active)
+                about_text = ToolbarTexts.get_about_text("Dark", enhanced_mode, project_active)
             else:
                 about_text = "<h3>🌍 PVmizer GEO</h3><p>Professional geospatial design tool.</p>"
             
@@ -953,7 +846,7 @@ class ToolbarManager:
             msg_box.exec_()
             
         except Exception as e:
-            print(f"Error showing about dialog: {e}")
+            pass
     
     def _show_help(self):
         """Show help dialog"""
@@ -967,4 +860,4 @@ class ToolbarManager:
             msg_box.exec_()
             
         except Exception as e:
-            print(f"Error showing help dialog: {e}")
+            pass

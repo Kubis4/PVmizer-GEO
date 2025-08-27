@@ -177,7 +177,7 @@ class FlatRoof(BaseRoof):
         # Create building walls (centered)
         self._create_building_walls_centered()
         
-        # Create parapet walls (centered)
+        # Create parapet walls (centered) - FIXED VERSION
         self._create_parapet_walls_centered()
         
         # Add foundation (centered)
@@ -293,66 +293,85 @@ class FlatRoof(BaseRoof):
         print("✅ Building walls created")
     
     def _create_parapet_walls_centered(self):
-        """Create parapet walls CENTERED at origin"""
+        """Create parapet walls CENTERED at origin with proper texture coordinates"""
         half_length = self.length / 2
         half_width = self.width / 2
         parapet_top = self.building_height + self.parapet_height
         
-        parapets = []
-        
-        # Front parapet
-        parapets.append(pv.Box(bounds=(
-            -half_length, half_length,
-            -half_width - self.parapet_width/2, -half_width + self.parapet_width/2,
-            self.building_height, parapet_top
-        )))
-        
-        # Back parapet
-        parapets.append(pv.Box(bounds=(
-            -half_length, half_length,
-            half_width - self.parapet_width/2, half_width + self.parapet_width/2,
-            self.building_height, parapet_top
-        )))
-        
-        # Left parapet
-        parapets.append(pv.Box(bounds=(
-            -half_length - self.parapet_width/2, -half_length + self.parapet_width/2,
-            -half_width, half_width,
-            self.building_height, parapet_top
-        )))
-        
-        # Right parapet
-        parapets.append(pv.Box(bounds=(
-            half_length - self.parapet_width/2, half_length + self.parapet_width/2,
-            -half_width, half_width,
-            self.building_height, parapet_top
-        )))
-        
+        # Load texture once
         parapet_texture, texture_loaded = self.load_texture_safely(
             self.concrete_texture_path,
             self.parapet_color
         )
         
-        for i, parapet in enumerate(parapets):
+        # Create each parapet wall manually with texture coordinates
+        parapets_data = [
+            # Front parapet
+            {
+                'bounds': (-half_length, half_length, -half_width - self.parapet_width/2, -half_width + self.parapet_width/2, self.building_height, parapet_top),
+                'name': 'parapet_front'
+            },
+            # Back parapet  
+            {
+                'bounds': (-half_length, half_length, half_width - self.parapet_width/2, half_width + self.parapet_width/2, self.building_height, parapet_top),
+                'name': 'parapet_back'
+            },
+            # Left parapet
+            {
+                'bounds': (-half_length - self.parapet_width/2, -half_length + self.parapet_width/2, -half_width, half_width, self.building_height, parapet_top),
+                'name': 'parapet_left'
+            },
+            # Right parapet
+            {
+                'bounds': (half_length - self.parapet_width/2, half_length + self.parapet_width/2, -half_width, half_width, self.building_height, parapet_top),
+                'name': 'parapet_right'
+            }
+        ]
+        
+        for i, parapet_data in enumerate(parapets_data):
+            bounds = parapet_data['bounds']
+            name = parapet_data['name']
+            
+            # Create box mesh
+            parapet = pv.Box(bounds=bounds)
+            
+            # Add texture coordinates if we have a texture
             if texture_loaded:
+                # Generate texture coordinates for the box
+                # This creates a simple UV mapping for all faces
+                n_points = parapet.n_points
+                texture_coords = np.zeros((n_points, 2))
+                
+                # Simple UV mapping - you can make this more sophisticated
+                for j in range(n_points):
+                    point = parapet.points[j]
+                    # Map X and Y coordinates to UV space (0-1)
+                    u = (point[0] - bounds[0]) / (bounds[1] - bounds[0]) if bounds[1] != bounds[0] else 0
+                    v = (point[1] - bounds[2]) / (bounds[3] - bounds[2]) if bounds[3] != bounds[2] else 0
+                    texture_coords[j] = [u % 1.0, v % 1.0]  # Ensure 0-1 range
+                
+                parapet.active_t_coords = texture_coords
+                
+                # Add mesh with texture
                 self.plotter.add_mesh(
                     parapet,
                     texture=parapet_texture,
-                    name=f"parapet_{i}",
+                    name=name,
                     smooth_shading=True,
                     ambient=0.3,
                     diffuse=0.7,
                     specular=0.05
                 )
             else:
+                # Add mesh without texture (fallback to color)
                 self.plotter.add_mesh(
                     parapet,
                     color=self.parapet_color,
-                    name=f"parapet_{i}",
+                    name=name,
                     smooth_shading=True
                 )
         
-        print("✅ Parapet walls created")
+        print("✅ Parapet walls created with proper texture coordinates")
     
     def _add_foundation_centered(self):
         """Add foundation CENTERED at origin"""

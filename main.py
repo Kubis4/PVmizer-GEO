@@ -6,35 +6,6 @@ Enhanced Building Designer with 3D Visualization
 This is the main entry point for the PVmizer GEO application.
 Handles Qt environment setup, VTK configuration, and application initialization.
 """
-# Add this to track dialog sources
-import sys
-from PyQt5.QtWidgets import QMessageBox
-
-# Override QMessageBox to track sources
-original_warning = QMessageBox.warning
-original_critical = QMessageBox.critical
-original_information = QMessageBox.information
-
-def debug_warning(parent, title, message, buttons=QMessageBox.Ok):
-    print(f"🚨 WARNING DIALOG FROM: {parent.__class__.__name__ if parent else 'Unknown'}")
-    print(f"   Title: {title}")
-    print(f"   Message: {message}")
-    import traceback
-    traceback.print_stack(limit=10)
-    return original_warning(parent, title, message, buttons)
-
-def debug_critical(parent, title, message, buttons=QMessageBox.Ok):
-    print(f"🚨 CRITICAL DIALOG FROM: {parent.__class__.__name__ if parent else 'Unknown'}")
-    print(f"   Title: {title}")
-    print(f"   Message: {message}")
-    import traceback
-    traceback.print_stack(limit=10)
-    return original_critical(parent, title, message, buttons)
-
-# Replace QMessageBox methods
-QMessageBox.warning = debug_warning
-QMessageBox.critical = debug_critical
-
 
 import os
 import sys
@@ -47,8 +18,6 @@ sys.path.insert(0, str(current_dir))
 
 def setup_environment():
     """Setup environment variables and Qt configuration"""
-    print("🔧 Setting up application environment...")
-    
     # Qt WebEngine settings (for Google Maps)
     os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--no-sandbox --disable-gpu --disable-dev-shm-usage"
     os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.qpa.*=false;qt.accessibility.*=false"
@@ -61,8 +30,6 @@ def setup_environment():
     # High DPI settings
     os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '1'
     os.environ['QT_ENABLE_HIGHDPI_SCALING'] = '1'
-    
-    print("✅ Environment configured successfully")
 
 def setup_qt_message_handler():
     """Setup Qt message handler to reduce noise"""
@@ -70,20 +37,13 @@ def setup_qt_message_handler():
     
     def silent_message_handler(mode, context, message):
         """Custom Qt message handler - only show important messages"""
-        if mode == QtCriticalMsg or mode == QtFatalMsg:
-            print(f"🚨 Qt CRITICAL: {message}")
-        elif mode == QtWarningMsg and any(keyword in message.lower() for keyword in ['vtk', 'opengl', 'webengine']):
-            # Show VTK, OpenGL, and WebEngine warnings as they're important for our app
-            print(f"⚠️ Qt WARNING: {message}")
-        # Suppress debug and info messages
+        # Suppress all Qt messages in production
+        pass
     
     qInstallMessageHandler(silent_message_handler)
-    print("✅ Qt message handler configured")
 
 def check_dependencies():
     """Check for required and optional dependencies"""
-    print("🔍 Checking dependencies...")
-    
     required_deps = {
         'PyQt5': 'PyQt5',
         'PyQt5.QtWebEngineWidgets': 'PyQt5.QtWebEngineWidgets'
@@ -100,13 +60,11 @@ def check_dependencies():
     for dep_name, dep_desc in required_deps.items():
         try:
             __import__(dep_name)
-            print(f"✅ {dep_desc}")
         except ImportError:
-            print(f"❌ {dep_desc} - REQUIRED")
             missing_required.append(dep_desc)
     
     if missing_required:
-        print(f"🚨 Missing required dependencies: {', '.join(missing_required)}")
+        print(f"Missing required dependencies: {', '.join(missing_required)}")
         print("Please install with: pip install PyQt5 PyQtWebEngine")
         return False
     
@@ -115,18 +73,14 @@ def check_dependencies():
     for dep_name, dep_desc in optional_deps.items():
         try:
             __import__(dep_name)
-            print(f"✅ {dep_desc}")
             available_optional.append(dep_name)
         except ImportError:
-            print(f"⚠️ {dep_desc} - Optional (some features may be limited)")
+            pass
     
-    print(f"✅ Dependency check completed - {len(available_optional)}/{len(optional_deps)} optional features available")
     return True
 
 def create_application():
     """Create and configure the QApplication"""
-    print("🎨 Creating Qt application...")
-    
     try:
         from PyQt5.QtWidgets import QApplication
         from PyQt5.QtCore import Qt
@@ -151,26 +105,22 @@ def create_application():
             icon_path = current_dir / "resources" / "icons" / "app_icon.png"
             if icon_path.exists():
                 app.setWindowIcon(QIcon(str(icon_path)))
-                print("✅ Application icon loaded")
-        except Exception as icon_error:
-            print(f"⚠️ Could not load application icon: {icon_error}")
+        except Exception:
+            pass
         
-        print("✅ Qt application created successfully")
         return app
         
     except ImportError as e:
-        print(f"❌ Failed to create Qt application: {e}")
+        print(f"Failed to create Qt application: {e}")
         print("Please install PyQt5: pip install PyQt5")
         return None
     except Exception as e:
-        print(f"❌ Unexpected error creating application: {e}")
+        print(f"Unexpected error creating application: {e}")
         traceback.print_exc()
         return None
 
 def create_main_window():
     """Create and configure the main window"""
-    print("🏠 Creating main window...")
-    
     try:
         from core.main_window import MainWindow
         
@@ -179,15 +129,14 @@ def create_main_window():
         # Set window properties
         window.setWindowTitle("PVmizer GEO - Enhanced Building Designer")
         
-        print("✅ Main window created successfully")
         return window
         
     except ImportError as e:
-        print(f"❌ Failed to import MainWindow: {e}")
+        print(f"Failed to import MainWindow: {e}")
         print("Check that core/main_window.py exists and is properly configured")
         return None
     except Exception as e:
-        print(f"❌ Error creating main window: {e}")
+        print(f"Error creating main window: {e}")
         traceback.print_exc()
         return None
 
@@ -197,13 +146,8 @@ def setup_exception_handler():
         """Handle uncaught exceptions"""
         if issubclass(exc_type, KeyboardInterrupt):
             # Handle Ctrl+C gracefully
-            print("\n🛑 Application interrupted by user")
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
             return
-        
-        print(f"\n🚨 Uncaught exception: {exc_type.__name__}: {exc_value}")
-        print("📋 Traceback:")
-        traceback.print_exception(exc_type, exc_value, exc_traceback)
         
         # Try to show error dialog if Qt is available
         try:
@@ -221,13 +165,9 @@ def setup_exception_handler():
             pass  # Qt not available or already shut down
     
     sys.excepthook = handle_exception
-    print("✅ Exception handler configured")
 
 def main():
     """Main application entry point"""
-    print("🚀 Starting PVmizer GEO application...")
-    print("=" * 50)
-    
     try:
         # Setup environment and error handling
         setup_environment()
@@ -235,7 +175,6 @@ def main():
         
         # Check dependencies
         if not check_dependencies():
-            print("❌ Dependency check failed - cannot continue")
             return 1
         
         # Setup Qt message handler (after PyQt5 is confirmed to be available)
@@ -244,17 +183,14 @@ def main():
         # Create Qt application
         app = create_application()
         if not app:
-            print("❌ Failed to create Qt application")
             return 1
         
         # Create main window
         window = create_main_window()
         if not window:
-            print("❌ Failed to create main window")
             return 1
         
         # Show window
-        print("📱 Showing main window...")
         window.show()
         
         # Center on screen if possible
@@ -265,29 +201,21 @@ def main():
                 window_geometry = window.frameGeometry()
                 window_geometry.moveCenter(screen_geometry.center())
                 window.move(window_geometry.topLeft())
-                print("✅ Window centered on screen")
-        except Exception as center_error:
-            print(f"⚠️ Could not center window: {center_error}")
-        
-        print("🎯 Application ready - entering event loop...")
-        print("=" * 50)
+        except Exception:
+            pass
         
         # Start event loop
         exit_code = app.exec_()
         
-        print("🏁 Application event loop finished")
         return exit_code
         
     except KeyboardInterrupt:
-        print("\n🛑 Application interrupted by user")
         return 0
     except Exception as e:
-        print(f"❌ Fatal error in main(): {e}")
+        print(f"Fatal error in main(): {e}")
         traceback.print_exc()
         return 1
     finally:
-        print("🧹 Cleaning up...")
-        
         # Cleanup
         try:
             from PyQt5.QtWidgets import QApplication
@@ -299,8 +227,6 @@ def main():
 
 def run_tests():
     """Run basic tests to verify installation"""
-    print("🧪 Running basic tests...")
-    
     # Test Qt
     try:
         from PyQt5.QtWidgets import QApplication, QWidget
@@ -316,17 +242,17 @@ def run_tests():
         QTimer.singleShot(1000, app.quit)
         app.exec_()
         
-        print("✅ Qt test passed")
+        print("Qt test passed")
     except Exception as e:
-        print(f"❌ Qt test failed: {e}")
+        print(f"Qt test failed: {e}")
         return False
     
     # Test VTK
     try:
         import vtk
-        print(f"✅ VTK test passed - Version: {vtk.vtkVersion.GetVTKVersion()}")
+        print(f"VTK test passed - Version: {vtk.vtkVersion.GetVTKVersion()}")
     except ImportError:
-        print("⚠️ VTK not available - 3D features will be limited")
+        print("VTK not available - 3D features will be limited")
     
     return True
 

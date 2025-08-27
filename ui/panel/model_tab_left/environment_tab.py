@@ -2,7 +2,7 @@
 """
 ui/panel/model_tab_left/environment_tab.py
 Environment obstacles panel for adding trees and poles to the surroundings
-WITH COMPLETE DEBUG FEATURES - FULLY FIXED
+CLEANED - No debug prints, no hardcoded styles
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QPushButton, QGroupBox, QMessageBox, QSlider)
@@ -15,20 +15,9 @@ try:
     PYVISTA_AVAILABLE = True
 except ImportError:
     PYVISTA_AVAILABLE = False
-    print("⚠️ PyVista not available for direct rendering")
-
-try:
-    from styles.ui_styles import (
-        get_model3d_groupbox_style,
-        get_model3d_button_style
-    )
-    STYLES_AVAILABLE = True
-except ImportError:
-    STYLES_AVAILABLE = False
-    print("⚠️ Styles not available for EnvironmentTab")
 
 class EnvironmentTab(QWidget):
-    """Environment obstacles tab for adding trees and poles - WITH DEBUG"""
+    """Environment obstacles tab for adding trees and poles"""
     
     # Signals
     environment_action_requested = pyqtSignal(str, dict)  # action_type, parameters
@@ -49,14 +38,11 @@ class EnvironmentTab(QWidget):
         self.current_placement_mode = None
         
         # Debug flags
-        self.debug_mode = True
+        self.debug_mode = False
         self.connection_verified = False
-        self.signal_connected = False  # Track if signal is connected
+        self.signal_connected = False
         
         self.setup_ui()
-        self.apply_styles()
-        
-        print("✅ EnvironmentTab initialized")
         
         # Auto-check connection after initialization
         if self.debug_mode:
@@ -64,9 +50,6 @@ class EnvironmentTab(QWidget):
     
     def setup_ui(self):
         """Setup environment tab UI"""
-        # Set background
-        self.setStyleSheet("background-color: #2c3e50;")
-        
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(10)
@@ -99,15 +82,6 @@ class EnvironmentTab(QWidget):
         
         # Connection status label
         self.connection_status_label = QLabel("Connection: Not Checked")
-        self.connection_status_label.setStyleSheet("""
-            QLabel {
-                color: #f39c12;
-                font-weight: bold;
-                padding: 5px;
-                background-color: #34495e;
-                border-radius: 3px;
-            }
-        """)
         debug_layout.addWidget(self.connection_status_label)
         
         # Debug buttons row 1
@@ -118,17 +92,6 @@ class EnvironmentTab(QWidget):
         test_conn_btn.setMinimumHeight(30)
         test_conn_btn.clicked.connect(self._test_connection)
         test_conn_btn.setToolTip("Test if environment system is connected")
-        test_conn_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #9b59b6;
-                color: white;
-                font-weight: bold;
-                font-size: 10px;
-            }
-            QPushButton:hover {
-                background-color: #8e44ad;
-            }
-        """)
         debug_row1.addWidget(test_conn_btn)
         
         # Fix Connection Button
@@ -136,17 +99,6 @@ class EnvironmentTab(QWidget):
         fix_conn_btn.setMinimumHeight(30)
         fix_conn_btn.clicked.connect(self._fix_connection)
         fix_conn_btn.setToolTip("Attempt to fix broken connection")
-        fix_conn_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                font-weight: bold;
-                font-size: 10px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
         debug_row1.addWidget(fix_conn_btn)
         
         debug_layout.addLayout(debug_row1)
@@ -159,17 +111,6 @@ class EnvironmentTab(QWidget):
         force_show_btn.setMinimumHeight(30)
         force_show_btn.clicked.connect(self._force_show_points)
         force_show_btn.setToolTip("Force show red test spheres in 3D view")
-        force_show_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-                font-weight: bold;
-                font-size: 10px;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-        """)
         debug_row2.addWidget(force_show_btn)
         
         # Direct Render Test Button
@@ -177,17 +118,6 @@ class EnvironmentTab(QWidget):
         render_test_btn.setMinimumHeight(30)
         render_test_btn.clicked.connect(self._direct_render_test)
         render_test_btn.setToolTip("Test direct rendering to plotter")
-        render_test_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #e67e22;
-                color: white;
-                font-weight: bold;
-                font-size: 10px;
-            }
-            QPushButton:hover {
-                background-color: #d35400;
-            }
-        """)
         debug_row2.addWidget(render_test_btn)
         
         debug_layout.addLayout(debug_row2)
@@ -197,36 +127,7 @@ class EnvironmentTab(QWidget):
         debug_info_btn.setMinimumHeight(30)
         debug_info_btn.clicked.connect(self._show_full_debug_info)
         debug_info_btn.setToolTip("Show complete debug information")
-        debug_info_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #16a085;
-                color: white;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1abc9c;
-            }
-        """)
         debug_layout.addWidget(debug_info_btn)
-        
-        # Add debug group with special style
-        debug_group.setStyleSheet("""
-            QGroupBox {
-                background-color: #2c3e50;
-                border: 2px solid #e74c3c;
-                border-radius: 6px;
-                margin-top: 8px;
-                padding-top: 10px;
-                font-weight: bold;
-                color: #e74c3c;
-                font-size: 12px;
-            }
-            QGroupBox::title {
-                color: #e74c3c;
-                background-color: #2c3e50;
-                padding: 2px 6px;
-            }
-        """)
         
         layout.addWidget(debug_group)
         self.debug_group = debug_group
@@ -241,7 +142,6 @@ class EnvironmentTab(QWidget):
         # Tree size control
         tree_size_layout = QHBoxLayout()
         tree_size_label = QLabel("Tree Size:")
-        tree_size_label.setStyleSheet("color: #ecf0f1; font-weight: bold; min-width: 70px;")
         tree_size_layout.addWidget(tree_size_label)
         
         self.tree_size_slider = QSlider(Qt.Horizontal)
@@ -254,7 +154,6 @@ class EnvironmentTab(QWidget):
         tree_size_layout.addWidget(self.tree_size_slider)
         
         self.tree_size_value = QLabel("100%")
-        self.tree_size_value.setStyleSheet("color: #3498db; font-weight: bold; min-width: 40px;")
         tree_size_layout.addWidget(self.tree_size_value)
         
         size_layout.addLayout(tree_size_layout)
@@ -262,7 +161,6 @@ class EnvironmentTab(QWidget):
         # Pole height control
         pole_height_layout = QHBoxLayout()
         pole_height_label = QLabel("Pole Height:")
-        pole_height_label.setStyleSheet("color: #ecf0f1; font-weight: bold; min-width: 70px;")
         pole_height_layout.addWidget(pole_height_label)
         
         self.pole_height_slider = QSlider(Qt.Horizontal)
@@ -275,7 +173,6 @@ class EnvironmentTab(QWidget):
         pole_height_layout.addWidget(self.pole_height_slider)
         
         self.pole_height_value = QLabel("100%")
-        self.pole_height_value.setStyleSheet("color: #3498db; font-weight: bold; min-width: 40px;")
         pole_height_layout.addWidget(self.pole_height_value)
         
         size_layout.addLayout(pole_height_layout)
@@ -380,16 +277,6 @@ class EnvironmentTab(QWidget):
         clear_all_btn.setMinimumHeight(32)
         clear_all_btn.clicked.connect(lambda: self._clear_all_environment())
         clear_all_btn.setToolTip("Remove all environment objects")
-        clear_all_btn.setStyleSheet("""
-            QPushButton { 
-                background-color: #e74c3c; 
-                color: white;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-        """)
         buttons_layout.addWidget(clear_all_btn)
         
         management_layout.addLayout(buttons_layout)
@@ -399,102 +286,58 @@ class EnvironmentTab(QWidget):
         auto_populate_btn.setMinimumHeight(35)
         auto_populate_btn.clicked.connect(lambda: self._auto_populate_scene())
         auto_populate_btn.setToolTip("Automatically add trees and poles")
-        auto_populate_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-        """)
         management_layout.addWidget(auto_populate_btn)
         
         layout.addWidget(management_group)
         self.management_group = management_group
-    
-    def apply_styles(self):
-        """Apply dark theme styles"""
-        if STYLES_AVAILABLE:
-            # Apply group box styles (except debug group)
-            for group in [self.trees_group, self.poles_group, 
-                         self.management_group, self.size_controls.get('group')]:
-                if group:
-                    group.setStyleSheet(get_model3d_groupbox_style(True))
-            
-            # Apply button styles
-            all_buttons = []
-            all_buttons.extend(self.tree_controls.values())
-            all_buttons.extend(self.pole_controls.values())
-            
-            for button in all_buttons:
-                if isinstance(button, QPushButton) and not button.styleSheet():
-                    button.setStyleSheet(get_model3d_button_style(True))
     
     # ==================== DEBUG METHODS ====================
     
     def _initial_connection_check(self):
         """Check connection status on startup"""
         if self.debug_mode:
-            print("\n🔍 Initial connection check...")
             self._test_connection()
     
     def _find_model_tab(self):
         """Find the model tab through various paths"""
-        print("\n🔍 Searching for model_tab...")
-        
-        # Method 1: Through content_tabs (YOUR ACTUAL STRUCTURE)
+        # Method 1: Through content_tabs
         if hasattr(self.main_window, 'content_tabs'):
             content_tabs = self.main_window.content_tabs
-            print(f"  Found content_tabs: {type(content_tabs)}")
             
             # Check if content_tabs has model_tab
             if hasattr(content_tabs, 'model_tab'):
-                print(f"  ✅ Found model_tab in content_tabs!")
                 return content_tabs.model_tab
             
             # Also check get_model_tab method
             if hasattr(content_tabs, 'get_model_tab'):
                 model_tab = content_tabs.get_model_tab()
                 if model_tab:
-                    print(f"  ✅ Found model_tab via get_model_tab()!")
                     return model_tab
         
-        # Method 2: Direct attribute (unlikely but check anyway)
+        # Method 2: Direct attribute
         if hasattr(self.main_window, 'model_tab'):
-            print(f"  ✅ Found model_tab directly on main_window")
             return self.main_window.model_tab
         
         # Method 3: Through tab_manager
         if hasattr(self.main_window, 'tab_manager'):
             tab_manager = self.main_window.tab_manager
             if hasattr(tab_manager, 'model_tab'):
-                print(f"  ✅ Found model_tab in tab_manager")
                 return tab_manager.model_tab
         
         # Method 4: Through component_manager
         if hasattr(self.main_window, 'component_manager'):
             comp_mgr = self.main_window.component_manager
             if hasattr(comp_mgr, 'model_tab'):
-                print(f"  ✅ Found model_tab in component_manager")
                 return comp_mgr.model_tab
         
-        print("  ❌ Could not find model_tab")
         return None
     
     def _test_connection(self):
-        """Test if the environment system is connected - FIXED FOR YOUR STRUCTURE"""
-        print("\n" + "="*60)
-        print("🧪 TESTING ENVIRONMENT CONNECTION")
-        print("="*60)
-        
+        """Test if the environment system is connected"""
         status_messages = []
         
         # Check signal
         if hasattr(self, 'environment_action_requested'):
-            print("📡 Signal exists: environment_action_requested")
-            
             # Test signal emission
             test_received = [False]
             
@@ -502,10 +345,8 @@ class EnvironmentTab(QWidget):
             def test_receiver(action, params):
                 if action == 'test_connection':
                     test_received[0] = True
-                    print("  ✅ Test signal received by test receiver")
             
             self.environment_action_requested.connect(test_receiver)
-            print("📤 Sending test signal...")
             self.environment_action_requested.emit('test_connection', {'test': True})
             self.environment_action_requested.disconnect(test_receiver)
             
@@ -548,12 +389,6 @@ class EnvironmentTab(QWidget):
         else:
             status_messages.append("❌ Model tab not found")
         
-        # Show summary
-        for msg in status_messages:
-            print(msg)
-        
-        print("="*60 + "\n")
-        
         # Show message box with results
         if model_tab and self.connection_verified:
             QMessageBox.information(self, "Connection Test", 
@@ -566,33 +401,24 @@ class EnvironmentTab(QWidget):
                                "\n\nClick 'Fix Connection' to attempt repair.")
     
     def _fix_connection(self):
-        """Attempt to fix broken connection - FIXED FOR YOUR STRUCTURE"""
-        print("\n🔧 Attempting to fix connection...")
-        
+        """Attempt to fix broken connection"""
         try:
             # Find model tab using the fixed method
             model_tab = self._find_model_tab()
             
             if model_tab:
-                print(f"✅ Found model tab: {model_tab.__class__.__name__}")
-                
                 # Try to connect
                 if hasattr(model_tab, 'connect_environment_tab'):
                     result = model_tab.connect_environment_tab(self)
                     if result:
-                        print("✅ Connection fixed!")
                         self._update_connection_status("Connected", "green")
                         QMessageBox.information(self, "Success", 
                                               "✅ Connection fixed successfully!")
                     else:
-                        print("❌ Connection fix failed")
                         self._update_connection_status("Fix Failed", "orange")
                         QMessageBox.warning(self, "Failed", 
                                           "❌ Could not fix connection")
                 else:
-                    print("⚠️ Model tab doesn't have connect_environment_tab method")
-                    print("   Adding connection method dynamically...")
-                    
                     # Try to add the connection dynamically
                     def connect_env_tab(env_tab):
                         model_tab.environment_tab = env_tab
@@ -605,7 +431,6 @@ class EnvironmentTab(QWidget):
                             # Create handler if it doesn't exist
                             if not hasattr(model_tab, '_handle_environment_tab_action'):
                                 def handler(action, params):
-                                    print(f"📡 Model tab received: {action}")
                                     if model_tab.current_roof:
                                         model_tab.current_roof.handle_environment_action(action, params)
                                         if model_tab.plotter:
@@ -623,55 +448,45 @@ class EnvironmentTab(QWidget):
                     
                     # Try again
                     if model_tab.connect_environment_tab(self):
-                        print("✅ Dynamic connection successful!")
                         self._update_connection_status("Connected", "green")
                         QMessageBox.information(self, "Success", 
                                               "✅ Connection established dynamically!")
                     else:
-                        print("❌ Dynamic connection failed")
                         QMessageBox.warning(self, "Failed", 
                                           "Could not establish connection")
             else:
-                print("❌ Cannot find model tab")
                 QMessageBox.critical(self, "Error", 
                                    "Cannot find model tab.\n"
                                    "Please ensure a building is created first.")
                 
         except Exception as e:
-            print(f"❌ Fix failed: {e}")
             import traceback
             traceback.print_exc()
             QMessageBox.critical(self, "Error", f"Fix failed: {str(e)}")
     
     def _force_show_points(self):
-        """Force show attachment points with highly visible red spheres - FIXED"""
-        print("\n🔴 FORCING ATTACHMENT POINTS DISPLAY")
-        
+        """Force show attachment points with highly visible red spheres"""
         try:
             # Find model tab using the fixed method
             model_tab = self._find_model_tab()
             
             if not model_tab:
-                print("❌ No model tab found")
                 QMessageBox.warning(self, "Error", 
                                    "Model tab not found.\n"
                                    "Please create a building first.")
                 return
             
             if not hasattr(model_tab, 'plotter') or not model_tab.plotter:
-                print("❌ No plotter found")
                 QMessageBox.warning(self, "Error", "3D plotter not found")
                 return
             
             plotter = model_tab.plotter
             
             if not PYVISTA_AVAILABLE:
-                print("❌ PyVista not available")
                 QMessageBox.warning(self, "Error", "PyVista not available for rendering")
                 return
             
             # Create highly visible test spheres
-            print("Creating test spheres...")
             test_positions = [
                 (5, 0, 1),    # Right
                 (-5, 0, 1),   # Left
@@ -693,7 +508,6 @@ class EnvironmentTab(QWidget):
                     ambient=0.5,
                     diffuse=0.8
                 )
-                print(f"  Added red sphere at ({x}, {y}, {z})")
             
             # Add ground reference
             ground = pv.Plane(center=(0, 0, 0), direction=(0, 0, 1), 
@@ -704,29 +518,23 @@ class EnvironmentTab(QWidget):
                 opacity=0.5,
                 name='test_ground'
             )
-            print("  Added ground reference plane")
             
             # Force render
             plotter.render()
-            print("✅ Forced render complete")
             
             # Reset camera
             plotter.reset_camera()
-            print("✅ Camera reset")
             
             QMessageBox.information(self, "Success", 
                                    "8 red spheres should now be visible in the 3D view")
             
         except Exception as e:
-            print(f"❌ Error: {e}")
             import traceback
             traceback.print_exc()
             QMessageBox.critical(self, "Error", f"Failed: {str(e)}")
     
     def _direct_render_test(self):
-        """Test direct rendering to plotter - FIXED"""
-        print("\n🎯 DIRECT RENDER TEST")
-        
+        """Test direct rendering to plotter"""
         try:
             # Find model tab using the fixed method
             model_tab = self._find_model_tab()
@@ -735,7 +543,6 @@ class EnvironmentTab(QWidget):
                 plotter = model_tab.plotter
                 
                 if not PYVISTA_AVAILABLE:
-                    print("❌ PyVista not available")
                     QMessageBox.warning(self, "Error", "PyVista not available")
                     return
                 
@@ -748,35 +555,21 @@ class EnvironmentTab(QWidget):
                     opacity=1.0
                 )
                 
-                print(f"✅ Added big yellow sphere at (0, 0, 5)")
-                print(f"   Actor: {actor}")
-                
                 # Force render
                 plotter.render()
-                print("✅ Render called")
-                
-                # Check renderer
-                if hasattr(plotter, 'renderer'):
-                    print(f"✅ Renderer exists: {plotter.renderer}")
                 
                 QMessageBox.information(self, "Success", 
                                       "A big yellow sphere should be visible at the center")
             else:
-                print("❌ No plotter available")
                 QMessageBox.warning(self, "Error", "No plotter available")
                 
         except Exception as e:
-            print(f"❌ Direct render failed: {e}")
             import traceback
             traceback.print_exc()
             QMessageBox.critical(self, "Error", f"Render failed: {str(e)}")
     
     def _show_full_debug_info(self):
-        """Show complete debug information - FIXED"""
-        print("\n" + "="*60)
-        print("📊 FULL DEBUG INFORMATION")
-        print("="*60)
-        
+        """Show complete debug information"""
         info = []
         
         # Check main window
@@ -827,12 +620,6 @@ class EnvironmentTab(QWidget):
         info.append(f"Signal exists: {hasattr(self, 'environment_action_requested')}")
         info.append(f"PyVista available: {PYVISTA_AVAILABLE}")
         
-        # Print to console
-        for line in info:
-            print(f"  {line}")
-        
-        print("="*60 + "\n")
-        
         # Show in message box
         QMessageBox.information(self, "Debug Information", 
                                "\n".join(info))
@@ -840,23 +627,7 @@ class EnvironmentTab(QWidget):
     def _update_connection_status(self, status, color):
         """Update connection status label"""
         if hasattr(self, 'connection_status_label'):
-            color_map = {
-                'green': '#27ae60',
-                'red': '#e74c3c',
-                'orange': '#f39c12'
-            }
-            bg_color = color_map.get(color, '#34495e')
-            
             self.connection_status_label.setText(f"Connection: {status}")
-            self.connection_status_label.setStyleSheet(f"""
-                QLabel {{
-                    color: white;
-                    font-weight: bold;
-                    padding: 5px;
-                    background-color: {bg_color};
-                    border-radius: 3px;
-                }}
-            """)
     
     # ==================== ORIGINAL METHODS ====================
     
@@ -864,24 +635,15 @@ class EnvironmentTab(QWidget):
         """Handle tree size slider change"""
         self.tree_size_multiplier = value / 100.0
         self.tree_size_value.setText(f"{value}%")
-        
-        if self.debug_mode:
-            print(f"🎚️ Tree size changed: {value}%")
     
     def _on_pole_height_changed(self, value):
         """Handle pole height slider change"""
         self.pole_height_multiplier = value / 100.0
         self.pole_height_value.setText(f"{value}%")
-        
-        if self.debug_mode:
-            print(f"🎚️ Pole height changed: {value}%")
     
     def _select_tree_placement(self, tree_type):
         """Select tree type and show placement points"""
         try:
-            if self.debug_mode:
-                print(f"\n🌳 Selecting {tree_type} tree placement...")
-            
             self.current_placement_mode = f'tree_{tree_type}'
             
             # Show attachment points if not visible
@@ -894,34 +656,23 @@ class EnvironmentTab(QWidget):
                 'size_multiplier': self.tree_size_multiplier
             })
             
-            print(f"✅ Selected {tree_type} tree for placement")
-            
         except Exception as e:
-            print(f"❌ Error selecting tree placement: {e}")
             QMessageBox.warning(self, "Error", f"Error selecting tree placement: {e}")
     
     def _add_multiple_trees(self, count):
         """Add multiple trees of mixed types"""
         try:
-            if self.debug_mode:
-                print(f"\n🌲 Adding {count} random trees...")
-            
             self.environment_action_requested.emit('add_multiple_trees', {
                 'count': count,
                 'size_multiplier': self.tree_size_multiplier
             })
-            print(f"✅ Requested {count} mixed trees")
             
         except Exception as e:
-            print(f"❌ Error adding multiple trees: {e}")
             QMessageBox.warning(self, "Error", f"Error adding multiple trees: {e}")
     
     def _select_pole_placement(self):
         """Select pole and show placement points"""
         try:
-            if self.debug_mode:
-                print("\n🏗️ Selecting pole placement...")
-            
             self.current_placement_mode = 'pole'
             
             # Show attachment points if not visible
@@ -933,26 +684,18 @@ class EnvironmentTab(QWidget):
                 'height_multiplier': self.pole_height_multiplier
             })
             
-            print("✅ Selected pole for placement")
-            
         except Exception as e:
-            print(f"❌ Error selecting pole placement: {e}")
             QMessageBox.warning(self, "Error", f"Error selecting pole placement: {e}")
     
     def _add_multiple_poles(self, count):
         """Add multiple poles"""
         try:
-            if self.debug_mode:
-                print(f"\n🏗️ Adding {count} poles...")
-            
             self.environment_action_requested.emit('add_multiple_poles', {
                 'count': count,
                 'height_multiplier': self.pole_height_multiplier
             })
-            print(f"✅ Requested {count} poles")
             
         except Exception as e:
-            print(f"❌ Error adding multiple poles: {e}")
             QMessageBox.warning(self, "Error", f"Error adding multiple poles: {e}")
     
     def _toggle_attachment_points(self):
@@ -963,22 +706,15 @@ class EnvironmentTab(QWidget):
             if self.attachment_points_visible:
                 self.toggle_points_btn.setText("📍 Hide Points")
                 self.toggle_points_btn.setChecked(True)
-                if self.debug_mode:
-                    print("\n📍 Showing attachment points...")
             else:
                 self.toggle_points_btn.setText("📍 Show Points")
                 self.toggle_points_btn.setChecked(False)
-                if self.debug_mode:
-                    print("\n📍 Hiding attachment points...")
             
             self.environment_action_requested.emit('toggle_attachment_points', {
                 'visible': self.attachment_points_visible
             })
             
-            print(f"✅ Attachment points {'shown' if self.attachment_points_visible else 'hidden'}")
-            
         except Exception as e:
-            print(f"❌ Error toggling attachment points: {e}")
             QMessageBox.warning(self, "Error", f"Error toggling attachment points: {e}")
     
     def _clear_all_environment(self):
@@ -991,30 +727,20 @@ class EnvironmentTab(QWidget):
                                        QMessageBox.No)
             
             if reply == QMessageBox.Yes:
-                if self.debug_mode:
-                    print("\n🧹 Clearing all environment objects...")
-                
                 self.environment_action_requested.emit('clear_all_environment', {})
-                print("✅ Requested clear all environment")
                 
         except Exception as e:
-            print(f"❌ Error clearing environment: {e}")
             QMessageBox.warning(self, "Error", f"Error clearing environment: {e}")
     
     def _auto_populate_scene(self):
         """Automatically populate the scene with a mix of objects"""
         try:
-            if self.debug_mode:
-                print("\n🎲 Auto-populating scene...")
-            
             self.environment_action_requested.emit('auto_populate_scene', {
                 'tree_size_multiplier': self.tree_size_multiplier,
                 'pole_height_multiplier': self.pole_height_multiplier
             })
-            print("✅ Requested auto-populate scene")
             
         except Exception as e:
-            print(f"❌ Error auto-populating scene: {e}")
             QMessageBox.warning(self, "Error", f"Error auto-populating scene: {e}")
     
     def cleanup(self):
@@ -1027,38 +753,26 @@ class EnvironmentTab(QWidget):
             self.current_placement_mode = None
             self.main_window = None
             
-            print("✅ EnvironmentTab cleanup completed")
-            
         except Exception as e:
-            print(f"❌ Error during cleanup: {e}")
+            pass
 
     def _check_roof_status(self):
         """Debug method to check actual roof status"""
-        print("\n🔍 CHECKING ROOF STATUS")
-        
         model_tab = self._find_model_tab()
         if model_tab:
-            print(f"Model tab found: {model_tab}")
-            
             # Check current_roof
             if hasattr(model_tab, 'current_roof'):
                 roof = model_tab.current_roof
-                print(f"current_roof attribute: {roof}")
                 if roof:
-                    print(f"  Type: {type(roof).__name__}")
-                    print(f"  Has handle_environment_action: {hasattr(roof, 'handle_environment_action')}")
-                    print(f"  Has environment_manager: {hasattr(roof, 'environment_manager')}")
+                    pass
                 else:
-                    print("  current_roof is None!")
+                    pass
             else:
-                print("No current_roof attribute!")
+                pass
             
             # Check for other roof references
             for attr in ['roof', 'active_roof', 'building_roof', 'current_building']:
                 if hasattr(model_tab, attr):
                     obj = getattr(model_tab, attr)
                     if obj:
-                        print(f"Found {attr}: {type(obj).__name__}")
-        
-        print("="*50)
-        
+                        pass

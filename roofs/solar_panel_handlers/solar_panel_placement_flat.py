@@ -5,7 +5,7 @@ import numpy as np
 import pyvista as pv
 
 class SolarPanelPlacementFlat(BasePanelHandler):
-    """Handler for placing solar panels on flat roofs - FIXED WITHOUT DUPLICATE ANNOTATIONS"""
+    """Handler for placing solar panels on flat roofs - FIXED FOR CENTERED COORDINATES"""
     
     def __init__(self, roof):
         super().__init__(roof, "flat")
@@ -18,13 +18,10 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         # Get base height from roof
         self.base_height = getattr(roof, 'base_height', 0.0)
         
-        # ❌ REMOVED: Don't create annotations here - the roof already has them!
-        # The roof itself handles all annotations
-        
         # Calculate initial row spacing
         self.calculate_row_spacing()
         
-        print(f"✅ Flat roof solar panel handler initialized")
+        print(f"✅ Flat roof solar panel handler initialized with centered coordinates")
     
     def calculate_row_spacing(self):
         """Calculate optimal row spacing based on tilt angle"""
@@ -46,14 +43,13 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         return self.place_panels(area)
     
     def place_panels(self, area="center"):
-        """Main panel placement logic for flat roofs - FIXED BOUNDARY FLICKERING"""
+        """Main panel placement logic for flat roofs - FIXED FOR CENTERED COORDINATES"""
         # Calculate row spacing
         self.calculate_row_spacing()
         
-        # ✅ FIXED: Don't clear ALL panels, only clear if changing areas
         # Only clear if we're switching to a different area or this is the first placement
         if not hasattr(self, '_last_area') or self._last_area != area:
-            # ✅ CLEAN BOUNDARY CLEARING: Only clear boundaries, not panels
+            # Clean boundary clearing: Only clear boundaries, not panels
             self._clear_boundaries_only()
             self._last_area = area
         
@@ -68,13 +64,13 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         edge_offset_m = self.edge_offset / 1000.0
         safe_edge_offset = min(edge_offset_m, min(roof_length, roof_width) * 0.2)
         
-        # Determine area boundaries based on selection - YOUR ORIGINAL LOGIC
+        # Determine area boundaries based on selection
         area_bounds = self._get_area_bounds(area, roof_length, roof_width, safe_edge_offset)
         
         if not area_bounds:
             return 0
         
-        # ✅ CLEAR ONLY PANELS (not boundaries yet)
+        # Clear only panels (not boundaries yet)
         self._clear_panels_only()
         
         # Place panels in the defined area
@@ -83,7 +79,7 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         # Store count and update display
         self.panels_count_by_side[area] = panels_placed
         
-        # ✅ UPDATE ROOF INFO (not annotations)
+        # Update roof info (not annotations)
         self._update_roof_info(area, panels_placed)
         
         return panels_placed
@@ -129,7 +125,7 @@ class SolarPanelPlacementFlat(BasePanelHandler):
             [start_x, start_y + width, boundary_z]
         ]
         
-        # ✅ SMART UPDATE: Only update boundaries if they've actually changed
+        # Smart update: Only update boundaries if they've actually changed
         if hasattr(self, '_last_boundary_corners'):
             # Check if corners are the same (within tolerance)
             corners_changed = False
@@ -218,7 +214,10 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         print("✅ All flat roof panels and boundaries cleared")
     
     def _get_area_bounds(self, area, roof_length, roof_width, safe_edge_offset):
-        """Calculate area boundaries based on selection - YOUR ORIGINAL LOGIC"""
+        """Calculate area boundaries based on selection - 0-BASED COORDINATES FOR CALCULATION"""
+        # These bounds are in 0-based coordinates for calculation purposes
+        # They will be converted to centered coordinates in _place_panels_in_bounds
+        
         if area == "center":
             return {
                 'start_x': safe_edge_offset,
@@ -258,7 +257,7 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         return None
     
     def _place_panels_in_bounds(self, bounds):
-        """Place panels within specified bounds - YOUR ORIGINAL LOGIC"""
+        """Place panels within specified bounds - FIXED FOR CENTERED COORDINATES"""
         if bounds['width'] <= 0 or bounds['length'] <= 0:
             return 0
         
@@ -275,21 +274,29 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         total_length = panels_x * panel_length_m + (panels_x - 1) * panel_spacing_m
         total_width = panels_y * panel_width_m + (panels_y - 1) * panel_spacing_m
         
-        # Center panels in area
-        start_x = bounds['start_x'] + (bounds['length'] - total_length) / 2
-        start_y = bounds['start_y'] + (bounds['width'] - total_width) / 2
+        # Center panels in area (0-based coordinates)
+        start_x_0based = bounds['start_x'] + (bounds['length'] - total_length) / 2
+        start_y_0based = bounds['start_y'] + (bounds['width'] - total_width) / 2
         
-        # Create boundary visualization
-        self._create_boundary_visualization(start_x, start_y, total_length, total_width)
+        # 🔥 CRITICAL FIX: Convert to centered coordinates
+        roof_half_length = self.roof.length / 2
+        roof_half_width = self.roof.width / 2
         
-        # Create panel positions
+        start_x_centered = start_x_0based - roof_half_length
+        start_y_centered = start_y_0based - roof_half_width
+        
+        # Create boundary visualization (using centered coordinates)
+        self._create_boundary_visualization(start_x_centered, start_y_centered, total_length, total_width)
+        
+        # Create panel positions (using centered coordinates)
         panel_positions = []
         panels_placed = 0
         
         for i in range(panels_x):
             for j in range(panels_y):
-                x = start_x + i * (panel_length_m + panel_spacing_m) + panel_length_m / 2
-                y = start_y + j * (panel_width_m + panel_spacing_m) + panel_width_m / 2
+                # Calculate in centered coordinates
+                x = start_x_centered + i * (panel_length_m + panel_spacing_m) + panel_length_m / 2
+                y = start_y_centered + j * (panel_width_m + panel_spacing_m) + panel_width_m / 2
                 z = self.base_height + 0.1
                 
                 panel_center = np.array([x, y, z])
@@ -312,10 +319,11 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         if panel_positions:
             self._create_instanced_panels(panel_positions)
         
+        print(f"✅ Placed {panels_placed} panels in {self.current_area} area using centered coordinates")
         return panels_placed
     
     def _create_instanced_panels(self, positions):
-        """Create instanced panels at all positions - YOUR ORIGINAL LOGIC"""
+        """Create instanced panels at all positions"""
         # Create template panel
         panel_length_m = self.panel_length / 1000.0
         panel_width_m = self.panel_width / 1000.0

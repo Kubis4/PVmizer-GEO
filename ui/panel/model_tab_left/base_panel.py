@@ -2,6 +2,7 @@
 """
 panel/3D_model_tab/base_panel.py
 Base panel class with common functionality for 3D model tab
+CLEANED - No debug prints, no hardcoded styles
 """
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
 from PyQt5.QtCore import pyqtSignal, QTimer
@@ -21,33 +22,7 @@ except ImportError:
             sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
             from solar_system.solar_calculations import SolarCalculations
         except ImportError:
-            print("⚠️ Solar calculations module not found - using fallback calculations")
             SolarCalculations = None
-
-# Import UI styles with fallback
-try:
-    from styles.ui_styles import UIStyles
-except ImportError:
-    try:
-        from ...styles.ui_styles import UIStyles
-    except ImportError:
-        print("⚠️ UI styles not found - using fallback styles")
-        # Fallback UIStyles class
-        class UIStyles:
-            GROUP_BOX_STYLE = """
-                QGroupBox {
-                    font-weight: bold;
-                    border: 2px solid #cccccc;
-                    border-radius: 8px;
-                    margin-top: 10px;
-                    padding-top: 10px;
-                }
-                QGroupBox::title {
-                    subcontrol-origin: margin;
-                    left: 10px;
-                    padding: 0 8px 0 8px;
-                }
-            """
 
 class BasePanelWidget(QWidget):
     """Base class for 3D model tab panel widgets with common functionality"""
@@ -68,8 +43,6 @@ class BasePanelWidget(QWidget):
         self.latitude = 40.7128  # New York City
         self.longitude = -74.0060
         self.weather_factor = 1.0
-        
-        print("✅ BasePanelWidget initialized with styles import")
     
     def _get_current_time_decimal(self):
         """Get current time as decimal hours (e.g., 12.25 for 12:15)"""
@@ -104,7 +77,6 @@ class BasePanelWidget(QWidget):
             return None
             
         except Exception as e:
-            print(f"❌ Error getting model tab: {e}")
             return None
     
     def _get_current_roof(self):
@@ -124,7 +96,6 @@ class BasePanelWidget(QWidget):
             return None
             
         except Exception as e:
-            print(f"❌ Error getting current roof: {e}")
             return None
     
     def _update_day_range(self):
@@ -149,7 +120,7 @@ class BasePanelWidget(QWidget):
                         self.day_input.setValue(days_in_month)
                         
         except Exception as e:
-            print(f"❌ Error updating day range: {e}")
+            pass
     
     def _update_sunrise_sunset_display(self):
         """Update sunrise/sunset display labels"""
@@ -186,4 +157,4 @@ class BasePanelWidget(QWidget):
                         self.sunset_label.setText("🌇 Polar Night")
                         
         except Exception as e:
-            print(f"❌ Error updating sunrise/sunset display: {e}")
+            pass

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
 ui/panel/model_tab_left/modifications_tab.py
-CLEANED - No hardcoded styles
+CLEANED - Matching left panel width, no horizontal scroll, "Roof" tab name
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QPushButton, QProgressBar, QGroupBox, QMessageBox, 
-                            QTabWidget)
+                            QTabWidget, QFrame)
 from PyQt5.QtCore import pyqtSignal, QTimer, Qt
+from PyQt5.QtGui import QFont
 import math
 
 # Import dialogs with fallback
@@ -28,34 +29,30 @@ try:
     ENVIRONMENT_TAB_AVAILABLE = True
 except ImportError:
     ENVIRONMENT_TAB_AVAILABLE = False
-    print("⚠️ EnvironmentTab not available")
 
 class ModificationsTab(QWidget):
-    """Enhanced Modifications tab widget for 3D model tab"""
+    """Enhanced Modifications tab widget with invisible containers but active tabs, matching left panel width"""
     
     # Signals
     solar_panel_config_changed = pyqtSignal(dict)
     obstacle_placement_requested = pyqtSignal(str, tuple)
     environment_action_requested = pyqtSignal(str, dict)
+    performance_updated = pyqtSignal(float, float, float, float)  # power, energy, efficiency, irradiance
     
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
         self.main_window = main_window
         
-        # Control references for original functionality
+        # Control references for roof modifications
         self.solar_config_btn = None
         self.obstacle_btn = None
-        self.power_label = None
-        self.energy_label = None
-        self.efficiency_label = None
-        self.performance_progress = None
         self.performance_timer = None
         
         # Tab system and environment tab
         self.modifications_tabs = None
         self.environment_tab = None
         
-        # Solar parameters
+        # Solar parameters for performance calculations
         self.current_time = 12.0  # Noon
         self.day_of_year = 172  # Summer solstice
         self.latitude = 48.3061  # Nitra
@@ -69,25 +66,161 @@ class ModificationsTab(QWidget):
         
         self.setup_ui()
         self.setup_performance_timer()
-        
-        print("✅ Enhanced ModificationsTab initialized")
     
     def setup_ui(self):
-        """Enhanced UI setup with tabbed interface"""
+        """Enhanced UI setup with invisible containers, active tabs, default font sizes, and width constraints"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
         
-        # CREATE TABBED INTERFACE FOR MODIFICATIONS
+        # Apply your blue styling with DEFAULT FONT SIZES and WIDTH CONSTRAINTS
+        self.setStyleSheet("""
+            QWidget {
+                background-color: transparent !important;
+                max-width: 410px !important;
+            }
+            
+            /* Group Boxes with your styling, DEFAULT FONT SIZES, and WIDTH CONSTRAINTS */
+            QGroupBox {
+                background-color: #34495e !important;
+                border: 2px solid #5dade2 !important;
+                border-radius: 8px !important;
+                margin-top: 15px !important;
+                padding-top: 15px !important;
+                padding-left: 10px !important;
+                padding-right: 10px !important;
+                padding-bottom: 10px !important;
+                font-weight: bold !important;
+                font-size: 13px !important;
+                color: #ffffff !important;
+                max-width: 410px !important;
+            }
+            
+            QGroupBox::title {
+                subcontrol-origin: margin !important;
+                subcontrol-position: top center !important;
+                padding: 4px 15px !important;
+                margin-top: 1px !important;
+                color: #5dade2 !important;
+                background-color: #34495e !important;
+                font-size: 20px !important;
+                font-weight: bold !important;
+                border: none !important;
+                border-radius: 0px !important;
+            }
+            
+            /* Labels with your styling, DEFAULT FONT SIZES, and WIDTH CONSTRAINTS */
+            QLabel {
+                color: #ffffff !important;
+                background-color: transparent !important;
+                border: none !important;
+                font-size: 12px !important;
+                font-weight: normal !important;
+                max-width: 390px !important;
+            }
+            
+            /* Buttons with your styling, DEFAULT FONT SIZES, and WIDTH CONSTRAINTS */
+            QPushButton {
+                background-color: #5dade2 !important;
+                color: #ffffff !important;
+                border: 2px solid #5dade2 !important;
+                border-radius: 6px !important;
+                padding: 8px 12px !important;
+                font-weight: bold !important;
+                font-size: 13px !important;
+                min-height: 32px !important;
+                text-align: center !important;
+                max-width: 390px !important;
+            }
+            
+            QPushButton:hover {
+                background-color: #3498db !important;
+                border: 2px solid #3498db !important;
+                color: #ffffff !important;
+            }
+            
+            QPushButton:pressed {
+                background-color: #2980b9 !important;
+                border: 2px solid #2980b9 !important;
+                padding: 9px 11px 7px 13px !important;
+            }
+            
+            QPushButton:disabled {
+                background-color: #7f8c8d !important;
+                border: 2px solid #7f8c8d !important;
+                color: #95a5a6 !important;
+            }
+        """)
+        
+        # CREATE INTERNAL TABS WITH INVISIBLE CONTAINERS BUT ACTIVE TABS - MATCHING LEFT PANEL WIDTH
         self.modifications_tabs = QTabWidget()
         self.modifications_tabs.setTabPosition(QTabWidget.North)
+        self.modifications_tabs.setUsesScrollButtons(False)
+        # MATCH LEFT PANEL WIDTH (450px) minus margins (40px total) = 410px max
+        self.modifications_tabs.setMaximumWidth(410)
+        self.modifications_tabs.setMinimumWidth(390)
         
-        # Tab 1: Original modifications (Solar + Obstacles)
-        original_tab = QWidget()
-        self.setup_original_modifications_tab(original_tab)
-        self.modifications_tabs.addTab(original_tab, "🔋 Solar & Obstacles")
+        # Hide internal tab containers but keep tabs functional with width constraints
+        self.modifications_tabs.setStyleSheet("""
+            /* INVISIBLE CONTAINERS - matching left panel with width constraints */
+            QTabWidget::pane {
+                border: none !important;
+                background-color: transparent !important;
+                margin: 0px !important;
+                padding: 0px !important;
+                max-width: 410px !important;
+            }
+            
+            QTabWidget::tab-bar {
+                alignment: center;
+                max-width: 410px !important;
+            }
+            
+            /* VISIBLE TABS with your blue styling and WIDTH CONSTRAINTS */
+            QTabBar::tab {
+                background-color: #34495e !important;
+                color: #b8c5ce !important;
+                border: 2px solid #5dade2 !important;
+                border-bottom: none !important;
+                padding: 10px 16px !important;
+                margin-right: 2px !important;
+                border-top-left-radius: 8px !important;
+                border-top-right-radius: 8px !important;
+                font-size: 13px !important;
+                font-weight: bold !important;
+                max-width: 200px !important;
+            }
+            
+            QTabBar::tab:selected {
+                background-color: #5dade2 !important;
+                color: #ffffff !important;
+                font-weight: bold !important;
+            }
+            
+            QTabBar::tab:hover:!selected {
+                background-color: #3498db !important;
+                color: #ffffff !important;
+            }
+            
+            QTabBar {
+                alignment: center;
+                qproperty-expanding: true;
+                max-width: 410px !important;
+            }
+            
+            /* TAB CONTENT - transparent background and width constrained */
+            QTabWidget > QWidget {
+                background-color: transparent !important;
+                max-width: 410px !important;
+            }
+        """)
         
-        # Tab 2: Environment tab
+        # Tab 1: Roof (CHANGED from "Solar & Obstacles" as requested)
+        roof_modifications_tab = QWidget()
+        self.setup_roof_modifications_tab(roof_modifications_tab)
+        self.modifications_tabs.addTab(roof_modifications_tab, "🏠 Roof")
+        
+        # Tab 2: Environment tab (using full text)
         if ENVIRONMENT_TAB_AVAILABLE:
             try:
                 self.environment_tab = EnvironmentTab(self.main_window)
@@ -98,23 +231,27 @@ class ModificationsTab(QWidget):
                     self.environment_action_requested.emit
                 )
                 
-                print("✅ Environment tab added successfully")
             except Exception as e:
-                print(f"❌ Error adding environment tab: {e}")
                 self._create_fallback_environment_tab()
         else:
             self._create_fallback_environment_tab()
         
         layout.addWidget(self.modifications_tabs)
-        
-        # Add stretch to push everything up
         layout.addStretch()
 
-    def setup_original_modifications_tab(self, tab_widget):
-        """Setup the original solar panel and obstacle controls"""
+    def setup_roof_modifications_tab(self, tab_widget):
+        """Setup the roof modifications with transparent background and width constraints"""
         layout = QVBoxLayout(tab_widget)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
+        
+        # Make tab content transparent and width-constrained to match left panel
+        tab_widget.setStyleSheet("""
+            QWidget {
+                background-color: transparent !important;
+                max-width: 390px !important;
+            }
+        """)
         
         # Solar Panel Configuration Section
         self.setup_solar_panel_section(layout)
@@ -122,135 +259,108 @@ class ModificationsTab(QWidget):
         # Obstacle Placement Section
         self.setup_obstacle_section(layout)
         
-        # Performance Section
-        self.setup_performance_section(layout)
-        
-        # Add stretch
         layout.addStretch()
     
     def setup_solar_panel_section(self, layout):
-        """Setup solar panel configuration section"""
+        """Setup solar panel configuration section with default font sizes and width constraints"""
         panel_group = QGroupBox("🔋 Solar Panel Configuration")
+        panel_group.setMaximumWidth(390)
         
         panel_layout = QVBoxLayout(panel_group)
         panel_layout.setContentsMargins(10, 15, 10, 10)
         panel_layout.setSpacing(10)
         
-        # Info label
+        # Info label with DEFAULT FONT SIZE and WIDTH CONSTRAINT
         panel_info = QLabel("Configure solar panel placement, specifications, and optimization settings")
         panel_info.setWordWrap(True)
+        panel_info.setMaximumWidth(370)
         panel_layout.addWidget(panel_info)
         
-        # Solar panel button
+        # Solar panel button with DEFAULT FONT SIZE and WIDTH CONSTRAINT
         self.solar_config_btn = QPushButton("🔋 Configure Solar Panels")
-        self.solar_config_btn.setMinimumHeight(40)
+        self.solar_config_btn.setMinimumHeight(32)  # Match default button height
+        self.solar_config_btn.setMaximumWidth(370)
         self.solar_config_btn.clicked.connect(self._open_solar_panel_dialog)
         self.solar_config_btn.setEnabled(SOLAR_PANEL_DIALOG_AVAILABLE)
         
         panel_layout.addWidget(self.solar_config_btn)
         
-        # Panel status
+        # Panel status with DEFAULT FONT SIZE and WIDTH CONSTRAINT
         if SOLAR_PANEL_DIALOG_AVAILABLE:
             panel_status = QLabel("✅ Solar panel configuration available")
             self.panel_status = panel_status
         else:
             panel_status = QLabel("⚠️ Solar panel dialog not available")
             self.panel_status = panel_status
+        
+        panel_status.setWordWrap(True)
+        panel_status.setMaximumWidth(370)
         panel_layout.addWidget(panel_status)
         
         layout.addWidget(panel_group)
         self.panel_group = panel_group
     
     def setup_obstacle_section(self, layout):
-        """Setup obstacle placement section"""
+        """Setup obstacle placement section with default font sizes and width constraints"""
         obstacle_group = QGroupBox("🏗️ Roof Obstacles")
+        obstacle_group.setMaximumWidth(390)
         
         obstacle_layout = QVBoxLayout(obstacle_group)
         obstacle_layout.setContentsMargins(10, 15, 10, 10)
         obstacle_layout.setSpacing(10)
         
-        # Info label
+        # Info label with DEFAULT FONT SIZE and WIDTH CONSTRAINT
         obstacle_info = QLabel("Add obstacles like chimneys, vents, HVAC equipment, and other roof structures")
         obstacle_info.setWordWrap(True)
+        obstacle_info.setMaximumWidth(370)
         obstacle_layout.addWidget(obstacle_info)
         
-        # Obstacle button
+        # Obstacle button with DEFAULT FONT SIZE and WIDTH CONSTRAINT
         self.obstacle_btn = QPushButton("🏗️ Add Roof Obstacles")
-        self.obstacle_btn.setMinimumHeight(40)
+        self.obstacle_btn.setMinimumHeight(32)  # Match default button height
+        self.obstacle_btn.setMaximumWidth(370)
         self.obstacle_btn.clicked.connect(self._open_obstacle_dialog)
         self.obstacle_btn.setEnabled(OBSTACLE_DIALOG_AVAILABLE)
         
         obstacle_layout.addWidget(self.obstacle_btn)
         
-        # Obstacle status
+        # Obstacle status with DEFAULT FONT SIZE and WIDTH CONSTRAINT
         if OBSTACLE_DIALOG_AVAILABLE:
             obstacle_status = QLabel("✅ Obstacle placement available")
             self.obstacle_status = obstacle_status
         else:
             obstacle_status = QLabel("⚠️ Obstacle dialog not available")
             self.obstacle_status = obstacle_status
+        
+        obstacle_status.setWordWrap(True)
+        obstacle_status.setMaximumWidth(370)
         obstacle_layout.addWidget(obstacle_status)
         
         layout.addWidget(obstacle_group)
         self.obstacle_group = obstacle_group
-    
-    def setup_performance_section(self, layout):
-        """Setup performance metrics section"""
-        performance_group = QGroupBox("📊 Solar Performance Metrics")
-        
-        performance_layout = QVBoxLayout(performance_group)
-        performance_layout.setContentsMargins(10, 15, 10, 10)
-        performance_layout.setSpacing(10)
-        
-        # Info about metrics
-        info_label = QLabel("Real-time calculations based on sun position, panel configuration, and location")
-        info_label.setWordWrap(True)
-        info_label.setObjectName("performanceInfo")  # For styling
-        performance_layout.addWidget(info_label)
-        
-        # Performance metrics
-        self.power_label = QLabel("Current Power: 0.0 kW")
-        self.energy_label = QLabel("Daily Energy: 0.0 kWh")
-        self.efficiency_label = QLabel("System Efficiency: 0.0%")
-        
-        performance_layout.addWidget(self.power_label)
-        performance_layout.addWidget(self.energy_label)
-        performance_layout.addWidget(self.efficiency_label)
-        
-        # Performance progress bar
-        self.performance_progress = QProgressBar()
-        self.performance_progress.setRange(0, 100)
-        self.performance_progress.setValue(0)
-        self.performance_progress.setTextVisible(True)
-        self.performance_progress.setFormat("Solar Irradiance: %p%")
-        
-        performance_layout.addWidget(self.performance_progress)
-        
-        # Update button
-        update_btn = QPushButton("🔄 Update Performance")
-        update_btn.clicked.connect(self._update_performance)
-        update_btn.setMinimumHeight(35)
-        self.update_btn = update_btn
-        
-        performance_layout.addWidget(update_btn)
-        
-        layout.addWidget(performance_group)
-        self.performance_group = performance_group
 
     def _create_fallback_environment_tab(self):
-        """Create fallback environment tab when EnvironmentTab is not available"""
+        """Create fallback environment tab with width constraints"""
         fallback_tab = QWidget()
+        
+        # Make tab content transparent and width-constrained to match left panel
+        fallback_tab.setStyleSheet("""
+            QWidget {
+                background-color: transparent !important;
+                max-width: 390px !important;
+            }
+        """)
         
         fallback_layout = QVBoxLayout(fallback_tab)
         fallback_layout.setContentsMargins(20, 20, 20, 20)
         
-        # Error message
+        # Error message with DEFAULT FONT SIZE and WIDTH CONSTRAINT
         error_label = QLabel("⚠️ Environment Tab Not Available")
         error_label.setAlignment(Qt.AlignCenter)
-        error_label.setObjectName("environmentError")  # For styling
+        error_label.setMaximumWidth(350)
         fallback_layout.addWidget(error_label)
         
-        # Instructions
+        # Instructions with DEFAULT FONT SIZE and WIDTH CONSTRAINT
         instructions = QLabel("""
         To enable environment features:
         
@@ -265,13 +375,12 @@ class ModificationsTab(QWidget):
         • Shadow casting integration
         """)
         instructions.setWordWrap(True)
-        instructions.setObjectName("environmentInstructions")  # For styling
+        instructions.setMaximumWidth(350)
         fallback_layout.addWidget(instructions)
         
         fallback_layout.addStretch()
         
-        self.modifications_tabs.addTab(fallback_tab, "🌲 Environment (Missing)")
-        print("⚠️ Using fallback environment tab")
+        self.modifications_tabs.addTab(fallback_tab, "🌲 Environment")
     
     def setup_performance_timer(self):
         """Setup performance update timer"""
@@ -283,13 +392,11 @@ class ModificationsTab(QWidget):
             # Initial update
             self._update_performance()
             
-            print("✅ Performance timer initialized")
-            
         except Exception as e:
-            print(f"❌ Error setting up performance timer: {e}")
+            pass
     
     def _update_performance(self):
-        """Update solar performance metrics"""
+        """Update solar performance metrics and emit signal"""
         try:
             # Calculate solar parameters
             solar_elevation = self._calculate_solar_elevation()
@@ -320,7 +427,7 @@ class ModificationsTab(QWidget):
                 
                 # System efficiency
                 system_efficiency = (current_power / 
-                                   (panel_count * self.panel_config['panel_power'] / 1000)) * 100
+                                   (panel_count * self.panel_config['panel_power'] / 1000)) * 100 if panel_count > 0 else 0.0
                 system_efficiency = min(100, max(0, system_efficiency))
                 
                 # Irradiance percentage
@@ -332,14 +439,11 @@ class ModificationsTab(QWidget):
                 system_efficiency = 0.0
                 irradiance_percent = 0.0
             
-            # Update UI
-            self.power_label.setText(f"Current Power: {current_power:.1f} kW")
-            self.energy_label.setText(f"Daily Energy: {daily_energy:.1f} kWh")
-            self.efficiency_label.setText(f"System Efficiency: {system_efficiency:.1f}%")
-            self.performance_progress.setValue(int(irradiance_percent))
+            # Emit performance update signal with irradiance
+            self.performance_updated.emit(current_power, daily_energy, system_efficiency, irradiance_percent)
             
         except Exception as e:
-            print(f"❌ Error updating performance: {e}")
+            pass
     
     def _calculate_solar_elevation(self):
         """Calculate solar elevation angle"""
@@ -363,7 +467,6 @@ class ModificationsTab(QWidget):
             return math.degrees(elevation)
             
         except Exception as e:
-            print(f"❌ Error calculating solar elevation: {e}")
             return 45.0  # Default value
     
     def _calculate_solar_azimuth(self):
@@ -374,7 +477,6 @@ class ModificationsTab(QWidget):
             return 180 + hour_angle  # Simplified model
             
         except Exception as e:
-            print(f"❌ Error calculating solar azimuth: {e}")
             return 180.0  # Default value
     
     def update_solar_parameters(self, time=None, day=None, latitude=None, longitude=None):
@@ -392,10 +494,8 @@ class ModificationsTab(QWidget):
             # Trigger immediate update
             self._update_performance()
             
-            print(f"✅ Solar parameters updated: time={self.current_time}, day={self.day_of_year}")
-            
         except Exception as e:
-            print(f"❌ Error updating solar parameters: {e}")
+            pass
     
     def _open_solar_panel_dialog(self):
         """Open solar panel configuration dialog"""
@@ -424,7 +524,6 @@ class ModificationsTab(QWidget):
                         "Make sure the 3D model tab is open and a building is created.")
                         
         except Exception as e:
-            print(f"❌ Error opening solar panel dialog: {e}")
             self.panel_config['panel_count'] = 10
             self._update_performance()
             QMessageBox.critical(self, "Error", f"Error opening solar panel dialog: {e}")
@@ -462,7 +561,6 @@ class ModificationsTab(QWidget):
                         self.obstacle_placement_requested.emit(obstacle_type, dimensions)
                             
         except Exception as e:
-            print(f"❌ Error opening obstacle dialog: {e}")
             QMessageBox.critical(self, "Error", f"Error opening obstacle dialog: {e}")
     
     def _apply_panels_to_roof(self, config):
@@ -471,7 +569,6 @@ class ModificationsTab(QWidget):
             # Get the model tab
             model_tab = self._get_model_tab()
             if not model_tab:
-                print("❌ Model tab not found")
                 return False
             
             # Format config for panel handler
@@ -488,19 +585,15 @@ class ModificationsTab(QWidget):
             if hasattr(model_tab, 'add_solar_panels'):
                 success = model_tab.add_solar_panels(handler_config)
                 if success:
-                    print(f"✅ Solar panels applied to roof")
                     return True
                 else:
-                    print("❌ Failed to add solar panels to model")
                     return False
             else:
-                print("⚠️ Model tab doesn't have add_solar_panels method")
                 # Try emitting signal as fallback
                 self.solar_panel_config_changed.emit(config)
                 return True
                 
         except Exception as e:
-            print(f"❌ Error applying panels to roof: {e}")
             return False
     
     def _get_model_tab(self):
@@ -514,7 +607,6 @@ class ModificationsTab(QWidget):
                         return self.main_window.content_tabs.widget(i)
             return None
         except Exception as e:
-            print(f"❌ Error getting model tab: {e}")
             return None
 
     def connect_environment_to_model_tab(self, model_tab):
@@ -527,9 +619,8 @@ class ModificationsTab(QWidget):
             self.environment_tab.environment_action_requested.connect(
                 lambda action, params: self._handle_environment_action(model_tab, action, params)
             )
-            print("✅ Environment tab connected to model tab")
         except Exception as e:
-            print(f"❌ Error connecting environment to model tab: {e}")
+            pass
 
     def _handle_environment_action(self, model_tab, action_type, parameters):
         """Handle environment actions by calling appropriate BaseRoof methods"""
@@ -537,10 +628,7 @@ class ModificationsTab(QWidget):
             # Get the current roof from model tab
             current_roof = getattr(model_tab, 'current_roof', None)
             if not current_roof:
-                print("No active roof in model tab")
                 return False
-            
-            print(f"Handling environment action: {action_type}")
             
             # Handle different environment actions
             if action_type == 'add_tree':
@@ -566,7 +654,6 @@ class ModificationsTab(QWidget):
                     if current_roof.add_environment_obstacle_at_point('tree'):
                         success_count += 1
                 
-                print(f"Added {success_count}/{count} trees")
                 return success_count > 0
                 
             elif action_type == 'add_pole':
@@ -609,21 +696,18 @@ class ModificationsTab(QWidget):
                 for _ in range(2):
                     current_roof.add_environment_obstacle_at_point('pole')
                 
-                print(f"Added {success_count} trees + poles")
                 return True
             
             else:
-                print(f"Unknown environment action: {action_type}")
                 return False
                 
         except Exception as e:
-            print(f"Error handling environment action '{action_type}': {e}")
             import traceback
             traceback.print_exc()
             return False
 
     def update_theme(self, is_dark_theme):
-        """Update theme - no hardcoded styles"""
+        """Update theme - uses your blue styling"""
         pass
 
     def connect_signals(self):
@@ -634,10 +718,9 @@ class ModificationsTab(QWidget):
                 self.environment_tab.environment_action_requested.connect(
                     self.environment_action_requested.emit
                 )
-                print("Environment signals connected")
                 
         except Exception as e:
-            print(f"Error connecting environment signals: {e}")
+            pass
 
     def cleanup(self):
         """Enhanced cleanup with environment tab"""
@@ -647,7 +730,7 @@ class ModificationsTab(QWidget):
                 try:
                     self.performance_timer.stop()
                 except Exception as timer_error:
-                    print(f"Error stopping performance timer: {timer_error}")
+                    pass
                 finally:
                     self.performance_timer = None
             
@@ -657,15 +740,13 @@ class ModificationsTab(QWidget):
                     if hasattr(self.environment_tab, 'cleanup'):
                         self.environment_tab.cleanup()
                 except Exception as env_error:
-                    print(f"Error cleaning up environment tab: {env_error}")
+                    pass
                 finally:
                     self.environment_tab = None
             
             # Clear control references safely
             control_refs = [
-                'solar_config_btn', 'obstacle_btn', 'power_label', 
-                'energy_label', 'efficiency_label', 'performance_progress', 
-                'update_btn', 'panel_status', 'obstacle_status'
+                'solar_config_btn', 'obstacle_btn', 'panel_status', 'obstacle_status'
             ]
             
             for ref in control_refs:
@@ -673,7 +754,7 @@ class ModificationsTab(QWidget):
                     setattr(self, ref, None)
             
             # Clear group references safely
-            group_refs = ['panel_group', 'obstacle_group', 'performance_group']
+            group_refs = ['panel_group', 'obstacle_group']
             for ref in group_refs:
                 if hasattr(self, ref):
                     setattr(self, ref, None)
@@ -688,7 +769,7 @@ class ModificationsTab(QWidget):
                         if widget:
                             widget.deleteLater()
                 except Exception as tab_error:
-                    print(f"Error clearing tabs: {tab_error}")
+                    pass
                 finally:
                     self.modifications_tabs = None
             
@@ -699,9 +780,6 @@ class ModificationsTab(QWidget):
             # Clear main window reference last
             self.main_window = None
                 
-            print("Enhanced ModificationsTab cleanup completed")
-            
         except Exception as e:
-            print(f"Error during cleanup: {e}")
             import traceback
             traceback.print_exc()
