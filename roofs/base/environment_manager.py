@@ -183,19 +183,33 @@ class EnvironmentManager:
             traceback.print_exc()
     
     def _create_environment_attachment_points(self):
-        """Create attachment points for environment objects"""
+        """Create MORE attachment points for environment objects"""
         try:
             building_buffer = self.ground_size * 0.2
             
-            # Inner ring - closer to building
-            angles = np.linspace(0, 2*np.pi, 12, endpoint=False)
-            radius = building_buffer
+            # Very close ring - right around the building
+            very_close_radius = building_buffer * 0.5
+            very_close_angles = np.linspace(0, 2*np.pi, 16, endpoint=False)
             
-            for angle in angles:
-                x = radius * np.cos(angle)
-                y = radius * np.sin(angle)
-                # Place points slightly above ground to be visible
+            for angle in very_close_angles:
+                x = very_close_radius * np.cos(angle)
+                y = very_close_radius * np.sin(angle)
                 z = 0.01  # Just above ground level
+                self.environment_attachment_points.append({
+                    'position': [x, y, z],
+                    'occupied': False,
+                    'obstacle': None,
+                    'ring': 'very_close'
+                })
+            
+            # Inner ring - closer to building
+            inner_radius = building_buffer
+            inner_angles = np.linspace(np.pi/16, 2*np.pi, 12, endpoint=False)
+            
+            for angle in inner_angles:
+                x = inner_radius * np.cos(angle)
+                y = inner_radius * np.sin(angle)
+                z = 0.01
                 self.environment_attachment_points.append({
                     'position': [x, y, z],
                     'occupied': False,
@@ -205,7 +219,7 @@ class EnvironmentManager:
             
             # Middle ring
             middle_radius = building_buffer * 1.5
-            middle_angles = np.linspace(np.pi/12, 2*np.pi, 8, endpoint=False)
+            middle_angles = np.linspace(0, 2*np.pi, 10, endpoint=False)
             
             for angle in middle_angles:
                 x = middle_radius * np.cos(angle)
@@ -218,26 +232,59 @@ class EnvironmentManager:
                     'ring': 'middle'
                 })
             
-            # Outer ring (for large grounds)
+            # Outer ring
+            outer_radius = building_buffer * 2.0
+            outer_angles = np.linspace(np.pi/12, 2*np.pi, 8, endpoint=False)
+            
+            for angle in outer_angles:
+                x = outer_radius * np.cos(angle)
+                y = outer_radius * np.sin(angle)
+                z = 0.01
+                self.environment_attachment_points.append({
+                    'position': [x, y, z],
+                    'occupied': False,
+                    'obstacle': None,
+                    'ring': 'outer'
+                })
+            
+            # Far ring (for large grounds)
             if self.ground_size > 40:
-                outer_radius = building_buffer * 2.0
-                outer_angles = np.linspace(0, 2*np.pi, 6, endpoint=False)
+                far_radius = building_buffer * 2.5
+                far_angles = np.linspace(0, 2*np.pi, 6, endpoint=False)
                 
-                for angle in outer_angles:
-                    x = outer_radius * np.cos(angle)
-                    y = outer_radius * np.sin(angle)
+                for angle in far_angles:
+                    x = far_radius * np.cos(angle)
+                    y = far_radius * np.sin(angle)
                     z = 0.01
                     self.environment_attachment_points.append({
                         'position': [x, y, z],
                         'occupied': False,
                         'obstacle': None,
-                        'ring': 'outer'
+                        'ring': 'far'
                     })
+            
+            # Corner points for rectangular arrangement
+            corner_offset = building_buffer * 0.7
+            corners = [
+                (corner_offset, corner_offset),
+                (corner_offset, -corner_offset),
+                (-corner_offset, corner_offset),
+                (-corner_offset, -corner_offset)
+            ]
+            
+            for x, y in corners:
+                self.environment_attachment_points.append({
+                    'position': [x, y, 0.01],
+                    'occupied': False,
+                    'obstacle': None,
+                    'ring': 'corner'
+                })
             
             print(f"✅ Created {len(self.environment_attachment_points)} attachment points")
             
         except Exception as e:
             print(f"❌ Error creating attachment points: {e}")
+
     
     def _create_attachment_points_visualization(self):
         """Create black dots mesh for all attachment points"""
@@ -335,12 +382,15 @@ class EnvironmentManager:
             traceback.print_exc()
     
     def hide_environment_attachment_points(self):
-        """Hide attachment points"""
+        """Hide all attachment points and cleanup visualization"""
         try:
-            # Remove attachment points actor
+            # Remove main attachment points actor
             if self.attachment_points_actor:
-                self.plotter.remove_actor(self.attachment_points_actor)
-                self.attachment_points_actor = None
+                try:
+                    self.plotter.remove_actor(self.attachment_points_actor)
+                    self.attachment_points_actor = None
+                except:
+                    pass
             
             # Remove any text
             try:
@@ -354,20 +404,34 @@ class EnvironmentManager:
             except:
                 pass
             
+            # IMPORTANT: Remove test spheres that were added for debugging
+            for i in range(100):  # Remove up to 100 test spheres
+                try:
+                    self.plotter.remove_actor(f"attachment_sphere_{i}")
+                except:
+                    break  # Stop when we can't find more
+            
             self.attachment_points_visible = False
-            print("✅ Hidden attachment points")
+            
+            # Force render to update display
+            if hasattr(self.plotter, 'render'):
+                self.plotter.render()
+            
+            print("✅ Hidden all attachment points")
             
         except Exception as e:
             print(f"⚠️ Error hiding attachment points: {e}")
-    
+
     def handle_environment_action(self, action_type, parameters):
         """Handle environment actions from UI"""
         try:
             print(f"🎯 Handling environment action: {action_type}")
             
             action_handlers = {
-                'prepare_tree_placement': self._prepare_tree_placement,
-                'prepare_pole_placement': self._prepare_pole_placement,
+                'add_tree': self._add_tree_direct,  # New direct placement
+                'add_pole': self._add_pole_direct,  # New direct placement
+                'prepare_tree_placement': self._prepare_tree_placement,  # Interactive mode
+                'prepare_pole_placement': self._prepare_pole_placement,  # Interactive mode
                 'update_tree_size': lambda p: setattr(self, 'tree_size_multiplier', p.get('multiplier', 1.0)),
                 'update_pole_height': lambda p: setattr(self, 'pole_height_multiplier', p.get('multiplier', 1.0)),
                 'toggle_attachment_points': self._toggle_attachment_points,
@@ -375,19 +439,11 @@ class EnvironmentManager:
                 'add_multiple_poles': self._add_multiple_poles_auto,
                 'clear_all_environment': lambda p: self.clear_environment_obstacles(),
                 'auto_populate_scene': self._auto_populate_environment,
-                # Ignore cardinal-related actions
-                'add_cardinal': lambda p: None,
-                'add_cardinal_flock': lambda p: None,
-                'clear_cardinals': lambda p: None
             }
             
             handler = action_handlers.get(action_type)
             if handler:
                 handler(parameters)
-            
-            # Update attachment points display if visible
-            if self.attachment_points_visible:
-                self.show_environment_attachment_points()
             
             # Render after action
             if hasattr(self.plotter, 'render'):
@@ -397,6 +453,78 @@ class EnvironmentManager:
             print(f"❌ Error handling environment action: {e}")
             import traceback
             traceback.print_exc()
+
+    def _add_tree_direct(self, parameters):
+        """Add tree directly at random available point"""
+        try:
+            tree_type = parameters.get('tree_type', 'deciduous')
+            size_multiplier = parameters.get('size_multiplier', 1.0)
+            
+            # Show attachment points temporarily
+            self.show_environment_attachment_points()
+            
+            # Find available point
+            available_points = [i for i, p in enumerate(self.environment_attachment_points) 
+                            if not p['occupied']]
+            
+            if available_points:
+                import random
+                point_index = random.choice(available_points)
+                
+                # Set tree parameters
+                self.selected_tree_type = tree_type
+                self.tree_size_multiplier = size_multiplier
+                
+                # Place tree
+                success = self._place_tree_at_index(point_index)
+                
+                if success:
+                    print(f"✅ Placed {tree_type} tree")
+            else:
+                print("⚠️ No available attachment points")
+            
+            # ALWAYS hide attachment points after placement
+            self.hide_environment_attachment_points()
+            
+        except Exception as e:
+            print(f"❌ Error in direct tree placement: {e}")
+            self.hide_environment_attachment_points()
+
+    def _add_pole_direct(self, parameters):
+        """Add pole directly at random available point"""
+        try:
+            height_multiplier = parameters.get('height_multiplier', 1.0)
+            
+            # Show attachment points temporarily
+            self.show_environment_attachment_points()
+            
+            # Find available point
+            available_points = [i for i, p in enumerate(self.environment_attachment_points) 
+                            if not p['occupied']]
+            
+            if available_points:
+                import random
+                point_index = random.choice(available_points)
+                
+                # Set pole parameters
+                self.pole_height_multiplier = height_multiplier
+                
+                # Place pole
+                success = self._place_pole_at_index(point_index)
+                
+                if success:
+                    print(f"✅ Placed utility pole")
+            else:
+                print("⚠️ No available attachment points")
+            
+            # ALWAYS hide attachment points after placement
+            self.hide_environment_attachment_points()
+            
+        except Exception as e:
+            print(f"❌ Error in direct pole placement: {e}")
+            self.hide_environment_attachment_points()
+
+
     
     def _prepare_tree_placement(self, parameters):
         """Prepare for interactive tree placement"""
@@ -454,27 +582,36 @@ class EnvironmentManager:
             print(f"❌ Error preparing pole placement: {e}")
     
     def _setup_environment_click_callback(self):
-        """Set up click callback for placement"""
+        """Set up RIGHT-CLICK callback for placement"""
         try:
+            # Remove existing callback if any
             if self._environment_click_callback_id:
                 self.plotter.iren.RemoveObserver(self._environment_click_callback_id)
                 self._environment_click_callback_id = None
             
-            def on_click(obj, event):
+            def on_right_click(obj, event):
+                # Get click position
                 click_pos = self.plotter.pick_mouse_position()
                 if click_pos:
                     self._handle_environment_click(click_pos)
             
+            # Use RightButtonPressEvent for right-click
             self._environment_click_callback_id = self.plotter.iren.AddObserver(
-                "LeftButtonPressEvent", on_click
+                "RightButtonPressEvent", on_right_click
             )
+            
+            print("✅ Right-click handler set up for placement")
             
         except Exception as e:
             print(f"❌ Error setting up click callback: {e}")
     
     def _handle_environment_click(self, click_pos):
-        """Handle click for object placement"""
+        """Handle RIGHT-CLICK for object placement and hide points after"""
         try:
+            # Only process if we're in placement mode
+            if not self.environment_placement_mode:
+                return
+            
             # Find closest attachment point
             closest_index = None
             closest_distance = float('inf')
@@ -497,45 +634,47 @@ class EnvironmentManager:
                     success = self._place_pole_at_index(closest_index)
                 
                 if success:
-                    # Update attachment points display
-                    if self.attachment_points_visible:
-                        self.show_environment_attachment_points()
+                    # IMPORTANT: Hide attachment points after successful placement
+                    self.hide_environment_attachment_points()
                     
-                    # Check if all points are occupied
-                    available_count = sum(1 for p in self.environment_attachment_points if not p['occupied'])
-                    if available_count == 0:
-                        # All points occupied, exit placement mode
-                        self.environment_placement_mode = None
-                        
-                        # Remove instruction
-                        if hasattr(self.roof, 'placement_instruction') and self.roof.placement_instruction:
+                    # Update the toggle button state in UI
+                    if hasattr(self.roof, 'environment_tab'):
+                        self.roof.environment_tab.attachment_points_visible = False
+                        self.roof.environment_tab.toggle_points_btn.setText("📍 Show Points")
+                        self.roof.environment_tab.toggle_points_btn.setChecked(False)
+                    
+                    # Exit placement mode
+                    self.environment_placement_mode = None
+                    
+                    # Remove instruction text
+                    if hasattr(self.roof, 'placement_instruction') and self.roof.placement_instruction:
+                        try:
                             self.plotter.remove_actor(self.roof.placement_instruction)
                             self.roof.placement_instruction = None
-                        
-                        # Remove click callback
-                        if self._environment_click_callback_id:
+                        except:
+                            pass
+                    
+                    # Remove click callback
+                    if self._environment_click_callback_id:
+                        try:
                             self.plotter.iren.RemoveObserver(self._environment_click_callback_id)
                             self._environment_click_callback_id = None
-                        
-                        # Show message
-                        self.plotter.add_text(
-                            "All attachment points occupied!",
-                            position="lower_left",
-                            font_size=12,
-                            color="red",
-                            name="all_occupied_message"
-                        )
-                
-                if hasattr(self.plotter, 'render'):
-                    self.plotter.render()
+                        except:
+                            pass
+                    
+                    print("✅ Object placed, attachment points hidden, placement mode ended")
+                    
+                    # Render to update display
+                    if hasattr(self.plotter, 'render'):
+                        self.plotter.render()
             else:
-                print("⚠️ No available attachment point near click location")
+                print("⚠️ No attachment point near click location")
         
         except Exception as e:
             print(f"❌ Error handling click: {e}")
     
     def _place_tree_at_index(self, point_index):
-        """Place tree at attachment point"""
+        """Place tree at attachment point and ensure points are hidden"""
         try:
             if point_index >= len(self.environment_attachment_points):
                 return False
@@ -553,7 +692,10 @@ class EnvironmentManager:
             if obstacle:
                 point_data['occupied'] = True
                 point_data['obstacle'] = obstacle
-                print(f"✅ Placed {tree_type} tree at point {point_index} (will cast shadows)")
+                print(f"✅ Placed {tree_type} tree at point {point_index}")
+                
+                # Force hide attachment points after successful placement
+                self.attachment_points_visible = False
                 return True
             
             return False
@@ -561,9 +703,9 @@ class EnvironmentManager:
         except Exception as e:
             print(f"❌ Error placing tree: {e}")
             return False
-    
+
     def _place_pole_at_index(self, point_index):
-        """Place pole at attachment point"""
+        """Place pole at attachment point and ensure points are hidden"""
         try:
             if point_index >= len(self.environment_attachment_points):
                 return False
@@ -580,7 +722,10 @@ class EnvironmentManager:
             if obstacle:
                 point_data['occupied'] = True
                 point_data['obstacle'] = obstacle
-                print(f"✅ Placed utility pole at point {point_index} (will cast shadows)")
+                print(f"✅ Placed utility pole at point {point_index}")
+                
+                # Force hide attachment points after successful placement
+                self.attachment_points_visible = False
                 return True
             
             return False
@@ -954,11 +1099,11 @@ class EnvironmentManager:
             print(f"❌ Error auto-populating: {e}")
     
     def add_environment_obstacle_at_point(self, obstacle_type, point_index=None):
-        """Add environment obstacle at random available point"""
+        """Add environment obstacle at random available point and hide attachment points after placement"""
         try:
             if point_index is None:
                 available_points = [i for i, p in enumerate(self.environment_attachment_points) 
-                                  if not p['occupied']]
+                                if not p['occupied']]
                 if not available_points:
                     print("⚠️ No available points")
                     return False
@@ -979,8 +1124,8 @@ class EnvironmentManager:
             
             if obstacle_type == 'tree':
                 tree_types = ['deciduous', 'pine', 'oak']
-                tree_type = tree_types[self.roof.tree_type_index % len(tree_types)]
-                self.roof.tree_type_index += 1
+                tree_type = tree_types[self.tree_type_index % len(tree_types)]
+                self.tree_type_index += 1
                 obstacle = self._add_scaled_tree([position[0], position[1]], tree_type, 1.0)
             elif obstacle_type == 'pole':
                 obstacle = self._add_scaled_pole([position[0], position[1]], 1.0)
@@ -988,23 +1133,46 @@ class EnvironmentManager:
                 print(f"⚠️ Unknown obstacle type: {obstacle_type}")
                 return False
             
-            point_data['occupied'] = True
-            point_data['obstacle'] = obstacle
+            if obstacle:
+                point_data['occupied'] = True
+                point_data['obstacle'] = obstacle
+                
+                # IMPORTANT: Hide attachment points after successful placement
+                self.hide_environment_attachment_points()
+                
+                # Clean up placement mode
+                self.environment_placement_mode = None
+                
+                # Remove instruction text if exists
+                if hasattr(self.roof, 'placement_instruction') and self.roof.placement_instruction:
+                    try:
+                        self.plotter.remove_actor(self.roof.placement_instruction)
+                        self.roof.placement_instruction = None
+                    except:
+                        pass
+                
+                # Remove click callback if exists
+                if self._environment_click_callback_id:
+                    try:
+                        self.plotter.iren.RemoveObserver(self._environment_click_callback_id)
+                        self._environment_click_callback_id = None
+                    except:
+                        pass
+                
+                print(f"✅ Placed {obstacle_type} and hidden attachment points")
+                return True
             
-            # Update attachment points display if visible
-            if self.attachment_points_visible:
-                self.show_environment_attachment_points()
-            
-            return True
+            return False
             
         except Exception as e:
             print(f"❌ Error adding obstacle: {e}")
             return False
+
     
     def clear_environment_obstacles(self):
         """Clear all environment obstacles and update attachment points"""
         try:
-            # Clear trees and poles
+            # Clear trees and poles from the scene
             for i in range(len(self.environment_obstacles)):
                 obstacle = self.environment_obstacles[i]
                 if obstacle['type'].startswith('tree'):
@@ -1029,6 +1197,40 @@ class EnvironmentManager:
                     except:
                         pass
             
+            # IMPORTANT: Clear shadows from sun system
+            if self.roof.sun_system:
+                # Method 1: Clear all environment objects from sun system
+                if hasattr(self.roof.sun_system, 'clear_environment_objects'):
+                    self.roof.sun_system.clear_environment_objects()
+                    print("✅ Cleared environment objects from sun system")
+                
+                # Method 2: Unregister each object individually (if method 1 doesn't exist)
+                elif hasattr(self.roof.sun_system, 'unregister_environment_object'):
+                    for obstacle in self.environment_obstacles:
+                        self.roof.sun_system.unregister_environment_object(obstacle['id'])
+                    print("✅ Unregistered all environment objects from sun system")
+                
+                # Method 3: Clear all scene objects and re-register building only
+                elif hasattr(self.roof.sun_system, 'clear_scene_objects'):
+                    self.roof.sun_system.clear_scene_objects()
+                    # Re-register building meshes
+                    if hasattr(self.roof, 'house_walls'):
+                        for i, wall in enumerate(self.roof.house_walls):
+                            if wall:
+                                self.roof.sun_system.register_scene_object(
+                                    wall, f'building_wall_{i}', cast_shadow=True
+                                )
+                    print("✅ Cleared all scene objects and re-registered building")
+                
+                # Force shadow update after clearing
+                if hasattr(self.roof.sun_system, '_update_shadows_only'):
+                    self.roof.sun_system._update_shadows_only()
+                    print("✅ Updated shadows after clearing environment")
+                elif hasattr(self.roof.sun_system, 'update_shadows'):
+                    self.roof.sun_system.update_shadows()
+                    print("✅ Updated shadows after clearing environment")
+            
+            # Clear internal tracking
             self.environment_obstacles.clear()
             self.environment_meshes.clear()
             
@@ -1049,10 +1251,17 @@ class EnvironmentManager:
             except:
                 pass
             
-            print("✅ Cleared all environment obstacles, attachment points reset")
+            # Force render to update the scene
+            if hasattr(self.plotter, 'render'):
+                self.plotter.render()
+            
+            print("✅ Cleared all environment obstacles, attachment points reset, shadows updated")
             
         except Exception as e:
             print(f"❌ Error clearing environment: {e}")
+            import traceback
+            traceback.print_exc()
+
     
     def cleanup(self):
         """Cleanup environment manager"""
@@ -1180,3 +1389,44 @@ class EnvironmentManager:
             import traceback
             traceback.print_exc()
             
+
+    def hide_environment_attachment_points(self):
+        """Hide all attachment points and cleanup visualization"""
+        try:
+            # Remove main attachment points actor
+            if self.attachment_points_actor:
+                try:
+                    self.plotter.remove_actor(self.attachment_points_actor)
+                    self.attachment_points_actor = None
+                except:
+                    pass
+            
+            # Remove any text
+            try:
+                self.plotter.remove_actor("attachment_points_text")
+            except:
+                pass
+            
+            # Remove occupied points if shown
+            try:
+                self.plotter.remove_actor("env_attachment_points_occupied")
+            except:
+                pass
+            
+            # Remove test spheres (from debug code)
+            for i in range(100):
+                try:
+                    self.plotter.remove_actor(f"attachment_sphere_{i}")
+                except:
+                    break
+            
+            self.attachment_points_visible = False
+            
+            # Force render to update display
+            if hasattr(self.plotter, 'render'):
+                self.plotter.render()
+            
+            print("✅ Hidden all attachment points")
+            
+        except Exception as e:
+            print(f"⚠️ Error hiding attachment points: {e}")

@@ -25,8 +25,6 @@ class BaseRoof(ABC):
     
     def __init__(self, plotter=None, dimensions=None, theme="light"):
         """Initialize roof with modular managers"""
-        print(f"\n🏗️ BaseRoof.__init__ starting for {self.__class__.__name__}")
-        
         # Store basic properties
         self.theme = theme
         self.base_height = 3.0
@@ -35,13 +33,13 @@ class BaseRoof(ABC):
         self.base_points = None
         self.building_rotation_angle = 0
         
-        # CRITICAL: Ground level coordination
-        self.grass_ground_level = -0.05  # Must match sun system
+        # Ground level coordination
+        self.grass_ground_level = -0.05
         
         # Setup plotter
         self._setup_plotter(plotter)
         
-        # CRITICAL: Find sun system FIRST
+        # Find sun system
         self.sun_system = None
         self._find_and_configure_sun_system()
         
@@ -71,6 +69,11 @@ class BaseRoof(ABC):
         self.attachment_points_actor = None
         self._environment_click_callback_id = None
         
+        # Mouse interaction state
+        self.mouse_callback_active = False
+        self.current_placement_type = None
+        self.environment_tab_connected = False
+        
         # Clear existing key bindings
         if self.plotter:
             self.clear_key_bindings()
@@ -93,30 +96,305 @@ class BaseRoof(ABC):
         self.ground_mesh = self.environment_manager.ground_mesh
         self.ground_actor = self.environment_manager.ground_actor
         
-        # CRITICAL: Tell sun system about ground level
+        # Tell sun system about ground level
         if self.sun_system and hasattr(self.sun_system, 'set_shadow_height'):
             self.sun_system.set_shadow_height(self.grass_ground_level + 0.02)
+        
+        # Setup mouse interaction for environment
+        self._setup_environment_mouse_interaction()
         
         # Add axes
         try:
             self.plotter.add_axes()
-        except Exception as e:
-            print(f"⚠️ Could not add axes: {e}")
-
-        print(f"✅ BaseRoof.__init__ completed for {self.__class__.__name__}")
+        except:
+            pass
+    
+    def _setup_environment_mouse_interaction(self):
+        """Setup mouse interaction for environment placement"""
+        try:
+            if not self.plotter:
+                return
+            
+            # Setup right-click callback for environment placement
+            def on_right_click():
+                """Handle right-click for environment placement"""
+                try:
+                    if not self.current_placement_type:
+                        return
+                    
+                    # Get the picked point
+                    picked_point = None
+                    if hasattr(self.plotter, 'picked_point') and self.plotter.picked_point is not None:
+                        picked_point = self.plotter.picked_point
+                    elif hasattr(self.plotter, 'picker') and self.plotter.picker:
+                        picked_point = self.plotter.picker.GetPickPosition()
+                    
+                    if picked_point is None:
+                        return
+                    
+                    # Find closest attachment point
+                    closest_point = self._find_closest_environment_attachment_point(picked_point)
+                    if closest_point:
+                        self._place_environment_object_at_point(closest_point)
+                    
+                except Exception:
+                    pass
+            
+            # Try different methods to add right-click callback
+            try:
+                # Method 1: PyVista key event (using 'r' as right-click substitute)
+                self.plotter.add_key_event('r', on_right_click)
+            except:
+                pass
+            
+            # Method 2: VTK observer for actual right-click
+            try:
+                if hasattr(self.plotter, 'iren') and self.plotter.iren:
+                    def vtk_right_click_handler(obj, event):
+                        if event == 'RightButtonPressEvent':
+                            on_right_click()
+                    
+                    self.plotter.iren.AddObserver('RightButtonPressEvent', vtk_right_click_handler)
+            except:
+                pass
+            
+            # Method 3: Enable picker for point selection
+            try:
+                if hasattr(self.plotter, 'enable_point_picking'):
+                    self.plotter.enable_point_picking(callback=self._on_point_picked, show_message=False)
+            except:
+                pass
+            
+            self.mouse_callback_active = True
+            
+        except Exception:
+            pass
+    
+    def _on_point_picked(self, point):
+        """Callback when a point is picked in the 3D view"""
+        try:
+            if not self.current_placement_type:
+                return
+            
+            # Safely check if point is valid without boolean evaluation
+            valid_point = None
+            
+            # Handle different point formats
+            if point is not None:
+                try:
+                    # Handle numpy arrays
+                    if isinstance(point, np.ndarray):
+                        if point.size >= 3:
+                            valid_point = (float(point.flat[0]), float(point.flat[1]), float(point.flat[2]))
+                        elif point.size >= 2:
+                            valid_point = (float(point.flat[0]), float(point.flat[1]), 0.0)
+                    
+                    # Handle lists and tuples
+                    elif isinstance(point, (list, tuple)):
+                        if len(point) >= 3:
+                            valid_point = (float(point[0]), float(point[1]), float(point[2]))
+                        elif len(point) >= 2:
+                            valid_point = (float(point[0]), float(point[1]), 0.0)
+                    
+                    # Handle single numbers (not valid points)
+                    elif isinstance(point, (int, float, np.number)):
+                        valid_point = None
+                        
+                except Exception:
+                    valid_point = None
+            
+            # Only proceed if we have a valid point
+            if valid_point:
+                closest_point = self._find_closest_environment_attachment_point(valid_point)
+                if closest_point:
+                    self._place_environment_object_at_point(closest_point)
+            
+        except Exception:
+            pass
+    
+    def _find_closest_environment_attachment_point(self, clicked_point, max_distance=2.0):
+        """Find the closest environment attachment point to clicked location"""
+        try:
+            # Get attachment points from environment manager
+            if not hasattr(self.environment_manager, 'environment_attachment_points'):
+                return None
+            
+            attachment_points = self.environment_manager.environment_attachment_points
+            if not attachment_points:
+                return None
+            
+            min_distance = float('inf')
+            closest_point = None
+            
+            # Safely convert clicked_point to numpy array
+            try:
+                clicked_array = np.array(clicked_point[:3])  # Ensure 3D
+            except:
+                return None
+            
+            for i, point_data in enumerate(attachment_points):
+                try:
+                    # Extract position from dictionary format
+                    if isinstance(point_data, dict) and 'position' in point_data:
+                        position = point_data['position']
+                        
+                        # Convert position to array
+                        if isinstance(position, (list, tuple)) and len(position) >= 3:
+                            point_array = np.array(position[:3])
+                        elif isinstance(position, np.ndarray) and position.size >= 3:
+                            point_array = np.array([position.flat[0], position.flat[1], position.flat[2]])
+                        else:
+                            continue
+                            
+                    elif isinstance(point_data, (list, tuple)) and len(point_data) >= 3:
+                        # Handle legacy format (direct coordinates)
+                        point_array = np.array(point_data[:3])
+                        position = point_data
+                        
+                    elif isinstance(point_data, np.ndarray) and point_data.size >= 3:
+                        # Handle numpy array format
+                        point_array = np.array([point_data.flat[0], point_data.flat[1], point_data.flat[2]])
+                        position = point_data
+                        
+                    else:
+                        continue
+                    
+                    # Calculate distance
+                    distance = np.linalg.norm(clicked_array - point_array)
+                    
+                    if distance < min_distance and distance <= max_distance:
+                        min_distance = distance
+                        # Return the position as tuple
+                        if isinstance(position, (list, tuple)):
+                            closest_point = tuple(float(x) for x in position[:3])
+                        elif isinstance(position, np.ndarray):
+                            closest_point = (float(position.flat[0]), float(position.flat[1]), float(position.flat[2]))
+                        else:
+                            closest_point = tuple(float(x) for x in point_array)
+                            
+                except Exception:
+                    continue
+            
+            return closest_point
+            
+        except Exception:
+            return None
+    
+    def _place_environment_object_at_point(self, point):
+        """Place environment object at the specified point"""
+        try:
+            if not self.current_placement_type or not point:
+                return
+            
+            # Find the index of the attachment point that matches this position
+            point_index = None
+            for i, point_data in enumerate(self.environment_manager.environment_attachment_points):
+                if not point_data['occupied']:
+                    pos = point_data['position']
+                    # Check if positions match (with small tolerance for floating point comparison)
+                    if (abs(pos[0] - point[0]) < 0.01 and 
+                        abs(pos[1] - point[1]) < 0.01 and 
+                        abs(pos[2] - point[2]) < 0.1):
+                        point_index = i
+                        break
+            
+            if point_index is None:
+                return
+            
+            if self.current_placement_type.startswith('tree_'):
+                # Extract tree type
+                tree_type = self.current_placement_type.replace('tree_', '')
+                
+                # Set tree type index on self (not self.roof)
+                if tree_type == 'pine':
+                    self.tree_type_index = 1
+                elif tree_type == 'oak':
+                    self.tree_type_index = 2
+                else:  # deciduous
+                    self.tree_type_index = 0
+                
+                # Set the selected tree type in environment manager
+                self.environment_manager.selected_tree_type = tree_type
+                self.environment_manager.tree_size_multiplier = self.tree_size_multiplier
+                
+                # Place tree at specific attachment point index
+                success = self.environment_manager._place_tree_at_index(point_index)
+                
+                if success:
+                    # Clear placement mode after successful placement
+                    self.current_placement_type = None
+                    self._update_placement_instruction()
+                    
+                    # Update attachment points display if visible
+                    if self.attachment_points_visible:
+                        self.environment_manager.show_environment_attachment_points()
+                    
+            elif self.current_placement_type == 'pole':
+                # Set pole height multiplier in environment manager
+                self.environment_manager.pole_height_multiplier = self.pole_height_multiplier
+                
+                # Place pole at specific attachment point index
+                success = self.environment_manager._place_pole_at_index(point_index)
+                
+                if success:
+                    # Clear placement mode after successful placement
+                    self.current_placement_type = None
+                    self._update_placement_instruction()
+                    
+                    # Update attachment points display if visible
+                    if self.attachment_points_visible:
+                        self.environment_manager.show_environment_attachment_points()
+            
+            # Update root level references
+            self.environment_obstacles = self.environment_manager.environment_obstacles
+            
+            # Force render
+            if hasattr(self.plotter, 'render'):
+                self.plotter.render()
+                
+        except Exception:
+            pass
+    
+    def _update_placement_instruction(self):
+        """Update or clear placement instruction"""
+        try:
+            # Remove existing instruction
+            if hasattr(self, 'placement_instruction') and self.placement_instruction:
+                try:
+                    self.plotter.remove_actor(self.placement_instruction)
+                except:
+                    pass
+                self.placement_instruction = None
+            
+            # Add new instruction if in placement mode
+            if self.current_placement_type:
+                if self.current_placement_type.startswith('tree_'):
+                    tree_type = self.current_placement_type.replace('tree_', '').title()
+                    message = f"RIGHT-CLICK on black dots to place {tree_type} tree (or press 'r' key)"
+                elif self.current_placement_type == 'pole':
+                    message = "RIGHT-CLICK on black dots to place utility pole (or press 'r' key)"
+                else:
+                    message = "RIGHT-CLICK on black dots to place object (or press 'r' key)"
+                
+                self.placement_instruction = self.plotter.add_text(
+                    message,
+                    position="upper_left",
+                    font_size=14,
+                    color="blue"
+                )
+            
+        except Exception:
+            pass
     
     def _find_and_configure_sun_system(self):
         """Find and properly configure sun system"""
         try:
-            print("🔍 Searching for sun system...")
-            
             # Method 1: Check if plotter has parent with enhanced_sun_system
             if hasattr(self.plotter, 'parent'):
                 parent = self.plotter.parent()
                 for _ in range(5):  # Check up hierarchy
                     if parent and hasattr(parent, 'enhanced_sun_system'):
                         self.sun_system = parent.enhanced_sun_system
-                        print("✅ Found sun system via plotter parent")
                         break
                     if parent and hasattr(parent, 'parent'):
                         parent = parent.parent()
@@ -130,7 +408,6 @@ class BaseRoof(ABC):
                     import ui.tabs.model_tab as model_tab_module
                     if hasattr(model_tab_module, '_global_sun_system'):
                         self.sun_system = model_tab_module._global_sun_system
-                        print("✅ Found sun system via global reference")
                 except:
                     pass
             
@@ -138,18 +415,15 @@ class BaseRoof(ABC):
             if not self.sun_system and hasattr(self.plotter, 'model_tab'):
                 if hasattr(self.plotter.model_tab, 'enhanced_sun_system'):
                     self.sun_system = self.plotter.model_tab.enhanced_sun_system
-                    print("✅ Found sun system via plotter.model_tab")
             
             # Configure sun system if found
             if self.sun_system:
                 self._configure_sun_system()
                 return True
             else:
-                print("⚠️ No sun system found - shadows may not work")
                 return False
                 
-        except Exception as e:
-            print(f"❌ Error finding sun system: {e}")
+        except Exception:
             self.sun_system = None
             return False
     
@@ -159,8 +433,6 @@ class BaseRoof(ABC):
             if not self.sun_system:
                 return
             
-            print("⚙️ Configuring sun system...")
-            
             # Calculate building center and dimensions
             building_center = self._calculate_building_center()
             building_dims = self._calculate_building_dimensions()
@@ -168,25 +440,18 @@ class BaseRoof(ABC):
             # Set building center for shadow calculations
             if building_center:
                 self.sun_system.set_building_center(building_center)
-                print(f"✅ Set building center: {building_center}")
             
             # Set building dimensions
             if building_dims:
                 width, length, height, roof_height = building_dims
                 self.sun_system.set_building_dimensions(width, length, height, roof_height)
-                print(f"✅ Set building dimensions: {width}x{length}x{height} (roof: {roof_height})")
             
             # Set shadow level to match grass
             if hasattr(self.sun_system, 'shadow_level'):
                 self.sun_system.shadow_level = self.grass_ground_level + 0.01
-                print(f"✅ Set shadow level: {self.sun_system.shadow_level}")
             
-            print("✅ Sun system configured successfully")
-            
-        except Exception as e:
-            print(f"❌ Error configuring sun system: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
+            pass
     
     def _calculate_building_center(self):
         """Calculate building center from roof geometry"""
@@ -210,8 +475,7 @@ class BaseRoof(ABC):
             
             return default_center
             
-        except Exception as e:
-            print(f"⚠️ Error calculating building center: {e}")
+        except Exception:
             return [0, 0, self.base_height / 2]
     
     def _calculate_building_dimensions(self):
@@ -236,8 +500,7 @@ class BaseRoof(ABC):
             
             return default_dims
             
-        except Exception as e:
-            print(f"⚠️ Error calculating building dimensions: {e}")
+        except Exception:
             return (8.0, 10.0, self.base_height, 4.0)
     
     def update_sun_system_after_changes(self):
@@ -245,8 +508,6 @@ class BaseRoof(ABC):
         try:
             if not self.sun_system:
                 return
-            
-            print("🔄 Updating sun system after roof changes...")
             
             building_center = self._calculate_building_center()
             building_dims = self._calculate_building_dimensions()
@@ -258,10 +519,8 @@ class BaseRoof(ABC):
                 width, length, height, roof_height = building_dims
                 self.sun_system.set_building_dimensions(width, length, height, roof_height)
             
-            print("✅ Sun system updated after roof changes")
-            
-        except Exception as e:
-            print(f"❌ Error updating sun system: {e}")
+        except Exception:
+            pass
     
     def _setup_plotter(self, plotter):
         """Setup plotter with validation"""
@@ -269,13 +528,10 @@ class BaseRoof(ABC):
             if hasattr(plotter, 'plotter') and hasattr(plotter.plotter, 'add_mesh'):
                 self.plotter = plotter.plotter
                 self.external_plotter = True
-                print(f"✅ Using QtInteractor.plotter")
             elif hasattr(plotter, 'add_mesh'):
                 self.plotter = plotter
                 self.external_plotter = True
-                print(f"✅ Using PyVista plotter directly")
             else:
-                print(f"⚠️ Unknown plotter type, creating new one")
                 self.plotter = pv.Plotter()
                 self.external_plotter = False
         else:
@@ -287,16 +543,12 @@ class BaseRoof(ABC):
         plotter_valid = True
         for method in required_methods:
             if not hasattr(self.plotter, method):
-                print(f"❌ Plotter missing method: {method}")
                 plotter_valid = False
                 break
         
         if not plotter_valid:
-            print(f"❌ Creating new plotter due to validation failure")
             self.plotter = pv.Plotter()
             self.external_plotter = False
-        
-        print(f"✅ Plotter initialized: {type(self.plotter)}")
     
     def load_texture_safely(self, filename, default_color="#A9A9A9"):
         """Load texture safely - delegate to texture manager"""
@@ -332,12 +584,11 @@ class BaseRoof(ABC):
             kwargs.setdefault('specular', 0.05)
             kwargs.setdefault('specular_power', 2)
         elif 'ground' in mesh_name:
-            # CRITICAL: Ground should NOT cast shadows - only receive them
             kwargs.setdefault('ambient', 0.4)
-            kwargs.setdefault('diffuse', 0.95)  # Very high for shadow contrast
+            kwargs.setdefault('diffuse', 0.95)
             kwargs.setdefault('specular', 0.0)
             kwargs.setdefault('specular_power', 1)
-            kwargs['pickable'] = False  # Not pickable for performance
+            kwargs['pickable'] = False
         else:
             kwargs.setdefault('ambient', 0.25)
             kwargs.setdefault('diffuse', 0.8)
@@ -350,18 +601,14 @@ class BaseRoof(ABC):
         # Register with sun system if available (but NOT ground)
         if self.sun_system and hasattr(self.sun_system, 'register_scene_object'):
             name = kwargs.get('name', 'unnamed')
-            # CRITICAL: Don't register ground plane for shadow casting
             if 'ground' not in name.lower():
                 self.sun_system.register_scene_object(mesh, name, cast_shadow=True)
-                print(f"✅ Registered '{name}' with sun system")
         
         return actor
     
     def create_building_walls(self, base_points, height):
         """Create building walls with textures"""
         try:
-            print(f"🏗️ Creating {len(base_points)} walls with height {height}")
-            
             # Calculate texture scaling
             texture_scale_factor = self.texture_manager.calculate_texture_scale()
             
@@ -421,41 +668,113 @@ class BaseRoof(ABC):
                     self.house_walls.append(wall_actor)
             
             self.base_points = base_points
-            print(f"✅ Created {len(self.house_walls)} walls")
             
-        except Exception as e:
-            print(f"❌ Error creating walls: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
+            pass
     
     # ==================== ENVIRONMENT TAB CONNECTION ====================
     
     def handle_environment_action(self, action_type, parameters):
-        """Main handler for environment actions from EnvironmentTab - routes to environment manager"""
+        """Main handler for environment actions from EnvironmentTab"""
         try:
-            print(f"🎯 BaseRoof handling environment action: {action_type}")
-            
-            # Route all environment actions to the environment manager
-            self.environment_manager.handle_environment_action(action_type, parameters)
-            
-            # Update root level references after action
-            self.environment_obstacles = self.environment_manager.environment_obstacles
-            self.environment_attachment_points = self.environment_manager.environment_attachment_points
-            
-            # Force render after any environment action
-            if hasattr(self.plotter, 'render'):
-                self.plotter.render()
+            # Handle placement preparation actions
+            if action_type == 'prepare_tree_placement':
+                tree_type = parameters.get('tree_type', 'deciduous')
+                self.current_placement_type = f'tree_{tree_type}'
+                self.tree_size_multiplier = parameters.get('size_multiplier', 1.0)
                 
-        except Exception as e:
-            print(f"❌ Error handling environment action {action_type}: {e}")
-            import traceback
-            traceback.print_exc()
+                # Show attachment points if not visible
+                if not self.attachment_points_visible:
+                    self.show_environment_attachment_points()
+                
+                self._update_placement_instruction()
+                return True
+                
+            elif action_type == 'prepare_pole_placement':
+                self.current_placement_type = 'pole'
+                self.pole_height_multiplier = parameters.get('height_multiplier', 1.0)
+                
+                # Show attachment points if not visible
+                if not self.attachment_points_visible:
+                    self.show_environment_attachment_points()
+                
+                self._update_placement_instruction()
+                return True
+            
+            elif action_type == 'toggle_attachment_points':
+                visible = parameters.get('visible', False)
+                if visible:
+                    self.show_environment_attachment_points()
+                else:
+                    self.hide_environment_attachment_points()
+                return True
+            
+            # Handle direct placement actions (for buttons like "Add 5 Trees")
+            elif action_type == 'add_tree':
+                tree_type = parameters.get('tree_type', 'deciduous')
+                position = parameters.get('position', None)
+                
+                # Set tree type
+                if tree_type == 'pine':
+                    self.tree_type_index = 1
+                elif tree_type == 'oak':
+                    self.tree_type_index = 2
+                else:
+                    self.tree_type_index = 0
+                
+                if position:
+                    # Place at specific position
+                    success = self.environment_manager.add_environment_obstacle_at_point('tree', position=position)
+                else:
+                    # Place at random position
+                    success = self.environment_manager.add_environment_obstacle_at_point('tree')
+                
+                if success:
+                    self.environment_obstacles = self.environment_manager.environment_obstacles
+                    if hasattr(self.plotter, 'render'):
+                        self.plotter.render()
+                
+                return success
+                
+            elif action_type == 'add_pole':
+                position = parameters.get('position', None)
+                
+                if position:
+                    # Place at specific position
+                    success = self.environment_manager.add_environment_obstacle_at_point('pole', position=position)
+                else:
+                    # Place at random position
+                    success = self.environment_manager.add_environment_obstacle_at_point('pole')
+                
+                if success:
+                    self.environment_obstacles = self.environment_manager.environment_obstacles
+                    if hasattr(self.plotter, 'render'):
+                        self.plotter.render()
+                
+                return success
+            
+            # Route other actions to environment manager
+            else:
+                self.environment_manager.handle_environment_action(action_type, parameters)
+                
+                # Update root level references after action
+                self.environment_obstacles = self.environment_manager.environment_obstacles
+                self.environment_attachment_points = self.environment_manager.environment_attachment_points
+                
+                # Force render after any environment action
+                if hasattr(self.plotter, 'render'):
+                    self.plotter.render()
+                
+                return True
+                
+        except Exception:
+            return False
     
     # ==================== ENVIRONMENT METHODS ====================
     
     def add_environment_obstacle_at_point(self, obstacle_type, point_index=None):
         """Add environmental obstacle - SINGLE OBJECT ONLY"""
-        result = self.environment_manager.add_environment_obstacle_at_point(obstacle_type, point_index)
+        result = self.environment_manager.add_environment_obstacle_at_point(obstacle_type, point_index=point_index)
         # Update root level references
         self.environment_obstacles = self.environment_manager.environment_obstacles
         return result
@@ -466,7 +785,11 @@ class BaseRoof(ABC):
         # Update root level references
         self.environment_obstacles = self.environment_manager.environment_obstacles
         
-        # CLEAR ENVIRONMENT OBJECTS FROM SUN SYSTEM
+        # Clear placement mode
+        self.current_placement_type = None
+        self._update_placement_instruction()
+        
+        # Clear environment objects from sun system
         if self.sun_system and hasattr(self.sun_system, 'clear_environment_objects'):
             self.sun_system.clear_environment_objects()
             # Force shadow update
@@ -482,6 +805,10 @@ class BaseRoof(ABC):
         """Hide environment attachment points"""
         self.environment_manager.hide_environment_attachment_points()
         self.attachment_points_visible = False
+        
+        # Clear placement mode when hiding points
+        self.current_placement_type = None
+        self._update_placement_instruction()
     
     # ==================== CAMERA METHODS ====================
     
@@ -505,8 +832,6 @@ class BaseRoof(ABC):
     
     def setup_key_bindings(self):
         """Set up key bindings INCLUDING 7, 8, 9 for environment objects"""
-        print(f"🎮 Setting up key bindings...")
-        
         # Roof-specific bindings
         self.setup_roof_specific_key_bindings()
         
@@ -518,7 +843,7 @@ class BaseRoof(ABC):
         self.plotter.add_key_event("s", self.save_roof_screenshot)
         self.plotter.add_key_event("S", self.save_roof_screenshot)
         
-        # NEW: Number keys for environment objects - SINGLE SPAWNS ONLY
+        # Number keys for environment objects
         def add_pine_tree():
             """Key 7: Add ONE pine tree"""
             self.tree_type_index = 1  # Set to pine
@@ -541,15 +866,6 @@ class BaseRoof(ABC):
         # Clear environment
         self.plotter.add_key_event("e", self.clear_environment_obstacles)
         self.plotter.add_key_event("E", self.clear_environment_obstacles)
-        
-        print("✅ Key bindings setup completed")
-        print("   7: Add pine tree")
-        print("   8: Add deciduous tree")
-        print("   9: Add pole")
-        print("   e/E: Clear environment")
-        print("   r/R: Reset camera")
-        print("   o/O: Clear obstacles")
-        print("   s/S: Save screenshot")
     
     def clear_key_bindings(self):
         """Clear all existing key bindings"""
@@ -573,10 +889,8 @@ class BaseRoof(ABC):
                     self.plotter.iren.RemoveObservers('KeyPressEvent')
                     cleared_count += 1
             
-            print(f"✅ Key bindings cleared using {cleared_count} methods")
-            
-        except Exception as e:
-            print(f"⚠️ Error clearing key bindings: {e}")
+        except Exception:
+            pass
     
     # ==================== OBSTACLE MANAGEMENT ====================
     
@@ -614,9 +928,7 @@ class BaseRoof(ABC):
                 
                 return self.add_attachment_points()
                 
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
+        except Exception:
             return False
     
     def clear_obstacles(self):
@@ -742,12 +1054,9 @@ class BaseRoof(ABC):
             handler_class = self.get_solar_panel_handler_class()
             if handler_class:
                 self.solar_panel_handler = handler_class(self)
-                print(f"✅ Solar panel handler initialized")
             else:
-                print(f"⚠️ Solar panel handler class not available")
                 self.solar_panel_handler = None
-        except Exception as e:
-            print(f"❌ Failed to initialize solar panel handler: {e}")
+        except Exception:
             self.solar_panel_handler = None
     
     def safe_add_panels(self, area):
@@ -755,37 +1064,25 @@ class BaseRoof(ABC):
         if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
             try:
                 self.solar_panel_handler.add_panels(area)
-                print(f"✅ Added panels to {area} area")
-            except Exception as e:
-                print(f"❌ Error adding panels to {area}: {e}")
-        else:
-            print(f"⚠️ Cannot add {area} panels - handler not available")
+            except Exception:
+                pass
     
     def safe_clear_panels(self):
         """Safely clear panels"""
         if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
             try:
                 self.solar_panel_handler.clear_panels()
-                print("✅ Panels cleared")
-            except Exception as e:
-                print(f"❌ Error clearing panels: {e}")
-        else:
-            print("⚠️ Cannot clear panels - handler not available")
+            except Exception:
+                pass
     
     def update_panel_config(self, panel_config):
         """Update solar panel configuration"""
         if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
             try:
-                if panel_config:
-                    for key, value in panel_config.items():
-                        print(f"  {key}: {value}")
-                
                 self.solar_panel_handler.clear_panels()
                 result = self.solar_panel_handler.update_panel_config(panel_config)
                 return result
-                            
-            except Exception as e:
-                print(f"Error updating panel configuration: {e}")
+            except Exception:
                 return False
         return False
     
@@ -804,7 +1101,6 @@ class BaseRoof(ABC):
     def update_lighting_for_building_rotation(self, rotation_angle):
         """Update for building rotation"""
         self.building_rotation_angle = rotation_angle
-        print(f"🔄 Building rotation updated to: {rotation_angle}°")
         
         # Update sun system after rotation
         self.update_sun_system_after_changes()
@@ -817,6 +1113,10 @@ class BaseRoof(ABC):
         try:
             self.clear_key_bindings()
             
+            # Clear placement mode
+            self.current_placement_type = None
+            self._update_placement_instruction()
+            
             # Cleanup managers
             self.environment_manager.cleanup()
             self.sun_system_manager.cleanup()
@@ -827,9 +1127,8 @@ class BaseRoof(ABC):
             # Don't cleanup sun system here as it's shared
             self.sun_system = None
             
-            print(f"✅ {self.__class__.__name__} cleanup completed")
-        except Exception as e:
-            print(f"❌ Error during cleanup: {e}")
+        except Exception:
+            pass
     
     def initialize_roof(self, dimensions):
         """Initialize roof with proper sun system integration"""
@@ -846,7 +1145,7 @@ class BaseRoof(ABC):
         # Create roof-specific geometry
         self.create_roof_geometry()
         
-        # IMPORTANT: Update sun system after geometry is created
+        # Update sun system after geometry is created
         self.update_sun_system_after_changes()
         
         # Initialize solar panel handler
@@ -855,16 +1154,14 @@ class BaseRoof(ABC):
         # Setup key bindings
         try:
             self.setup_key_bindings()
-        except Exception as e:
-            print(f"⚠️ Error setting up key bindings: {e}")
+        except Exception:
+            pass
         
         # Set default camera view
         try:
             self.set_default_camera_view()
-        except Exception as e:
-            print(f"⚠️ Could not set camera view: {e}")
-
-        print(f"🏠 {self.__class__.__name__} initialized with environment and shadows")
+        except Exception:
+            pass
     
     # ==================== ABSTRACT METHODS ====================
     @abstractmethod
