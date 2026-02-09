@@ -187,7 +187,7 @@ class HipRoof(BaseRoof):
                     v = (point[1] - bounds[2]) / (bounds[3] - bounds[2]) * 10
                     texture_coords[i] = [u, v]
                 
-                self.roof_mesh.active_t_coords = texture_coords
+                self.roof_mesh.active_texture_coordinates = texture_coords
             
             # Try to load texture
             roof_texture, texture_loaded = self.load_texture_safely(
@@ -276,8 +276,8 @@ class HipRoof(BaseRoof):
                     [3, 1],
                     [0, 1]
                 ])
-            wall_mesh.active_t_coords = np.array(texture_coords)
-            
+            wall_mesh.active_texture_coordinates = np.array(texture_coords)
+
             # Load wall texture
             wall_texture, texture_loaded = self.load_texture_safely(
                 self.brick_texture_path if os.path.exists(resource_path(os.path.join("PVmizer GEO/textures", "brick.jpg"))) else self.wall_texture_path,

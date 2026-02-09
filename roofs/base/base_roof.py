@@ -651,7 +651,7 @@ class BaseRoof(ABC):
                 texture_coords = np.array([
                     [0, 0], [u_scale, 0], [u_scale, v_scale], [0, v_scale]
                 ])
-                wall.active_t_coords = texture_coords
+                wall.active_texture_coordinates = texture_coords
                 
                 # Add wall
                 if wall_loaded:

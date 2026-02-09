@@ -290,7 +290,7 @@ class PyramidRoof(BaseRoof):
             face_mesh.point_data['Normals'] = normals
             
             # Texture coordinates
-            face_mesh.active_t_coords = np.array([[0, 0], [1, 0], [0.5, 1]])
+            face_mesh.active_texture_coordinates = np.array([[0, 0], [1, 0], [0.5, 1]])
             
             # Store in cache
             self.mesh_cache[face_name] = face_mesh
@@ -352,8 +352,8 @@ class PyramidRoof(BaseRoof):
         texture_coords = []
         for i in range(n_walls):
             texture_coords.extend([[0, 0], [3, 0], [3, 1], [0, 1]])
-        wall_mesh.active_t_coords = np.array(texture_coords)
-        
+        wall_mesh.active_texture_coordinates = np.array(texture_coords)
+
         # Load texture and add
         wall_texture, texture_loaded = self.load_texture_safely(
             self.brick_texture_path,
@@ -424,8 +424,8 @@ class PyramidRoof(BaseRoof):
             x_norm = (foundation_verts[i][0] + half_length) / (2 * half_length)
             y_norm = (foundation_verts[i][1] + half_width) / (2 * half_width)
             texture_coords[i] = [x_norm * 2, y_norm * 2]
-        foundation.active_t_coords = texture_coords
-        
+        foundation.active_texture_coordinates = texture_coords
+
         # Load texture and add
         concrete_texture, texture_loaded = self.load_texture_safely(
             self.concrete_texture_path,

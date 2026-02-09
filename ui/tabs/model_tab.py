@@ -405,16 +405,26 @@ class ModelTab(QWidget):
         
         self._update_all_solar_systems()
 
-    def create_building(self, points, height=3.0, roof_type='flat', roof_pitch=30.0, scale=0.05):
-        """Create building in 3D view"""
+    def create_building(self, points, height=3.0, roof_type='flat', roof_pitch=30.0, scale=0.05, dimensions=None):
+        """Create building in 3D view - FIXED with explicit dimensions"""
         try:
+            print(f"🏗️ ModelTab.create_building called")
+            print(f"   Points: {points}")
+            print(f"   Height: {height}m")
+            print(f"   Roof type: {roof_type}")
+            print(f"   Scale: {scale}")
+            print(f"   Explicit dimensions: {dimensions}")
+            
             if not points or len(points) < 3:
+                print(f"❌ Invalid points")
                 return False
             
+            # Clear previous building
             if self.plotter:
                 self._clear_building_actors()
                 self.plotter.set_background('#87CEEB', top='#E6F3FF')
             
+            # Store building data
             building_data = {
                 'points': points,
                 'height': height,
@@ -426,63 +436,176 @@ class ModelTab(QWidget):
             
             self.current_building = building_data
             
-            if self.enhanced_sun_system:
-                xs = []
-                ys = []
-                for point in points:
-                    if hasattr(point, 'x') and hasattr(point, 'y'):
-                        x, y = point.x() * scale, point.y() * scale
-                    else:
-                        x, y = point[0] * scale, point[1] * scale
-                    xs.append(x)
-                    ys.append(y)
-                
-                if xs and ys:
-                    center_x = (min(xs) + max(xs)) / 2
-                    center_y = (min(ys) + max(ys)) / 2
-                    width = max(xs) - min(xs)
-                    length = max(ys) - min(ys)
-                    
-                    self.enhanced_sun_system.set_building_center([center_x, center_y, height/2])
-                    self.enhanced_sun_system.set_building_dimensions(width, length, height, 2.0)
+            # Calculate building dimensions
+            xs = [p[0] for p in points]
+            ys = [p[1] for p in points]
+            building_width = abs(max(xs) - min(xs))
+            building_length = abs(max(ys) - min(ys))
             
-            self._create_roof_object(roof_type, points, height, scale)
+            print(f"📐 Building dimensions: L={building_length}m, W={building_width}m, H={height}m")
+            
+            # Update sun system
+            if self.enhanced_sun_system:
+                center_x = (min(xs) + max(xs)) / 2
+                center_y = (min(ys) + max(ys)) / 2
+                
+                self.enhanced_sun_system.set_building_center([center_x, center_y, height/2])
+                self.enhanced_sun_system.set_building_dimensions(building_width, building_length, height, 2.0)
+                print(f"✅ Sun system updated")
+            
+            # Create roof object - pass explicit dimensions
+            self._create_roof_object(roof_type, points, height, scale, explicit_dimensions=dimensions)
+            
+            # Update solar systems
             self._update_all_solar_systems()
+            
+            # Emit signal
             self.building_generated.emit(building_data)
             
+            # Force plotter update
+            if self.plotter:
+                if hasattr(self.plotter, 'render'):
+                    self.plotter.render()
+                if hasattr(self.plotter, 'update'):
+                    self.plotter.update()
+                print(f"✅ Plotter updated")
+            
+            print(f"✅ Building creation completed")
             return True
             
         except Exception as e:
+            print(f"❌ Error creating building: {e}")
+            import traceback
+            traceback.print_exc()
             return False
+
     
     def _clear_building_actors(self):
-        """Clear building actors"""
+        """Clear building actors - COMPLETE VERSION with roof cleanup"""
         try:
+            print("🧹 Clearing all building actors and roof objects...")
+            
+            # 1. CRITICAL: Cleanup current roof object first
+            if hasattr(self, 'current_roof') and self.current_roof:
+                try:
+                    print(f"🧹 Cleaning up current roof: {type(self.current_roof).__name__}")
+                    
+                    # Call roof's cleanup method if it exists
+                    if hasattr(self.current_roof, 'cleanup'):
+                        self.current_roof.cleanup()
+                        print("✅ Roof cleanup() called")
+                    
+                    # Delete the roof object
+                    del self.current_roof
+                    self.current_roof = None
+                    print("✅ Current roof object deleted")
+                    
+                except Exception as e:
+                    print(f"⚠️ Error cleaning up roof: {e}")
+                    self.current_roof = None
+            
+            # 2. Clear mesh lists
             self.building_meshes.clear()
             self.roof_meshes.clear()
             self.panel_meshes.clear()
+            print("✅ Mesh lists cleared")
             
-            actors_to_remove = ['test_building', 'wall', 'roof', 'foundation', 'building', 'panel']
-            
-            for name in actors_to_remove:
+            # 3. Remove all building-related actors from plotter
+            if self.plotter:
+                actors_to_remove = [
+                    # Building components
+                    'test_building', 'wall', 'roof', 'foundation', 'building',
+                    'building_walls', 'roof_surface', 'parapet_front', 'parapet_back',
+                    'parapet_left', 'parapet_right',
+                    
+                    # Roof components
+                    'roof_mesh', 'roof_surface', 'roof_top', 'roof_bottom',
+                    'roof_front', 'roof_back', 'roof_left', 'roof_right',
+                    
+                    # Solar panels
+                    'panel', 'solar_panel', 'panels',
+                    
+                    # Annotations
+                    'annotation', 'dimension_line', 'dimension_text',
+                    'length_line', 'width_line', 'height_line',
+                    'length_text', 'width_text', 'height_text',
+                    
+                    # Environment objects
+                    'attachment_points', 'environment_object',
+                    
+                    # Other components
+                    'ground', 'shadow'
+                ]
+                
+                removed_count = 0
+                for name in actors_to_remove:
+                    try:
+                        self.plotter.remove_actor(name)
+                        removed_count += 1
+                    except:
+                        pass
+                
+                print(f"✅ Attempted to remove {len(actors_to_remove)} actor types, removed {removed_count}")
+                
+                # 4. CRITICAL: Remove ALL actors that might be from the roof
+                # This catches any actors with dynamic names
                 try:
-                    self.plotter.remove_actor(name)
-                except:
-                    pass
+                    all_actors = list(self.plotter.renderer.actors.values())
+                    for actor in all_actors:
+                        # Skip the ground plane and sun-related actors
+                        actor_name = getattr(actor, 'name', '')
+                        if actor_name and actor_name not in ['main_ground_plane', 'sun', 'sun_light', 'sky']:
+                            try:
+                                self.plotter.remove_actor(actor)
+                            except:
+                                pass
+                    print(f"✅ Removed all building-related actors")
+                except Exception as e:
+                    print(f"⚠️ Error removing all actors: {e}")
+                
+                # 5. Force plotter update
+                if hasattr(self.plotter, 'render'):
+                    self.plotter.render()
+                if hasattr(self.plotter, 'update'):
+                    self.plotter.update()
+                
+                print("✅ Plotter updated after cleanup")
+            
+            # 6. Clear building data
+            self.current_building = None
+            
+            print("✅ All building actors cleared successfully")
             
         except Exception as e:
-            pass
+            print(f"❌ Error in _clear_building_actors: {e}")
+            import traceback
+            traceback.print_exc()
 
-    def _create_roof_object(self, roof_type, points, height, scale):
-        """Create roof object with environment support"""
+
+    def _create_roof_object(self, roof_type, points, height, scale, explicit_dimensions=None):
+        """Create roof object with environment support - FIXED dimension calculation"""
         try:
-            base_points = []
-            for point in points:
-                if hasattr(point, 'x') and hasattr(point, 'y'):
-                    x, y = point.x() * scale, point.y() * scale
-                else:
-                    x, y = point[0] * scale, point[1] * scale
-                base_points.append([x, y, 0])
+            print(f"🔧 Creating {roof_type} roof object...")
+            
+            # Use explicit dimensions if provided, otherwise calculate from points
+            if explicit_dimensions:
+                length = explicit_dimensions.get('length', 10.0)
+                width = explicit_dimensions.get('width', 8.0)
+                print(f"📐 Using explicit dimensions: L={length}m, W={width}m")
+            elif len(points) >= 4:
+                # Extract X and Y coordinates
+                xs = [p[0] for p in points]
+                ys = [p[1] for p in points]
+                
+                # Calculate actual dimensions
+                length = abs(max(ys) - min(ys))
+                width = abs(max(xs) - min(xs))
+                
+                print(f"📐 Calculated dimensions from points: L={length}m, W={width}m")
+            else:
+                length = 10.0
+                width = 8.0
+                print(f"⚠️ Using default dimensions: L={length}m, W={width}m")
             
             # Cleanup previous roof
             if hasattr(self, 'current_roof') and self.current_roof:
@@ -490,26 +613,31 @@ class ModelTab(QWidget):
                     if hasattr(self.current_roof, 'cleanup'):
                         self.current_roof.cleanup()
                     del self.current_roof
+                    print(f"✅ Previous roof cleaned up")
                 except:
                     pass
+            
+            # Map hip to pyramid if needed
+            if roof_type == 'hip':
+                print(f"⚠️ Hip roof mapped to pyramid")
+                roof_type = 'pyramid'
             
             # Create new roof based on type
             if roof_type == 'pyramid':
                 from roofs.concrete.pyramid_roof import PyramidRoof
+                dimensions = (length, width, height)
+                
                 self.current_roof = PyramidRoof(
                     plotter=self.plotter,
-                    base_points=base_points[:4],
-                    apex_height=height,
-                    building_height=0
+                    dimensions=dimensions,
+                    theme="light",
+                    rotation_angle=0
                 )
+                print(f"✅ PyramidRoof created with dimensions: {dimensions}")
+                
             elif roof_type == 'gable':
                 from roofs.concrete.gable_roof import GableRoof
-                if len(base_points) >= 4:
-                    length = abs(base_points[1][1] - base_points[0][1])
-                    width = abs(base_points[2][0] - base_points[1][0])
-                    dimensions = (length, width, height)
-                else:
-                    dimensions = (10.0, 8.0, height)
+                dimensions = (length, width, height)
                 
                 self.current_roof = GableRoof(
                     plotter=self.plotter,
@@ -517,46 +645,40 @@ class ModelTab(QWidget):
                     theme="light",
                     rotation_angle=0
                 )
+                print(f"✅ GableRoof created with dimensions: {dimensions}")
+                
             elif roof_type == 'flat':
                 from roofs.concrete.flat_roof import FlatRoof
-                roof_points = []
-                for point in points:
-                    if hasattr(point, 'x') and hasattr(point, 'y'):
-                        x, y = point.x() * scale, point.y() * scale
-                    else:
-                        x, y = point[0] * scale, point[1] * scale
-                    roof_points.append([x, y, height])
+                # Flat roof needs (length, width, parapet_height, parapet_width)
+                dimensions = (length, width, 0.5, 0.3)
                 
                 self.current_roof = FlatRoof(
                     plotter=self.plotter,
-                    base_points=roof_points,
-                    building_height=height
+                    dimensions=dimensions,
+                    theme="light"
                 )
-            else:
-                self.current_roof = None
-            
-            # Reconnect environment tab to new roof
-            if self.current_roof:
-                # Initialize the roof if it has the method
-                if hasattr(self.current_roof, 'initialize_roof'):
-                    if hasattr(self.current_roof, 'dimensions'):
-                        self.current_roof.initialize_roof(self.current_roof.dimensions)
-                    else:
-                        # Try to create dimensions from points
-                        if len(base_points) >= 4:
-                            length = abs(base_points[1][1] - base_points[0][1])
-                            width = abs(base_points[2][0] - base_points[1][0])
-                            dimensions = (length, width, height)
-                            self.current_roof.initialize_roof(dimensions)
+                print(f"✅ FlatRoof created with dimensions: {dimensions}")
                 
-                # Reconnect environment tab if it exists
+            else:
+                print(f"❌ Unknown roof type: {roof_type}")
+                self.current_roof = None
+                return
+            
+            # Reconnect environment tab if it exists
+            if self.current_roof:
                 if hasattr(self, 'environment_tab') and self.environment_tab:
                     self._reconnect_environment_tab()
-            
-            self.roof_generated.emit(self.current_roof)
                 
+                # Emit signal
+                self.roof_generated.emit(self.current_roof)
+                print(f"✅ Roof object created and signal emitted")
+            
         except Exception as e:
+            print(f"❌ Error creating roof object: {e}")
+            import traceback
+            traceback.print_exc()
             self.current_roof = None
+
 
     def connect_environment_tab(self, environment_tab):
         """Connect environment tab to current roof"""

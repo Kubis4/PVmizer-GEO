@@ -121,7 +121,7 @@ class EnvironmentManager:
                 v = (point[1] + ground_size/2) / ground_size * texture_scale
                 texture_coords[i] = [u, v]
             
-            self.ground_mesh.active_t_coords = texture_coords
+            self.ground_mesh.active_texture_coordinates = texture_coords
             
             # Load texture
             if hasattr(self.roof, 'texture_manager'):
@@ -871,7 +871,7 @@ class EnvironmentManager:
                     texture_coords = self.roof.texture_manager.generate_sphere_texture_coordinates(
                         crown, (x, y, crown_height), crown_radius
                     )
-                    crown.active_t_coords = texture_coords
+                    crown.active_texture_coordinates = texture_coords
                 
                 crown.compute_normals(inplace=True, auto_orient_normals=True)
                 

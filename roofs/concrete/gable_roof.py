@@ -293,8 +293,8 @@ class GableRoof(BaseRoof):
         
         # Texture coordinates
         simple_tcoords = np.array([[0, 0], [3, 0], [3, 2], [0, 2]])
-        self.left_slope.active_t_coords = simple_tcoords
-        self.right_slope.active_t_coords = simple_tcoords
+        self.left_slope.active_texture_coordinates = simple_tcoords
+        self.right_slope.active_texture_coordinates = simple_tcoords
         
         # Load texture
         roof_texture, texture_loaded = self.load_texture_safely(
@@ -387,8 +387,8 @@ class GableRoof(BaseRoof):
             for _ in range(4):
                 texture_coords.extend([[0, 0], [0, 1], [1, 1], [1, 0]])
             
-            wall_mesh.active_t_coords = np.array(texture_coords)
-            
+            wall_mesh.active_texture_coordinates = np.array(texture_coords)
+
             wall_texture, texture_loaded = self.load_texture_safely(
                 self.brick_texture_path,
                 self.wall_color
@@ -436,8 +436,8 @@ class GableRoof(BaseRoof):
             self.mesh_cache['back_gable'] = back_gable
             
             triangle_tcoords = np.array([[0, 0], [1, 0], [0.5, 1]])
-            front_gable.active_t_coords = triangle_tcoords
-            back_gable.active_t_coords = triangle_tcoords
+            front_gable.active_texture_coordinates = triangle_tcoords
+            back_gable.active_texture_coordinates = triangle_tcoords
             
             wall_texture, texture_loaded = self.load_texture_safely(
                 self.wall_texture_path,
@@ -518,8 +518,8 @@ class GableRoof(BaseRoof):
                 y_norm = (foundation_verts[i][1] + half_length) / (2 * half_length)
                 texture_coords[i] = [x_norm * 2, y_norm * 2]
             
-            foundation.active_t_coords = texture_coords
-            
+            foundation.active_texture_coordinates = texture_coords
+
             self.mesh_cache['foundation'] = foundation
             
             # Load texture and add

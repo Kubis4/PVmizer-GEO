@@ -57,8 +57,6 @@ def suppress_vtk_errors():
 suppress_vtk_errors()
 
 import traceback
-import sys
-import os
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                               QTabWidget, QMessageBox, QApplication, QSlider,
                               QDoubleSpinBox, QComboBox, QSpinBox, QLabel)
@@ -67,9 +65,9 @@ from PyQt5.QtGui import QPixmap, QPainter, QPen
 
 # Core imports
 from core import (WindowManager, ComponentManager, SignalManager, 
-                 TabManager, BuildingManager, CanvasManager, 
-                 DebugManager, EventManager, InitializationManager,
+                 TabManager, BuildingManager, EventManager, InitializationManager,
                  RoofGenerationManager)
+
 # UI imports with fallbacks
 try:
     from core.configuration_manager import ConfigurationManager
@@ -100,7 +98,7 @@ class MainWindow(QMainWindow):
     - Enhanced maintainability
     - Comprehensive debugging
     - Complete workflow state management
-    - Roof generation from maps tab
+    - Roof generation from default tab
     """
     
     # Signals for external communication
@@ -122,6 +120,13 @@ class MainWindow(QMainWindow):
         self._debug_mode = True
         self._last_error = None
         self.angle_snap_enabled = True
+        
+        # Initialize tab references (will be set by ComponentManager)
+        self.default_tab = None
+        self.model_tab = None
+        self.maps_tab = None
+        self.left_panel = None
+        self.content_tabs = None
         
         # Initialize measurements
         self.current_measurements = {
@@ -180,8 +185,6 @@ class MainWindow(QMainWindow):
             self.signal_manager = SignalManager(self)
             self.tab_manager = TabManager(self)
             self.building_manager = BuildingManager(self)
-            self.canvas_manager = CanvasManager(self)
-            self.debug_manager = DebugManager(self)
             self.event_manager = EventManager(self)
             self.initialization_manager = InitializationManager(self)
             
@@ -190,8 +193,9 @@ class MainWindow(QMainWindow):
             
             # Connect roof generation signals
             if hasattr(self.roof_generation_manager, 'roof_generated'):
-                # CHANGED: Use handle_building_generated instead of handle_roof_generated
-                self.roof_generation_manager.roof_generated.connect(self.event_manager.handle_building_generated)
+                self.roof_generation_manager.roof_generated.connect(
+                    self.event_manager.handle_building_generated
+                )
                 print("✅ Connected roof_generated signal")
             
             print("✅ All modular managers initialized")
@@ -227,8 +231,6 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(300, self._post_initialization)
         
         # Debug checks
-        QTimer.singleShot(500, self.debug_manager.debug_component_status)
-        QTimer.singleShot(1000, self.debug_manager.debug_signal_connections)
         QTimer.singleShot(2000, self.tab_manager.debug_tab_switching)
     
     def _setup_ui(self):
@@ -254,7 +256,7 @@ class MainWindow(QMainWindow):
             # Initialize building generator
             self.building_manager.initialize_building_generator()
             
-            # Create UI components
+            # Create UI components (this creates tabs and sets references)
             self.component_manager.create_ui_components()
             
             # Setup layout
@@ -268,7 +270,7 @@ class MainWindow(QMainWindow):
                 self.component_manager.create_fallback_ui(main_layout)
                 print("⚠️ Using fallback UI")
             
-            # Setup integration
+            # Setup integration (this connects tabs)
             self.component_manager.setup_integration()
             
             # Connect signals
@@ -321,23 +323,35 @@ class MainWindow(QMainWindow):
     
     def handle_flat_roof_button(self):
         """Handle flat roof button click"""
-        print("🏠 Flat roof button clicked")
-        self.tab_manager.handle_roof_button_click('flat')
+        print("🏠 Flat roof button clicked in MainWindow")
+        if self.tab_manager:
+            self.tab_manager.handle_roof_button_click('flat')
+        else:
+            print("❌ TabManager not available")
     
     def handle_gable_roof_button(self):
         """Handle gable roof button click"""
-        print("🏠 Gable roof button clicked")
-        self.tab_manager.handle_roof_button_click('gable')
+        print("🏠 Gable roof button clicked in MainWindow")
+        if self.tab_manager:
+            self.tab_manager.handle_roof_button_click('gable')
+        else:
+            print("❌ TabManager not available")
     
     def handle_hip_roof_button(self):
         """Handle hip roof button click"""
-        print("🏠 Hip roof button clicked")
-        self.tab_manager.handle_roof_button_click('hip')
+        print("🏠 Hip roof button clicked in MainWindow")
+        if self.tab_manager:
+            self.tab_manager.handle_roof_button_click('hip')
+        else:
+            print("❌ TabManager not available")
     
     def handle_pyramid_roof_button(self):
         """Handle pyramid roof button click"""
-        print("🏠 Pyramid roof button clicked")
-        self.tab_manager.handle_roof_button_click('pyramid')
+        print("🏠 Pyramid roof button clicked in MainWindow")
+        if self.tab_manager:
+            self.tab_manager.handle_roof_button_click('pyramid')
+        else:
+            print("❌ TabManager not available")
     
     # ==========================================
     # DELEGATION METHODS - Route to appropriate managers
@@ -345,27 +359,36 @@ class MainWindow(QMainWindow):
     
     def _handle_snip_request(self):
         """Handle snip screenshot request"""
-        self.event_manager.handle_snip_request()
+        if self.event_manager:
+            self.event_manager.handle_snip_request()
     
     def _on_snip_completed(self, pixmap):
         """Handle snip completion"""
-        self.event_manager.handle_snip_completed(pixmap)
+        if self.event_manager:
+            self.event_manager.handle_snip_completed(pixmap)
     
     def _handle_generate_building_from_drawing_tab(self):
         """Handle generate building request from DrawingTabPanel"""
-        self.event_manager.handle_generate_building_from_drawing_tab()
+        if self.event_manager:
+            self.event_manager.handle_generate_building_from_drawing_tab()
     
     def _generate_building_with_settings(self, points, settings):
         """Generate building with given points and settings"""
-        return self.building_manager.generate_building_with_settings(points, settings)
+        if self.building_manager:
+            return self.building_manager.generate_building_with_settings(points, settings)
+        return False
     
     def _force_switch_to_model_tab(self):
         """Force switch to model tab"""
-        return self.tab_manager.force_switch_to_model_tab()
+        if self.tab_manager:
+            return self.tab_manager.force_switch_to_model_tab()
+        return False
     
     def _switch_to_drawing_tab_with_debug(self):
         """Switch to drawing tab with debugging"""
-        return self.tab_manager.switch_to_drawing_tab_with_debug()
+        if self.tab_manager:
+            return self.tab_manager.switch_to_drawing_tab_with_debug()
+        return False
     
     # ==========================================
     # SIMPLE DELEGATION METHODS
@@ -373,19 +396,23 @@ class MainWindow(QMainWindow):
     
     def _handle_search_location(self, location):
         """Handle search location request"""
-        self.event_manager.handle_search_location(location)
+        if self.event_manager:
+            self.event_manager.handle_search_location(location)
     
     def _handle_undo_request(self):
         """Handle undo request"""
-        self.event_manager.handle_undo_request()
+        if self.event_manager:
+            self.event_manager.handle_undo_request()
     
     def _handle_clear_request(self):
         """Handle clear drawing request"""
-        self.event_manager.handle_clear_request()
+        if self.event_manager:
+            self.event_manager.handle_clear_request()
     
     def _handle_scale_change(self, scale):
         """Handle scale change"""
         self._current_scale = scale
+        print(f"🔧 Scale changed to: {scale}")
         
     def _handle_angle_snap_toggle(self, enabled):
         """Handle angle snap toggle"""
@@ -394,7 +421,8 @@ class MainWindow(QMainWindow):
     
     def _handle_generate_building(self):
         """Handle generate building request"""
-        self.event_manager.handle_generate_building()
+        if self.event_manager:
+            self.event_manager.handle_generate_building()
     
     # ==========================================
     # UTILITY METHODS - Keep simple ones here
@@ -402,15 +430,21 @@ class MainWindow(QMainWindow):
     
     def get_drawing_points(self):
         """Get current drawing points"""
-        return self.canvas_manager.get_drawing_points()
+        if hasattr(self, 'canvas_manager') and self.canvas_manager:
+            return self.canvas_manager.get_drawing_points()
+        return []
     
     def get_building_settings(self):
         """Get current building settings"""
-        return self.canvas_manager.get_building_settings()
+        if hasattr(self, 'canvas_manager') and self.canvas_manager:
+            return self.canvas_manager.get_building_settings()
+        return {}
     
     def switch_to_model_tab(self):
         """Switch to 3D model tab"""
-        return self.tab_manager.force_switch_to_model_tab()
+        if self.tab_manager:
+            return self.tab_manager.force_switch_to_model_tab()
+        return False
     
     # ==========================================
     # EVENT HANDLERS - Keep minimal
@@ -418,15 +452,18 @@ class MainWindow(QMainWindow):
     
     def _on_building_generated(self, building_data=None):
         """Handle building generated signal"""
-        self.event_manager.handle_building_generated(building_data)
+        if self.event_manager:
+            self.event_manager.handle_building_generated(building_data)
     
     def _on_solar_time_changed(self, hour):
         """Handle solar time changed signal"""
-        self.event_manager.handle_solar_time_changed(hour)
+        if self.event_manager:
+            self.event_manager.handle_solar_time_changed(hour)
     
     def _on_screenshot_captured(self, *args):
         """Handle screenshot captured"""
-        self.event_manager.handle_screenshot_captured(*args)
+        if self.event_manager:
+            self.event_manager.handle_screenshot_captured(*args)
     
     # ==========================================
     # LIFECYCLE METHODS
@@ -434,11 +471,32 @@ class MainWindow(QMainWindow):
     
     def _post_initialization(self):
         """Post-initialization tasks"""
-        self.initialization_manager.post_initialization()
+        try:
+            print("🔧 Running post-initialization...")
+            
+            # Call initialization manager
+            if self.initialization_manager:
+                self.initialization_manager.post_initialization()
+            
+            # CRITICAL: Initialize tab references after all tabs are created
+            if self.tab_manager:
+                print("🔧 Initializing tab references in TabManager...")
+                self.tab_manager.initialize_tab_references()
+            
+            # Mark as complete
+            self._initialization_complete = True
+            self.initialization_completed.emit()
+            
+            print("✅ Post-initialization completed")
+            
+        except Exception as e:
+            print(f"❌ Post-initialization failed: {e}")
+            traceback.print_exc()
     
     def _apply_auto_switch_blocking(self):
         """Apply auto-switch blocking"""
-        self.initialization_manager.apply_auto_switch_blocking()
+        if self.initialization_manager:
+            self.initialization_manager.apply_auto_switch_blocking()
     
     def _check_drawing_completion(self):
         """Check if drawing is complete"""
@@ -449,12 +507,18 @@ class MainWindow(QMainWindow):
         try:
             print("🔧 Closing application...")
             
+            # Stop timers
+            if hasattr(self, 'check_timer') and self.check_timer:
+                self.check_timer.stop()
+            
             # Cleanup through component manager
-            self.component_manager.cleanup_components()
+            if self.component_manager:
+                self.component_manager.cleanup_components()
             
             event.accept()
             print("✅ Application closed successfully")
             
         except Exception as e:
             print(f"❌ Close event failed: {e}")
+            traceback.print_exc()
             event.accept()

@@ -1,47 +1,46 @@
 #!/usr/bin/env python3
 """
-Content Tab Widget - Enhanced with workflow restrictions + DEBUGGING + RACE CONDITION FIXES
+Content Tab Widget - Default, Model, and Overview Tabs with Full Integration
 """
 from PyQt5.QtWidgets import QTabWidget, QWidget, QVBoxLayout, QLabel, QMessageBox, QApplication
 from PyQt5.QtCore import pyqtSignal, Qt, QTimer
 from PyQt5.QtGui import QPixmap
 import time
-import pyvista as pv
-from .maps_tab import MapsTab
-from .drawing_tab import DrawingTab
+import numpy as np
+from datetime import datetime
+
+try:
+    import pyvista as pv
+    PYVISTA_AVAILABLE = True
+except ImportError:
+    PYVISTA_AVAILABLE = False
+
 from .model_tab import ModelTab
+from .default_tab import DefaultTab
+from .overview_tab import OverviewTab
 
 from utils.pyvista_integration import PyVistaIntegration
 from utils.solar_event_handlers import SolarEventHandlers
-from utils.snipping_manager import SnippingManager
 from utils.tab_utilities import TabUtilities
 
+
 class ContentTabWidget(QTabWidget):
-    """Content Tab Widget with workflow-based tab restrictions + ENHANCED DEBUGGING + RACE CONDITION FIXES"""
+    """Content Tab Widget - Default, Model, and Overview Tabs with Full Integration"""
     
-    snip_completed = pyqtSignal(object)
+    # Signals
     building_generated = pyqtSignal(object)
     sun_position_changed = pyqtSignal(float, float)
+    roof_selected = pyqtSignal(str, dict)  # roof_type, dimensions
     
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
         
         # Workflow state tracking
-        self.screenshot_taken = False
-        self.drawing_completed = False
         self.building_created = False
-        
-        # Store the last valid tab index
-        self.last_valid_tab = 0
         
         # Debug mode
         self.debug_mode = True
-        
-        # Auto-check timer for drawing completion
-        self.drawing_check_timer = QTimer()
-        self.drawing_check_timer.timeout.connect(self._auto_check_drawing_completion)
-        self.drawing_check_timer.start(1000)  # Check every second
         
         # Initialize utility components
         self._initialize_utilities()
@@ -52,11 +51,8 @@ class ContentTabWidget(QTabWidget):
         # Connect signals
         self._connect_signals()
         
-        # Setup tab change handling with restrictions
-        self._setup_tab_restrictions()
-        
-        # Update initial tab states
-        self._update_tab_accessibility()
+        # Setup tab change handling
+        self.currentChanged.connect(self._on_tab_changed)
         
         # Schedule debugging
         if self.debug_mode:
@@ -83,15 +79,6 @@ class ContentTabWidget(QTabWidget):
                 print(f"❌ SolarEventHandlers failed: {e}")
             
         try:
-            self.snipping_manager = SnippingManager(self)
-            if self.debug_mode:
-                print("✅ SnippingManager initialized")
-        except Exception as e:
-            self.snipping_manager = None
-            if self.debug_mode:
-                print(f"❌ SnippingManager failed: {e}")
-            
-        try:
             self.tab_utilities = TabUtilities(self)
             if self.debug_mode:
                 print("✅ TabUtilities initialized")
@@ -101,97 +88,46 @@ class ContentTabWidget(QTabWidget):
                 print(f"❌ TabUtilities failed: {e}")
     
     def _create_tabs(self):
-        """Create all tabs using separate classes"""
-        # Maps Tab
-        self.maps_tab = MapsTab(self.main_window)
-        self.addTab(self.maps_tab, "🗺️ Google Maps")
+        """Create Default, Model, and Overview tabs"""
+        # Tab 0: Default Tab (formerly Maps)
+        self.default_tab = DefaultTab(self.main_window)
+        self.addTab(self.default_tab, "🏠 Default")
         if self.debug_mode:
-            print("✅ Maps tab created")
+            print("✅ Default tab created (Tab 0)")
         
-        # Drawing Tab
-        self.drawing_tab = DrawingTab(self.main_window)
-        self.addTab(self.drawing_tab, "✏️ Drawing")
-        if self.debug_mode:
-            print("✅ Drawing tab created")
-        
-        # Model Tab
+        # Tab 1: Model Tab
         self.model_tab = ModelTab(self.main_window)
-        self.addTab(self.model_tab, "🏗️ 3D Model")
+        self.addTab(self.model_tab, "🏗️ Model")
         if self.debug_mode:
-            print("✅ Model tab created")
-    
-    def _setup_tab_restrictions(self):
-        """Setup tab access restrictions"""
-        # Connect to tab bar clicked to intercept tab changes
-        self.tabBar().tabBarClicked.connect(self._on_tab_clicked)
+            print("✅ Model tab created (Tab 1)")
         
-        # Connect to current changed for valid changes
-        self.currentChanged.connect(self._on_tab_changed)
+        # Tab 2: Overview Tab (Future feature)
+        self.overview_tab = OverviewTab(self.main_window)
+        self.addTab(self.overview_tab, "📊 Overview")
+        if self.debug_mode:
+            print("✅ Overview tab created (Tab 2)")
     
     def _connect_signals(self):
-        """Connect signals between tabs and main widget - ENHANCED"""
+        """Connect signals from all tabs"""
         signal_count = 0
         
-        # Maps tab signals
-        if self.maps_tab:
+        # Default tab signals
+        if self.default_tab:
             try:
-                self.maps_tab.maps_loaded.connect(self._on_maps_loaded)
-                signal_count += 1
-                self.maps_tab.maps_error.connect(self._on_maps_error)
-                signal_count += 1
+                if hasattr(self.default_tab, 'data_loaded'):
+                    self.default_tab.data_loaded.connect(self._on_default_data_loaded)
+                    signal_count += 1
+                if hasattr(self.default_tab, 'data_error'):
+                    self.default_tab.data_error.connect(self._on_default_error)
+                    signal_count += 1
+                if hasattr(self.default_tab, 'roof_selected'):
+                    self.default_tab.roof_selected.connect(self._on_roof_selected)
+                    signal_count += 1
                 if self.debug_mode:
-                    print("✅ Maps tab signals connected")
+                    print("✅ Default tab signals connected")
             except Exception as e:
                 if self.debug_mode:
-                    print(f"❌ Maps tab signals failed: {e}")
-        
-        # Drawing tab signals - ENHANCED WITH DEBUGGING
-        if self.drawing_tab:
-            try:
-                # Check what signals are available
-                available_signals = [attr for attr in dir(self.drawing_tab) 
-                                   if attr.endswith('_ready') or attr.endswith('_completed') or attr.endswith('_error')]
-                if self.debug_mode:
-                    print(f"🔍 Drawing tab available signals: {available_signals}")
-                
-                # Connect standard signals
-                if hasattr(self.drawing_tab, 'canvas_ready'):
-                    self.drawing_tab.canvas_ready.connect(self._on_canvas_ready)
-                    signal_count += 1
-                    if self.debug_mode:
-                        print("✅ Connected drawing_tab.canvas_ready")
-                
-                if hasattr(self.drawing_tab, 'canvas_error'):
-                    self.drawing_tab.canvas_error.connect(self._on_canvas_error)
-                    signal_count += 1
-                    if self.debug_mode:
-                        print("✅ Connected drawing_tab.canvas_error")
-                
-                if hasattr(self.drawing_tab, 'drawing_completed'):
-                    self.drawing_tab.drawing_completed.connect(self._on_drawing_completed)
-                    signal_count += 1
-                    if self.debug_mode:
-                        print("✅ Connected drawing_tab.drawing_completed")
-                else:
-                    if self.debug_mode:
-                        print("⚠️ drawing_tab.drawing_completed signal NOT FOUND")
-                
-                # Try to connect additional signals that might indicate completion
-                for signal_name in ['polygon_completed', 'boundary_completed', 'points_completed']:
-                    if hasattr(self.drawing_tab, signal_name):
-                        try:
-                            signal = getattr(self.drawing_tab, signal_name)
-                            signal.connect(self._on_drawing_completed_alternate)
-                            signal_count += 1
-                            if self.debug_mode:
-                                print(f"✅ Connected alternate signal: {signal_name}")
-                        except Exception as e:
-                            if self.debug_mode:
-                                print(f"❌ Failed to connect {signal_name}: {e}")
-                
-            except Exception as e:
-                if self.debug_mode:
-                    print(f"❌ Drawing tab signals failed: {e}")
+                    print(f"❌ Default tab signals failed: {e}")
         
         # Model tab signals
         if self.model_tab:
@@ -205,448 +141,69 @@ class ContentTabWidget(QTabWidget):
                 if hasattr(self.model_tab, 'view_changed'):
                     self.model_tab.view_changed.connect(self._on_view_changed)
                     signal_count += 1
+                if hasattr(self.model_tab, 'roof_generated'):
+                    self.model_tab.roof_generated.connect(self._on_roof_generated)
+                    signal_count += 1
                 if self.debug_mode:
                     print("✅ Model tab signals connected")
             except Exception as e:
                 if self.debug_mode:
                     print(f"❌ Model tab signals failed: {e}")
         
+        # Overview tab signals
+        if self.overview_tab:
+            try:
+                if hasattr(self.overview_tab, 'analysis_requested'):
+                    self.overview_tab.analysis_requested.connect(self._on_analysis_requested)
+                    signal_count += 1
+                if hasattr(self.overview_tab, 'export_requested'):
+                    self.overview_tab.export_requested.connect(self._on_export_requested)
+                    signal_count += 1
+                if self.debug_mode:
+                    print("✅ Overview tab signals connected")
+            except Exception as e:
+                if self.debug_mode:
+                    print(f"❌ Overview tab signals failed: {e}")
+        
         if self.debug_mode:
             print(f"📊 Total signals connected: {signal_count}")
     
-    def _refresh_drawing_completion_state(self):
-        """Refresh drawing completion state by checking current drawing status - ENHANCED DETECTION"""
-        try:
-            if not self.drawing_completed and self.drawing_tab:
-                # Force check current drawing state
-                points = self.get_drawing_points()
-                
-                if self.debug_mode:
-                    print(f"🔄 Refreshing drawing state: {len(points) if points else 0} points")
-                
-                # Method 1: Check point count and basic completion
-                if points and len(points) >= 3:
-                    if self.debug_mode:
-                        print(f"🔄 Found {len(points)} points, checking closure...")
-                    
-                    # Check if polygon is complete by closure
-                    is_closed = self._is_polygon_closed(points)
-                    if self.debug_mode:
-                        print(f"🔄 Polygon closed: {is_closed}")
-                    
-                    # For now, consider any polygon with 3+ points as complete
-                    # You can tighten this later by requiring closure
-                    if len(points) >= 3:  # Accept any polygon with 3+ points
-                        if self.debug_mode:
-                            print(f"🔄 ✅ FORCING completion for {len(points)} points")
-                        self.drawing_completed = True
-                        self._update_tab_accessibility()
-                        # Stop auto-check timer
-                        if self.drawing_check_timer.isActive():
-                            self.drawing_check_timer.stop()
-                        
-                        # Show status message
-                        if hasattr(self.main_window, 'statusBar'):
-                            self.main_window.statusBar().showMessage(
-                                f"✅ Drawing completed with {len(points)} points! Model tab unlocked.", 3000
-                            )
-                        return
-                
-                # Method 2: Check if drawing tab reports completion
-                if hasattr(self.drawing_tab, 'is_polygon_complete'):
-                    try:
-                        if self.drawing_tab.is_polygon_complete():
-                            if self.debug_mode:
-                                print("🔄 Found completion via is_polygon_complete()")
-                            self.drawing_completed = True
-                            self._update_tab_accessibility()
-                            # Stop auto-check timer
-                            if self.drawing_check_timer.isActive():
-                                self.drawing_check_timer.stop()
-                            return
-                    except Exception as e:
-                        if self.debug_mode:
-                            print(f"🔄 is_polygon_complete() failed: {e}")
-                
-                # Method 3: Check completion attributes
-                completion_attrs = ['is_complete', 'polygon_complete', 'drawing_finished']
-                for attr in completion_attrs:
-                    if hasattr(self.drawing_tab, attr):
-                        try:
-                            if getattr(self.drawing_tab, attr):
-                                if self.debug_mode:
-                                    print(f"🔄 Found completion via {attr}")
-                                self.drawing_completed = True
-                                self._update_tab_accessibility()
-                                # Stop auto-check timer
-                                if self.drawing_check_timer.isActive():
-                                    self.drawing_check_timer.stop()
-                                return
-                        except Exception as e:
-                            if self.debug_mode:
-                                print(f"🔄 {attr} check failed: {e}")
-                            
-        except Exception as e:
-            if self.debug_mode:
-                print(f"❌ Error refreshing drawing state: {e}")
-
-                                    
-    def _auto_check_drawing_completion(self):
-        """Auto-check if drawing is completed - FALLBACK MECHANISM"""
-        try:
-            if not self.drawing_completed and self.drawing_tab:
-                # Method 1: Check if drawing tab has points
-                points = self.get_drawing_points()
-                if points and len(points) >= 3:
-                    # Check if it's a closed polygon
-                    if self._is_polygon_closed(points):
-                        if self.debug_mode:
-                            print(f"🔍 Auto-detected completed polygon with {len(points)} points")
-                        self._force_drawing_completion(points)
-                        return
-                
-                # Method 2: Check if drawing tab has completion status
-                if hasattr(self.drawing_tab, 'is_polygon_complete'):
-                    try:
-                        if self.drawing_tab.is_polygon_complete():
-                            if self.debug_mode:
-                                print("🔍 Auto-detected polygon completion via is_polygon_complete()")
-                            self._force_drawing_completion(points or [])
-                            return
-                    except:
-                        pass
-                
-                # Method 3: Check for specific completion attributes
-                completion_attrs = ['is_complete', 'polygon_complete', 'drawing_finished']
-                for attr in completion_attrs:
-                    if hasattr(self.drawing_tab, attr):
-                        try:
-                            if getattr(self.drawing_tab, attr):
-                                if self.debug_mode:
-                                    print(f"🔍 Auto-detected completion via {attr}")
-                                self._force_drawing_completion(points or [])
-                                return
-                        except:
-                            pass
-                            
-        except Exception as e:
-            if self.debug_mode:
-                print(f"❌ Auto-check drawing completion failed: {e}")
-    
-    def _is_polygon_closed(self, points):
-        """Check if polygon is closed (first and last points are close) - FIXED"""
-        try:
-            if len(points) < 3:
-                return False
-            
-            # For debug purposes, let's see the actual points
-            if self.debug_mode:
-                print(f"🔄 Checking closure for {len(points)} points:")
-                print(f"   First point: {points[0]}")
-                print(f"   Last point: {points[-1]}")
-            
-            first_point = points[0]
-            last_point = points[-1]
-            
-            # 🔧 FIX: Properly access QPointF coordinates
-            if hasattr(first_point, 'x') and hasattr(first_point, 'y'):
-                # QPointF objects
-                dx = first_point.x() - last_point.x()
-                dy = first_point.y() - last_point.y()
-            elif isinstance(first_point, (list, tuple)) and len(first_point) >= 2:
-                # List/tuple coordinates
-                dx = first_point[0] - last_point[0]
-                dy = first_point[1] - last_point[1]
-            else:
-                # Try to handle other formats
-                try:
-                    dx = float(first_point[0]) - float(last_point[0])
-                    dy = float(first_point[1]) - float(last_point[1])
-                except:
-                    if self.debug_mode:
-                        print(f"⚠️ Unknown point format: {type(first_point)}")
-                    return False
-            
-            distance = (dx*dx + dy*dy) ** 0.5
-            
-            if self.debug_mode:
-                print(f"   Distance: {distance:.2f} pixels")
-            
-            # Consider closed if distance is less than 30 pixels (more lenient)
-            is_closed = distance < 30
-            
-            if self.debug_mode:
-                print(f"   Is closed (< 30px): {is_closed}")
-            
-            return is_closed
-            
-        except Exception as e:
-            if self.debug_mode:
-                print(f"❌ Error checking polygon closure: {e}")
-            return False
-    
-    def _force_drawing_completion(self, points):
-        """Force drawing completion - MANUAL TRIGGER"""
-        try:
-            if self.debug_mode:
-                print(f"🔧 FORCING drawing completion with {len(points)} points")
-            
-            self.drawing_completed = True
-            self._update_tab_accessibility()
-            
-            # Show completion message
-            if hasattr(self.main_window, 'statusBar'):
-                self.main_window.statusBar().showMessage(
-                    "✅ Drawing auto-detected as completed! You can now access the 3D Model tab.", 3000
-                )
-            
-            # Stop the auto-check timer
-            if self.drawing_check_timer.isActive():
-                self.drawing_check_timer.stop()
-                
-            if self.debug_mode:
-                print("✅ Drawing completion forced successfully")
-                
-        except Exception as e:
-            if self.debug_mode:
-                print(f"❌ Force drawing completion failed: {e}")
-    
-    def _on_tab_clicked(self, index):
-        """Handle tab click with restrictions - ENHANCED WITH RETRY LOGIC"""
-        try:
-            if self.debug_mode:
-                print(f"🔍 Tab {index} clicked")
-                print(f"   Current workflow state:")
-                print(f"   - Screenshot taken: {self.screenshot_taken}")
-                print(f"   - Drawing completed: {self.drawing_completed}")
-                print(f"   - Building created: {self.building_created}")
-            
-            # 🔧 FIX: For model tab, force refresh state and retry if not accessible
-            if index == 2:
-                # Force refresh drawing completion state
-                self._refresh_drawing_completion_state()
-                
-                # Check again after refresh
-                if not self._is_tab_accessible(index):
-                    if self.debug_mode:
-                        print("🔄 Model tab not immediately accessible, retrying in 100ms...")
-                    
-                    # Retry after short delay to allow signal processing
-                    def retry_access():
-                        self._refresh_drawing_completion_state()
-                        if self._is_tab_accessible(index):
-                            if self.debug_mode:
-                                print("✅ Model tab accessible after retry")
-                            # Switch to the tab directly
-                            self.setCurrentIndex(index)
-                            return
-                        else:
-                            if self.debug_mode:
-                                print("❌ Model tab still not accessible after retry")
-                            self._show_access_denied_message(index)
-                    
-                    QTimer.singleShot(100, retry_access)
-                    return
-            
-            # Normal accessibility check for other tabs
-            if not self._is_tab_accessible(index):
-                if self.debug_mode:
-                    print(f"❌ Tab {index} access denied")
-                self._show_access_denied_message(index)
-                return
-            
-            if self.debug_mode:
-                print(f"✅ Tab {index} access allowed")
-            
-        except Exception as e:
-            print(f"Error in tab click handler: {e}")
-    
-    def _is_tab_accessible(self, index):
-        """Check if tab is accessible based on workflow state - ENHANCED WITH STATE REFRESH"""
-        if index == 0:  # Maps tab - always accessible
-            return True
-        elif index == 1:  # Drawing tab - requires screenshot
-            return self.screenshot_taken
-        elif index == 2:  # Model tab - requires drawing completion
-            # 🔧 FIX: For model tab requests, force refresh drawing state first
-            if not self.drawing_completed:
-                self._refresh_drawing_completion_state()
-            
-            accessible = self.screenshot_taken and self.drawing_completed
-            if self.debug_mode and not accessible:
-                print(f"🔍 Model tab not accessible:")
-                print(f"   - Screenshot taken: {self.screenshot_taken}")
-                print(f"   - Drawing completed: {self.drawing_completed}")
-            return accessible
-        
-        return False
-    
-    def _show_access_denied_message(self, index):
-        """Show appropriate message when tab access is denied - ENHANCED"""
-        messages = {
-            1: {
-                "title": "Screenshot Required",
-                "message": "Please take a screenshot from the Maps tab first.\n\n" +
-                          "Steps:\n" +
-                          "1\. Navigate to your building location\n" +
-                          "2\. Click 'Snip Screenshot' button\n" +
-                          "3\. Select the area to capture"
-            },
-            2: {
-                "title": "Drawing Required", 
-                "message": "Please complete the building drawing first.\n\n" +
-                          "Steps:\n" +
-                          "1\. Take a screenshot from Maps tab\n" +
-                          "2\. Draw the building outline in Drawing tab\n" +
-                          "3\. Complete the polygon to proceed\n\n" +
-                          f"Current state:\n" +
-                          f"• Screenshot taken: {'✅' if self.screenshot_taken else '❌'}\n" +
-                          f"• Drawing completed: {'✅' if self.drawing_completed else '❌'}\n\n" +
-                          "If you have completed the drawing but still can't access,\n" +
-                          "try clicking 'Force Unlock' in the debug menu."
-            }
-        }
-        
-        if index in messages:
-            msg = QMessageBox(self)
-            msg.setWindowTitle(messages[index]["title"])
-            msg.setText(messages[index]["message"])
-            msg.setIcon(QMessageBox.Information)
-            
-            # Add debug buttons for model tab
-            if index == 2 and self.debug_mode:
-                force_unlock_btn = msg.addButton("Force Unlock (Debug)", QMessageBox.ActionRole)
-                debug_btn = msg.addButton("Show Debug Info", QMessageBox.ActionRole)
-                msg.addButton(QMessageBox.Ok)
-                
-                result = msg.exec_()
-                
-                # Handle button clicks
-                if msg.clickedButton() == force_unlock_btn:
-                    self._force_unlock_model_tab()
-                elif msg.clickedButton() == debug_btn:
-                    self._show_debug_info()
-            else:
-                msg.exec_()
-    
-    def _force_unlock_model_tab(self):
-        """Force unlock model tab for debugging"""
-        try:
-            if self.debug_mode:
-                print("🔧 FORCE UNLOCKING MODEL TAB")
-                
-            self.screenshot_taken = True
-            self.drawing_completed = True
-            self._update_tab_accessibility()
-            
-            # Switch to model tab
-            self.setCurrentIndex(2)
-            
-            if hasattr(self.main_window, 'statusBar'):
-                self.main_window.statusBar().showMessage(
-                    "🔧 Model tab force unlocked (Debug mode)", 3000
-                )
-                
-            print("✅ Model tab force unlocked")
-            
-        except Exception as e:
-            print(f"❌ Force unlock failed: {e}")
-    
-    def _show_debug_info(self):
-        """Show detailed debug information"""
-        try:
-            points = self.get_drawing_points()
-            
-            debug_info = f"""DEBUG INFORMATION:
-            
-Workflow State:
-• Screenshot taken: {self.screenshot_taken}
-• Drawing completed: {self.drawing_completed}
-• Building created: {self.building_created}
-
-Drawing Tab Info:
-• Points count: {len(points) if points else 0}
-• Points: {points[:3] if points else 'None'}...
-• Drawing tab type: {type(self.drawing_tab).__name__}
-
-Available Methods:
-• has is_polygon_complete: {hasattr(self.drawing_tab, 'is_polygon_complete')}
-• has drawing_completed signal: {hasattr(self.drawing_tab, 'drawing_completed')}
-• has get_drawing_points: {hasattr(self.drawing_tab, 'get_drawing_points')}
-
-Tab Accessibility:
-• Maps tab (0): {self._is_tab_accessible(0)}
-• Drawing tab (1): {self._is_tab_accessible(1)}
-• Model tab (2): {self._is_tab_accessible(2)}
-"""
-            
-            msg = QMessageBox(self)
-            msg.setWindowTitle("Debug Information")
-            msg.setText(debug_info)
-            msg.setIcon(QMessageBox.Information)
-            msg.exec_()
-            
-        except Exception as e:
-            print(f"❌ Debug info failed: {e}")
-    
-    def _update_tab_accessibility(self):
-        """Update tab visual states based on accessibility"""
-        try:
-            # Update tab tooltips and styles
-            for i in range(self.count()):
-                if self._is_tab_accessible(i):
-                    # Accessible tab
-                    self.setTabEnabled(i, True)
-                    if i == 1:
-                        self.setTabToolTip(i, "Drawing tab - Click to draw building outline")
-                    elif i == 2:
-                        self.setTabToolTip(i, "3D Model tab - View and export your building")
-                else:
-                    # Restricted tab - show but with tooltip
-                    self.setTabEnabled(i, True)  # Keep enabled for click handling
-                    if i == 1:
-                        self.setTabToolTip(i, "⚠️ Requires screenshot from Maps tab")
-                    elif i == 2:
-                        self.setTabToolTip(i, "⚠️ Requires completed drawing")
-                        
-        except Exception as e:
-            print(f"Error updating tab accessibility: {e}")
-    
     def _on_tab_changed(self, index):
-        """Handle valid tab change"""
+        """Handle tab change - Update left panel accordingly"""
         try:
             if self.debug_mode:
                 print(f"🔍 Tab changed to {index}")
             
-            # Only proceed if tab is accessible
-            if not self._is_tab_accessible(index):
-                # Revert to last valid tab
-                self.blockSignals(True)
-                self.setCurrentIndex(self.last_valid_tab)
-                self.blockSignals(False)
-                if self.debug_mode:
-                    print(f"❌ Tab {index} not accessible, reverted to {self.last_valid_tab}")
-                return
-            
-            # Update last valid tab
-            self.last_valid_tab = index
-            
-            # Update left panel content
+            # Update left panel content based on tab
             if hasattr(self.main_window, 'left_panel'):
-                self.main_window.left_panel.switch_to_tab_content(index)
+                if hasattr(self.main_window.left_panel, 'switch_to_tab_content'):
+                    self.main_window.left_panel.switch_to_tab_content(index)
             
-            # Status messages
-            tab_messages = [
-                "📍 Navigate to a building and capture a screenshot",
-                "✏️ Draw the building outline by clicking points", 
-                "🏗️ Adjust building parameters and explore the 3D model"
-            ]
-            if index < len(tab_messages) and hasattr(self.main_window, 'statusBar'):
-                self.main_window.statusBar().showMessage(tab_messages[index])
+            # Update status bar based on active tab
+            if hasattr(self.main_window, 'statusBar'):
+                if index == 0:  # Default tab
+                    self.main_window.statusBar().showMessage(
+                        "🏠 Select a roof type from the left panel to begin modeling"
+                    )
+                elif index == 1:  # Model tab
+                    self.main_window.statusBar().showMessage(
+                        "🏗️ Adjust building parameters and explore the 3D model"
+                    )
+                elif index == 2:  # Overview tab
+                    self.main_window.statusBar().showMessage(
+                        "📊 View project overview and analysis"
+                    )
             
-            # Special handling for model tab
-            if index == 2 and self.model_tab:
-                self.model_tab.refresh_view()
+            # Refresh views
+            if index == 0 and self.default_tab:
+                if hasattr(self.default_tab, 'refresh_view'):
+                    self.default_tab.refresh_view()
+            elif index == 1 and self.model_tab:
+                if hasattr(self.model_tab, 'refresh_view'):
+                    self.model_tab.refresh_view()
+            elif index == 2 and self.overview_tab:
+                if hasattr(self.overview_tab, 'refresh_view'):
+                    self.overview_tab.refresh_view()
                         
         except Exception as e:
             print(f"Error in tab change handler: {e}")
@@ -655,133 +212,51 @@ Tab Accessibility:
         """Debug current workflow state"""
         try:
             print("🔍 === WORKFLOW STATE DEBUG ===")
-            print(f"Screenshot taken: {self.screenshot_taken}")
-            print(f"Drawing completed: {self.drawing_completed}")
             print(f"Building created: {self.building_created}")
             print(f"Current tab: {self.currentIndex()}")
-            
-            # Check drawing points
-            points = self.get_drawing_points()
-            print(f"Drawing points: {len(points) if points else 0}")
-            if points:
-                print(f"First few points: {points[:3]}")
-                print(f"Is polygon closed: {self._is_polygon_closed(points)}")
-            
-            # Check tab accessibility
-            for i in range(self.count()):
-                accessible = self._is_tab_accessible(i)
-                tab_name = self.tabText(i)
-                print(f"Tab {i} ({tab_name}): {'✅' if accessible else '❌'}")
-            
-            # Check drawing tab methods
-            if self.drawing_tab:
-                methods = ['is_polygon_complete', 'get_drawing_points', 'has_points']
-                for method in methods:
-                    has_method = hasattr(self.drawing_tab, method)
-                    print(f"DrawingTab.{method}: {'✅' if has_method else '❌'}")
-            
+            print(f"Tab count: {self.count()}")
+            print(f"Tab 0 name: {self.tabText(0)}")
+            print(f"Tab 1 name: {self.tabText(1)}")
+            print(f"Tab 2 name: {self.tabText(2)}")
             print("🔍 === WORKFLOW STATE DEBUG END ===")
             
         except Exception as e:
             print(f"❌ Workflow debug failed: {e}")
     
-    # Signal handlers with state updates - ENHANCED
-    def _on_maps_loaded(self):
-        """Handle maps loaded"""
-        if self.debug_mode:
-            print("✅ Google Maps loaded successfully")
+    # ============================================================================
+    # SIGNAL HANDLERS
+    # ============================================================================
     
-    def _on_maps_error(self, error):
-        """Handle maps error"""
+    def _on_default_data_loaded(self):
+        """Handle default tab data loaded"""
         if self.debug_mode:
-            print(f"❌ Maps error: {error}")
+            print("✅ Default data loaded successfully")
     
-    def _on_canvas_ready(self):
-        """Handle canvas ready"""
+    def _on_default_error(self, error):
+        """Handle default tab error"""
         if self.debug_mode:
-            print("✅ Drawing canvas ready")
+            print(f"❌ Default tab error: {error}")
     
-    def _on_canvas_error(self, error):
-        """Handle canvas error"""
-        if self.debug_mode:
-            print(f"❌ Canvas error: {error}")
-    
-    def _on_drawing_completed(self, points):
-        """Handle drawing completion - ENHANCED WITH EXACT TIMING"""
-        timestamp = time.time()
-        
-        if self.debug_mode:
-            print(f"🎯 DRAWING COMPLETED SIGNAL at {timestamp:.3f} with {len(points)} points")
-        
-        self.drawing_completed = True
-        self._update_tab_accessibility()
-        
-        # Stop auto-check timer
-        if self.drawing_check_timer.isActive():
-            self.drawing_check_timer.stop()
-        
-        # Show completion message
-        if hasattr(self.main_window, 'statusBar'):
-            self.main_window.statusBar().showMessage(
-                "✅ Drawing completed! You can now access the 3D Model tab.", 3000
-            )
+    def _on_roof_selected(self, roof_type, dimensions):
+        """Handle roof selection from default tab"""
+        try:
+            if self.debug_mode:
+                print(f"🏠 Roof selected: {roof_type} with dimensions: {dimensions}")
             
-        if self.debug_mode:
-            print(f"✅ Drawing completion processed at {time.time():.3f}")
-    
-    def _on_drawing_completed_alternate(self, *args):
-        """Handle alternate drawing completion signals"""
-        if self.debug_mode:
-            print(f"🎯 ALTERNATE DRAWING COMPLETION SIGNAL with args: {args}")
-        
-        # Try to get points from arguments or drawing tab
-        points = []
-        for arg in args:
-            if isinstance(arg, list) and len(arg) > 0:
-                points = arg
-                break
-        
-        if not points:
-            points = self.get_drawing_points()
-        
-        self._on_drawing_completed(points)
+            # Render the roof model
+            self.render_roof_model(roof_type, dimensions)
+            
+        except Exception as e:
+            print(f"Error handling roof selection: {e}")
     
     def _on_building_generated(self, building_info):
-        """Handle building generation - FIXED RACE CONDITION"""
+        """Handle building generation"""
         try:
             if self.debug_mode:
                 print("🎯 BUILDING GENERATED - Updating workflow state")
             
-            # 🔧 FIX 1: Update workflow states FIRST
-            self.drawing_completed = True
+            # Update workflow state
             self.building_created = True
-            
-            # Stop auto-check timer if running
-            if hasattr(self, 'drawing_check_timer') and self.drawing_check_timer.isActive():
-                self.drawing_check_timer.stop()
-            
-            # 🔧 FIX 2: Update tab accessibility and wait for propagation
-            self._update_tab_accessibility()
-            
-            # 🔧 FIX 3: Use QTimer to ensure state propagation before tab switch
-            def switch_to_model_tab_delayed():
-                try:
-                    # Double-check accessibility before switching
-                    if self._is_tab_accessible(2):
-                        self.setCurrentIndex(2)
-                        if self.debug_mode:
-                            print("✅ Successfully switched to model tab")
-                    else:
-                        if self.debug_mode:
-                            print("❌ Model tab still not accessible after state update")
-                            print(f"   - Screenshot taken: {self.screenshot_taken}")
-                            print(f"   - Drawing completed: {self.drawing_completed}")
-                            print(f"   - Building created: {self.building_created}")
-                except Exception as e:
-                    print(f"❌ Delayed tab switch failed: {e}")
-            
-            # Wait 100ms for state propagation
-            QTimer.singleShot(100, switch_to_model_tab_delayed)
             
             # Emit the signal
             self.building_generated.emit(building_info)
@@ -797,9 +272,12 @@ Tab Accessibility:
                 if self.main_window.left_panel.export_btn:
                     self.main_window.left_panel.export_btn.setEnabled(True)
             
+            # Update overview tab with building data
+            if self.overview_tab and hasattr(self.overview_tab, 'update_building_data'):
+                self.overview_tab.update_building_data(building_info)
+            
             if self.debug_mode:
                 print("✅ Workflow state updated after building generation")
-                print(f"   - Drawing completed: {self.drawing_completed}")
                 print(f"   - Building created: {self.building_created}")
             
         except Exception as e:
@@ -809,171 +287,137 @@ Tab Accessibility:
         """Handle model update"""
         if self.debug_mode:
             print(f"✅ Model updated: {model_info}")
+        
+        # Update overview tab
+        if self.overview_tab and hasattr(self.overview_tab, 'update_model_data'):
+            self.overview_tab.update_model_data(model_info)
     
     def _on_view_changed(self, view_type):
         """Handle view change"""
         if self.debug_mode:
             print(f"✅ View changed to: {view_type}")
     
-    # Add public method to manually mark drawing as complete
-    def mark_drawing_completed(self, points=None):
-        """Manually mark drawing as completed - PUBLIC METHOD"""
-        try:
-            if not points:
-                points = self.get_drawing_points()
-            
-            if self.debug_mode:
-                print(f"🔧 Manually marking drawing as completed with {len(points) if points else 0} points")
-            
-            self._force_drawing_completion(points or [])
-            return True
-            
-        except Exception as e:
-            if self.debug_mode:
-                print(f"❌ Manual drawing completion failed: {e}")
-            return False
-    
-    # Public API Methods with state updates
-    def start_snipping(self):
-        """Start screenshot snipping"""
-        try:
-            if self.snipping_manager:
-                return self.snipping_manager.start_snipping()
-            return False
-        except Exception as e:
-            return False
-    
-    def on_screenshot_taken(self, pixmap):
-        """Called when screenshot is successfully taken"""
-        try:
-            if self.debug_mode:
-                print("📸 Screenshot taken - updating workflow state")
-                
-            self.screenshot_taken = True
-            self._update_tab_accessibility()
-            
-            # Show success message
-            if hasattr(self.main_window, 'statusBar'):
-                self.main_window.statusBar().showMessage(
-                    "📸 Screenshot captured! You can now access the Drawing tab.", 3000
-                )
-            
-            # Set background in drawing tab
-            if self.drawing_tab:
-                self.drawing_tab.set_background_image(pixmap)
-            
-            return True
-        except Exception as e:
-            print(f"Error handling screenshot: {e}")
-            return False
-    
-    def create_building(self, points, height=3.0, roof_type='flat', roof_pitch=30.0, scale=0.05):
-        """Create 3D building - FIXED"""
-        try:
-            if self.model_tab:
-                # 🔧 REMOVE source and emit_signal parameters
-                success = self.model_tab.create_building(
-                    points=points,
-                    height=height,
-                    roof_type=roof_type,
-                    roof_pitch=roof_pitch,
-                    scale=scale
-                    # REMOVED: source=source, emit_signal=emit_signal
-                )
-                
-                if success:
-                    self.setCurrentIndex(2)  # Switch to model tab
-                return success
-            return False
-        except Exception as e:
-            if self.debug_mode:
-                print(f"❌ Error creating building: {e}")
-            return False
-    
-    def set_drawing_background(self, pixmap):
-        """Set background image for drawing and mark screenshot as taken"""
-        try:
-            if self.drawing_tab:
-                success = self.drawing_tab.set_background_image(pixmap)
-                if success:
-                    self.screenshot_taken = True
-                    self._update_tab_accessibility()
-                return success
-            return False
-        except Exception as e:
-            return False
-    
-    def get_drawing_points(self):
-        """Get drawing points"""
-        try:
-            if self.drawing_tab:
-                return self.drawing_tab.get_drawing_points()
-            return []
-        except Exception as e:
-            return []
-    
-    def clear_drawing(self):
-        """Clear drawing and reset completion state"""
-        try:
-            if self.drawing_tab:
-                success = self.drawing_tab.clear_drawing()
-                if success:
-                    self.drawing_completed = False
-                    self.building_created = False
-                    self._update_tab_accessibility()
-                    
-                    # Restart auto-check timer
-                    if not self.drawing_check_timer.isActive():
-                        self.drawing_check_timer.start(1000)
-                        
-                return success
-            return False
-        except Exception as e:
-            return False
-    
-    # Tab switching methods with validation
-    def switch_to_maps_tab(self):
-        """Switch to maps tab"""
-        self.setCurrentIndex(0)
-    
-    def switch_to_drawing_tab(self):
-        """Switch to drawing tab if accessible"""
-        if self._is_tab_accessible(1):
-            self.setCurrentIndex(1)
-        else:
-            self._show_access_denied_message(1)
-    
-    def switch_to_model_tab(self):
-        """Switch to model tab if accessible - ENHANCED"""
+    def _on_roof_generated(self, roof_object):
+        """Handle roof generation"""
         if self.debug_mode:
-            print(f"🔍 Attempting to switch to model tab")
-            print(f"   - Screenshot taken: {self.screenshot_taken}")
-            print(f"   - Drawing completed: {self.drawing_completed}")
-            print(f"   - Is accessible: {self._is_tab_accessible(2)}")
+            print(f"✅ Roof generated: {roof_object}")
         
-        if self._is_tab_accessible(2):
-            self.setCurrentIndex(2)
+        # Update overview tab
+        if self.overview_tab and hasattr(self.overview_tab, 'update_roof_data'):
+            self.overview_tab.update_roof_data(roof_object)
+    
+    def _on_analysis_requested(self, analysis_type):
+        """Handle analysis request from overview tab"""
+        if self.debug_mode:
+            print(f"📊 Analysis requested: {analysis_type}")
+    
+    def _on_export_requested(self, export_format):
+        """Handle export request from overview tab"""
+        if self.debug_mode:
+            print(f"💾 Export requested: {export_format}")
+    
+    # ============================================================================
+    # ROOF RENDERING
+    # ============================================================================
+    
+    def render_roof_model(self, roof_type, dimensions):
+        """Render roof model in the 3D view"""
+        try:
             if self.debug_mode:
-                print("✅ Model tab switch successful")
-            return True
-        else:
-            if self.debug_mode:
-                print("❌ Model tab not accessible, showing message")
-            self._show_access_denied_message(2)
+                print(f"🏠 Rendering {roof_type} roof with dimensions: {dimensions}")
+            
+            if self.model_tab and hasattr(self.model_tab, 'render_roof'):
+                # Switch to model tab first
+                self.setCurrentIndex(1)
+                
+                # Small delay to ensure tab is fully switched
+                QTimer.singleShot(100, lambda: self._execute_roof_render(roof_type, dimensions))
+                
+                return True
+            else:
+                if self.debug_mode:
+                    print("❌ Model tab or render_roof method not available")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error rendering roof model: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
-    # Utility methods
-    def get_maps_tab(self):
-        """Get maps tab"""
-        return self.maps_tab
+    def _execute_roof_render(self, roof_type, dimensions):
+        """Execute the actual roof rendering after tab switch"""
+        try:
+            # Render the roof
+            success = self.model_tab.render_roof(roof_type, dimensions)
+            
+            if success:
+                self.building_created = True
+                
+                # Update status
+                if hasattr(self.main_window, 'statusBar'):
+                    self.main_window.statusBar().showMessage(
+                        f"🏠 {roof_type} roof model generated successfully!", 3000
+                    )
+                
+                if self.debug_mode:
+                    print(f"✅ {roof_type} roof model rendered successfully")
+                
+                return True
+            else:
+                if self.debug_mode:
+                    print(f"❌ Failed to render {roof_type} roof")
+                
+                if hasattr(self.main_window, 'statusBar'):
+                    self.main_window.statusBar().showMessage(
+                        f"❌ Failed to generate {roof_type} roof", 3000
+                    )
+                
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error executing roof render: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
     
-    def get_drawing_tab(self):
-        """Get drawing tab"""
-        return self.drawing_tab
+    # ============================================================================
+    # TAB ACCESS METHODS
+    # ============================================================================
+    
+    def get_default_tab(self):
+        """Get default tab"""
+        return self.default_tab
     
     def get_model_tab(self):
         """Get model tab"""
         return self.model_tab
+    
+    def get_overview_tab(self):
+        """Get overview tab"""
+        return self.overview_tab
+    
+    def switch_to_default_tab(self):
+        """Switch to default tab"""
+        self.setCurrentIndex(0)
+        if self.debug_mode:
+            print("🏠 Switched to Default tab")
+    
+    def switch_to_model_tab(self):
+        """Switch to model tab"""
+        self.setCurrentIndex(1)
+        if self.debug_mode:
+            print("🏗️ Switched to Model tab")
+    
+    def switch_to_overview_tab(self):
+        """Switch to overview tab"""
+        self.setCurrentIndex(2)
+        if self.debug_mode:
+            print("📊 Switched to Overview tab")
+    
+    # ============================================================================
+    # STATE QUERY METHODS
+    # ============================================================================
     
     def has_building(self):
         """Check if building exists"""
@@ -984,98 +428,53 @@ Tab Accessibility:
         except Exception as e:
             return False
     
-    # State query methods
-    def is_screenshot_taken(self):
-        """Check if screenshot has been taken"""
-        return self.screenshot_taken
-    
-    def is_drawing_completed(self):
-        """Check if drawing has been completed"""
-        return self.drawing_completed
-    
     def is_building_created(self):
         """Check if building has been created"""
         return self.building_created
     
+    # ============================================================================
+    # WORKFLOW CONTROL
+    # ============================================================================
+    
     def reset_workflow_state(self):
         """Reset all workflow states (useful for new project)"""
-        self.screenshot_taken = False
-        self.drawing_completed = False
         self.building_created = False
-        self.last_valid_tab = 0
-        self._update_tab_accessibility()
+        
+        # Switch back to default tab
         self.setCurrentIndex(0)
         
-        # Restart auto-check timer
-        if not self.drawing_check_timer.isActive():
-            self.drawing_check_timer.start(1000)
+        # Clear model tab
+        if self.model_tab:
+            if hasattr(self.model_tab, 'cleanup'):
+                self.model_tab.cleanup()
+        
+        # Clear overview tab
+        if self.overview_tab:
+            if hasattr(self.overview_tab, 'reset'):
+                self.overview_tab.reset()
         
         if hasattr(self.main_window, 'statusBar'):
-            self.main_window.statusBar().showMessage("Workflow reset. Start from Maps tab.", 2000)
-
-    def force_switch_to_model_tab(self):
-        """Force switch to model tab without validation - FOR ROOF GENERATION"""
-        try:
-            print("🔧 FORCE SWITCHING TO MODEL TAB (BYPASS VALIDATION)")
-            
-            # Temporarily set all workflow states to True
-            original_states = {
-                'screenshot_taken': self.screenshot_taken,
-                'drawing_completed': self.drawing_completed,
-                'building_created': self.building_created
-            }
-            
-            self.screenshot_taken = True
-            self.drawing_completed = True
-            self.building_created = True
-            
-            # Update accessibility
-            self._update_tab_accessibility()
-            
-            # Switch to model tab directly
-            self.blockSignals(True)
-            self.setCurrentIndex(2)  # Model tab index
-            self.blockSignals(False)
-            
-            # Update left panel if needed
-            if hasattr(self.main_window, 'left_panel'):
-                if hasattr(self.main_window.left_panel, 'switch_to_tab_content'):
-                    self.main_window.left_panel.switch_to_tab_content(2)
-            
-            # Update title
-            if self.model_tab:
-                if hasattr(self.model_tab, 'set_title'):
-                    self.model_tab.set_title("3D Model View")
-            
-            # Refresh view
-            if self.model_tab:
-                if hasattr(self.model_tab, 'refresh_view'):
-                    self.model_tab.refresh_view()
-            
-            print("✅ Force switched to model tab")
-            
-            # Store original states for potential restoration
-            self._original_workflow_states = original_states
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ Force model tab switch failed: {e}")
-            return False
+            self.main_window.statusBar().showMessage(
+                "Workflow reset. Ready for new model.", 2000
+            )
         
+        if self.debug_mode:
+            print("✅ Workflow state reset")
+    
+    # ============================================================================
+    # MODEL TAB UTILITIES
+    # ============================================================================
+    
     def get_model_plotter(self):
         """Get the plotter from the model tab"""
         try:
             if hasattr(self, 'model_tab'):
-                # Try to get plotter from model tab
                 if hasattr(self.model_tab, 'get_plotter'):
                     return self.model_tab.get_plotter()
                 
-                # Try to get plotter directly
                 if hasattr(self.model_tab, 'plotter'):
                     return self.model_tab.plotter
                 
-                # Try other attribute names
                 for attr_name in ['pv_widget', 'pyvista_widget', 'vtk_widget']:
                     if hasattr(self.model_tab, attr_name):
                         return getattr(self.model_tab, attr_name)
@@ -1084,3 +483,205 @@ Tab Accessibility:
         except Exception as e:
             print(f"❌ Error getting model plotter: {e}")
             return None
+    
+    def refresh_model_view(self):
+        """Refresh the model view"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'refresh_view'):
+                self.model_tab.refresh_view()
+                if self.debug_mode:
+                    print("✅ Model view refreshed")
+        except Exception as e:
+            print(f"❌ Error refreshing model view: {e}")
+    
+    # ============================================================================
+    # BUILDING CREATION
+    # ============================================================================
+    
+    def create_building(self, points, height=3.0, roof_type='flat', roof_pitch=30.0, scale=0.05):
+        """Create 3D building from points"""
+        try:
+            if self.model_tab:
+                success = self.model_tab.create_building(
+                    points=points,
+                    height=height,
+                    roof_type=roof_type,
+                    roof_pitch=roof_pitch,
+                    scale=scale
+                )
+                
+                if success:
+                    self.building_created = True
+                    self.setCurrentIndex(1)  # Switch to model tab
+                    
+                    if self.debug_mode:
+                        print("✅ Building created successfully")
+                    
+                return success
+            return False
+        except Exception as e:
+            if self.debug_mode:
+                print(f"❌ Error creating building: {e}")
+            return False
+    
+    # ============================================================================
+    # SOLAR SYSTEM INTEGRATION
+    # ============================================================================
+    
+    def update_solar_time(self, decimal_time):
+        """Update solar time in model tab"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'update_solar_time'):
+                self.model_tab.update_solar_time(decimal_time)
+        except Exception as e:
+            print(f"❌ Error updating solar time: {e}")
+    
+    def update_solar_day(self, day_of_year):
+        """Update solar day in model tab"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'update_solar_day'):
+                self.model_tab.update_solar_day(day_of_year)
+        except Exception as e:
+            print(f"❌ Error updating solar day: {e}")
+    
+    def set_location(self, latitude, longitude):
+        """Set location for solar calculations"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'set_location'):
+                self.model_tab.set_location(latitude, longitude)
+        except Exception as e:
+            print(f"❌ Error setting location: {e}")
+    
+    def set_weather_factor(self, factor):
+        """Set weather factor"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'set_weather_factor'):
+                self.model_tab.set_weather_factor(factor)
+        except Exception as e:
+            print(f"❌ Error setting weather factor: {e}")
+    
+    def toggle_solar_effects(self, shadows=None, sunshafts=None):
+        """Toggle solar effects"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'toggle_solar_effects'):
+                self.model_tab.toggle_solar_effects(shadows, sunshafts)
+        except Exception as e:
+            print(f"❌ Error toggling solar effects: {e}")
+    
+    def set_quality_level(self, quality):
+        """Set quality level"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'set_quality_level'):
+                self.model_tab.set_quality_level(quality)
+        except Exception as e:
+            print(f"❌ Error setting quality level: {e}")
+    
+    def handle_animation_toggle(self, enabled):
+        """Handle animation toggle"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'handle_animation_toggle'):
+                self.model_tab.handle_animation_toggle(enabled)
+        except Exception as e:
+            print(f"❌ Error handling animation toggle: {e}")
+    
+    # ============================================================================
+    # ENVIRONMENT INTEGRATION
+    # ============================================================================
+    
+    def connect_environment_tab(self, environment_tab):
+        """Connect environment tab to model tab"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'connect_environment_tab'):
+                return self.model_tab.connect_environment_tab(environment_tab)
+            return False
+        except Exception as e:
+            print(f"❌ Error connecting environment tab: {e}")
+            return False
+    
+    def add_environment_object(self, object_type, parameters=None):
+        """Add environment object"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'add_environment_object'):
+                return self.model_tab.add_environment_object(object_type, parameters)
+            return False
+        except Exception as e:
+            print(f"❌ Error adding environment object: {e}")
+            return False
+    
+    def clear_environment_objects(self):
+        """Clear all environment objects"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'clear_environment_objects'):
+                return self.model_tab.clear_environment_objects()
+            return False
+        except Exception as e:
+            print(f"❌ Error clearing environment objects: {e}")
+            return False
+    
+    def get_environment_statistics(self):
+        """Get environment statistics"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'get_environment_statistics'):
+                return self.model_tab.get_environment_statistics()
+            return {}
+        except Exception as e:
+            print(f"❌ Error getting environment statistics: {e}")
+            return {}
+    
+    # ============================================================================
+    # SOLAR PERFORMANCE
+    # ============================================================================
+    
+    def get_solar_performance(self):
+        """Get solar performance metrics"""
+        try:
+            if self.model_tab and hasattr(self.model_tab, 'get_solar_performance'):
+                return self.model_tab.get_solar_performance()
+            return (0.0, 0.0, 0.0)
+        except Exception as e:
+            print(f"❌ Error getting solar performance: {e}")
+            return (0.0, 0.0, 0.0)
+    
+    # ============================================================================
+    # CLEANUP
+    # ============================================================================
+    
+    def cleanup(self):
+        """Cleanup resources"""
+        try:
+            if self.debug_mode:
+                print("🧹 Cleaning up ContentTabWidget...")
+            
+            # Cleanup default tab
+            if hasattr(self, 'default_tab') and self.default_tab:
+                if hasattr(self.default_tab, 'cleanup'):
+                    self.default_tab.cleanup()
+            
+            # Cleanup model tab
+            if hasattr(self, 'model_tab') and self.model_tab:
+                if hasattr(self.model_tab, 'cleanup'):
+                    self.model_tab.cleanup()
+            
+            # Cleanup overview tab
+            if hasattr(self, 'overview_tab') and self.overview_tab:
+                if hasattr(self.overview_tab, 'cleanup'):
+                    self.overview_tab.cleanup()
+            
+            # Cleanup utilities
+            if hasattr(self, 'pyvista_integration') and self.pyvista_integration:
+                if hasattr(self.pyvista_integration, 'cleanup'):
+                    self.pyvista_integration.cleanup()
+            
+            if hasattr(self, 'solar_handlers') and self.solar_handlers:
+                if hasattr(self.solar_handlers, 'cleanup'):
+                    self.solar_handlers.cleanup()
+            
+            if hasattr(self, 'tab_utilities') and self.tab_utilities:
+                if hasattr(self.tab_utilities, 'cleanup'):
+                    self.tab_utilities.cleanup()
+            
+            if self.debug_mode:
+                print("✅ ContentTabWidget cleanup completed")
+                
+        except Exception as e:
+            print(f"❌ Cleanup error: {e}")

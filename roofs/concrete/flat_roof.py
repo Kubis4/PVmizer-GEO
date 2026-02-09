@@ -195,7 +195,7 @@ class FlatRoof(BaseRoof):
             [3, 3], 
             [0, 3]
         ])
-        self.roof_mesh.active_t_coords = texture_coords
+        self.roof_mesh.active_texture_coordinates = texture_coords
         
         # Load wall.jpg texture for roof
         roof_texture, texture_loaded = self.load_texture_safely(
@@ -265,7 +265,7 @@ class FlatRoof(BaseRoof):
         texture_coords = []
         for i in range(4):
             texture_coords.extend([[0, 0], [3, 0], [3, 1], [0, 1]])
-        wall_mesh.active_t_coords = np.array(texture_coords)
+        wall_mesh.active_texture_coordinates = np.array(texture_coords)
         
         wall_texture, texture_loaded = self.load_texture_safely(
             self.brick_texture_path,
@@ -350,7 +350,7 @@ class FlatRoof(BaseRoof):
                     v = (point[1] - bounds[2]) / (bounds[3] - bounds[2]) if bounds[3] != bounds[2] else 0
                     texture_coords[j] = [u % 1.0, v % 1.0]  # Ensure 0-1 range
                 
-                parapet.active_t_coords = texture_coords
+                parapet.active_texture_coordinates = texture_coords
                 
                 # Add mesh with texture
                 self.plotter.add_mesh(

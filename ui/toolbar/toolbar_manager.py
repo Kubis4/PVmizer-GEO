@@ -24,6 +24,14 @@ try:
 except ImportError:
     ToolbarStyles = None
 
+# Import dialog styles
+try:
+    from ui.styles.dialog_styles import DialogStyles
+    DIALOG_STYLES_AVAILABLE = True
+except ImportError:
+    DialogStyles = None
+    DIALOG_STYLES_AVAILABLE = False
+
 # Import the separate ProjectWizard class
 try:
     from ui.wizard_form.project_wizard import ProjectWizard
@@ -60,13 +68,7 @@ class ToolbarManager:
         
         self.main_window.addToolBar(self.toolbar)
         
-        # LEFT SECTION - Navigation & Project
-        home_btn = self._create_button("🏠 Home", "Return to home location", "primary")
-        home_btn.clicked.connect(self._go_home)
-        self.toolbar.addWidget(home_btn)
-        
-        self.toolbar.addSeparator()
-        
+        # LEFT SECTION - Project
         project_btn = self._create_dropdown_button("📁 Project", "Project management")
         self._setup_project_menu(project_btn)
         self.toolbar.addWidget(project_btn)
@@ -83,18 +85,13 @@ class ToolbarManager:
         right_spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.toolbar.addWidget(right_spacer)
         
-        # RIGHT SECTION - Settings & Actions
+        # RIGHT SECTION - Settings & Exit
         settings_btn = self._create_dropdown_button("⚙️ Settings", "Application settings")
-        self._setup_simplified_settings_menu(settings_btn)
+        self._setup_settings_menu(settings_btn)
         self.toolbar.addWidget(settings_btn)
         
         self.toolbar.addSeparator()
         
-        help_btn = self._create_button("❓ Help", "Show help information", "help")
-        help_btn.clicked.connect(self._show_help)
-        self.toolbar.addWidget(help_btn)
-        
-        # Exit button
         exit_btn = self._create_button("✕ Exit", "Exit PVmizer GEO (Ctrl+Q)", "danger")
         exit_btn.clicked.connect(self._exit_application)
         self.toolbar.addWidget(exit_btn)
@@ -139,12 +136,8 @@ class ToolbarManager:
             if not ToolbarStyles:
                 return
             
-            if button_type == "primary":
-                button.setStyleSheet(ToolbarStyles.get_button_style(True))
-            elif button_type == "danger":
+            if button_type == "danger":
                 button.setStyleSheet(ToolbarStyles.get_exit_button_style(True))
-            elif button_type == "help":
-                button.setStyleSheet(ToolbarStyles.get_button_style(True))
             else:  # default
                 button.setStyleSheet(ToolbarStyles.get_button_style(True))
         except Exception as e:
@@ -259,10 +252,16 @@ class ToolbarManager:
         
         button.setMenu(self.project_menu)
     
-    def _setup_simplified_settings_menu(self, button):
-        """Setup simplified settings menu"""
+    def _setup_settings_menu(self, button):
+        """Setup settings menu with language placeholder"""
         self.settings_menu = QMenu(self.main_window)
         self._apply_menu_styling(self.settings_menu)
+        
+        # Language submenu
+        language_menu = self.settings_menu.addMenu("🌐 Language")
+        self._setup_language_menu(language_menu)
+        
+        self.settings_menu.addSeparator()
         
         # About
         about_action = QAction("📋 About", self.main_window)
@@ -270,6 +269,39 @@ class ToolbarManager:
         self.settings_menu.addAction(about_action)
         
         button.setMenu(self.settings_menu)
+    
+    def _setup_language_menu(self, language_menu):
+        """Setup language submenu with placeholder"""
+        self._apply_menu_styling(language_menu)
+        
+        # Available languages (placeholder)
+        languages = [
+            ("🇬🇧 English", "en"),
+            ("🇩🇪 Deutsch", "de"),
+            ("🇫🇷 Français", "fr"),
+            ("🇪🇸 Español", "es"),
+            ("🇮🇹 Italiano", "it"),
+            ("🇵🇱 Polski", "pl"),
+            ("🇨🇿 Čeština", "cs"),
+            ("🇸🇰 Slovenčina", "sk"),
+        ]
+        
+        for lang_name, lang_code in languages:
+            action = QAction(lang_name, self.main_window)
+            action.triggered.connect(lambda checked, code=lang_code, name=lang_name: self._change_language(code, name))
+            language_menu.addAction(action)
+    
+    def _change_language(self, language_code, language_name):
+        """Change application language (placeholder)"""
+        try:
+            self._show_styled_information(
+                "Language Change",
+                f"Language change to {language_name} is not yet implemented.\n\n"
+                f"Selected language code: {language_code}\n\n"
+                f"This feature will be available in a future update."
+            )
+        except Exception as e:
+            print(f"❌ Error changing language: {e}")
     
     def _setup_export_menu(self, export_menu):
         """Setup export submenu"""
@@ -303,7 +335,6 @@ class ToolbarManager:
             ("Ctrl+S", self._save_project),
             ("Ctrl+Shift+S", self._save_project_as),
             ("Ctrl+Q", self._exit_application),
-            ("F1", self._show_help),
         ]
         
         for shortcut, method in shortcuts:
@@ -356,10 +387,6 @@ class ToolbarManager:
                     self._apply_dropdown_styling(widget)
                 elif "Exit" in widget_text:
                     self._apply_button_styling(widget, "danger")
-                elif "Help" in widget_text:
-                    self._apply_button_styling(widget, "help")
-                elif "Home" in widget_text:
-                    self._apply_button_styling(widget, "primary")
                 else:
                     self._apply_button_styling(widget, "default")
             
@@ -383,8 +410,10 @@ class ToolbarManager:
         """Create new project"""
         try:
             if ProjectWizard is None:
-                QMessageBox.warning(self.main_window, "Feature Unavailable", 
-                                   ToolbarTexts.get_feature_unavailable_text("wizard") if ToolbarTexts else "Project wizard unavailable.")
+                self._show_styled_warning(
+                    "Feature Unavailable",
+                    ToolbarTexts.get_feature_unavailable_text("wizard") if ToolbarTexts else "Project wizard unavailable."
+                )
                 return
             
             wizard = ProjectWizard(self.main_window, edit_mode=False)
@@ -398,12 +427,14 @@ class ToolbarManager:
         """Edit current project"""
         try:
             if not self.current_project:
-                QMessageBox.warning(self.main_window, "No Project", "No project is currently active.")
+                self._show_styled_warning("No Project", "No project is currently active.")
                 return
             
             if ProjectWizard is None:
-                QMessageBox.warning(self.main_window, "Feature Unavailable", 
-                                   ToolbarTexts.get_feature_unavailable_text("wizard") if ToolbarTexts else "Project wizard unavailable.")
+                self._show_styled_warning(
+                    "Feature Unavailable",
+                    ToolbarTexts.get_feature_unavailable_text("wizard") if ToolbarTexts else "Project wizard unavailable."
+                )
                 return
             
             wizard = ProjectWizard(self.main_window, edit_mode=True, existing_data=self.current_project)
@@ -456,17 +487,19 @@ class ToolbarManager:
                     project_name = project_data['basic_info']['project_name']
                     self.main_window.statusBar().showMessage(f"Project '{project_name}' loaded")
                 else:
-                    QMessageBox.warning(self.main_window, "Invalid Project", 
-                                       "The selected file is not a valid PVmizer GEO project.")
+                    self._show_styled_warning(
+                        "Invalid Project",
+                        "The selected file is not a valid PVmizer GEO project."
+                    )
                     
         except Exception as e:
-            QMessageBox.critical(self.main_window, "Load Error", f"Failed to load project: {str(e)}")
+            self._show_styled_error("Load Error", f"Failed to load project: {str(e)}")
     
     def _save_project(self):
         """Save current project"""
         try:
             if not self.current_project:
-                QMessageBox.warning(self.main_window, "No Project", "No project is currently active.")
+                self._show_styled_warning("No Project", "No project is currently active.")
                 return
             
             if 'file_path' in self.current_project.get('metadata', {}):
@@ -478,13 +511,13 @@ class ToolbarManager:
             self._save_project_to_path(file_path)
             
         except Exception as e:
-            QMessageBox.critical(self.main_window, "Save Error", f"Failed to save project: {str(e)}")
+            self._show_styled_error("Save Error", f"Failed to save project: {str(e)}")
     
     def _save_project_as(self):
         """Save project with new name"""
         try:
             if not self.current_project:
-                QMessageBox.warning(self.main_window, "No Project", "No project is currently active.")
+                self._show_styled_warning("No Project", "No project is currently active.")
                 return
             
             project_name = self.current_project['basic_info']['project_name']
@@ -502,7 +535,7 @@ class ToolbarManager:
                 self._save_project_to_path(file_path)
                 
         except Exception as e:
-            QMessageBox.critical(self.main_window, "Save Error", f"Failed to save project: {str(e)}")
+            self._show_styled_error("Save Error", f"Failed to save project: {str(e)}")
     
     def _save_project_to_path(self, file_path):
         """Save project to specific path"""
@@ -524,12 +557,9 @@ class ToolbarManager:
             if not self.current_project:
                 return
             
-            reply = QMessageBox.question(
-                self.main_window,
+            reply = self._show_styled_question(
                 "Close Project",
-                "Are you sure you want to close the current project?\nAny unsaved changes will be lost.",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
+                "Are you sure you want to close the current project?\nAny unsaved changes will be lost."
             )
             
             if reply == QMessageBox.Yes:
@@ -543,92 +573,83 @@ class ToolbarManager:
             pass
     
     def _show_project_info_dialog(self):
-        """Show project information in a dialog with Edit button"""
+        """Show project information in a dialog with Edit button using DialogStyles"""
         try:
             if not self.current_project:
-                QMessageBox.information(self.main_window, "No Project", "No project is currently active.")
+                self._show_styled_information("No Project", "No project is currently active.")
                 return
             
             # Create custom dialog
             dialog = QDialog(self.main_window)
             dialog.setWindowTitle("Project Information")
-            dialog.setMinimumWidth(500)
+            dialog.setMinimumWidth(600)
+            dialog.setMinimumHeight(500)
             dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+            
+            # Apply dialog styles
+            if DIALOG_STYLES_AVAILABLE:
+                dialog.setStyleSheet(DialogStyles.get_dark_dialog_style())
             
             # Main layout
             layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(20, 20, 20, 20)
+            layout.setSpacing(15)
             
             # Format project info
             if ToolbarTexts:
                 info_text = ToolbarTexts.format_project_info(self.current_project)
             else:
-                info_text = "<p>Project information unavailable (ToolbarTexts not loaded).</p>"
+                info_text = "<p>Project information unavailable.</p>"
             
-            # Create a container widget with explicit ID for styling
-            container = QWidget()
-            container.setObjectName("container")
-            container_layout = QVBoxLayout(container)
+            # Create scroll area
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.NoFrame)
             
-            # Add info label to container
+            # Content widget
+            content_widget = QWidget()
+            content_layout = QVBoxLayout(content_widget)
+            content_layout.setContentsMargins(10, 10, 10, 10)
+            
+            # Info label
             info_label = QLabel(info_text)
             info_label.setWordWrap(True)
             info_label.setTextFormat(Qt.RichText)
             info_label.setOpenExternalLinks(True)
-            container_layout.addWidget(info_label)
+            content_layout.addWidget(info_label)
+            content_layout.addStretch()
             
-            # Create scroll area and add container
-            scroll = QScrollArea()
-            scroll.setWidgetResizable(True)
-            scroll.setWidget(container)
-            scroll.setMinimumHeight(300)
+            scroll.setWidget(content_widget)
             layout.addWidget(scroll)
             
             # Button layout
             button_layout = QHBoxLayout()
+            button_layout.addStretch()
             
             # Edit button
             edit_button = QPushButton("📝 Edit Project")
             edit_button.setMinimumWidth(120)
+            edit_button.setMinimumHeight(35)
             edit_button.clicked.connect(lambda: [dialog.accept(), self._edit_current_project()])
+            button_layout.addWidget(edit_button)
             
             # Close button
             close_button = QPushButton("✓ OK")
-            close_button.setMinimumWidth(80)
+            close_button.setMinimumWidth(100)
+            close_button.setMinimumHeight(35)
             close_button.clicked.connect(dialog.accept)
-            
-            button_layout.addStretch()
-            button_layout.addWidget(edit_button)
+            close_button.setDefault(True)
             button_layout.addWidget(close_button)
-            layout.addLayout(button_layout)
             
-            # Apply styling with direct background control
-            try:
-                if ToolbarStyles:
-                    # Get styles and colors
-                    dialog_style, bg_color, text_color = ToolbarStyles.get_dialog_style(True)
-                    
-                    # Apply dialog style
-                    dialog.setStyleSheet(dialog_style)
-                    
-                    # Force background colors directly on widgets that might not inherit correctly
-                    container.setStyleSheet(f"background-color: {bg_color}; color: {text_color};")
-                    scroll.setStyleSheet(f"background-color: {bg_color};")
-                    
-                    # Also set palette for container for double safety
-                    palette = container.palette()
-                    palette.setColor(QPalette.Window, QColor(bg_color))
-                    palette.setColor(QPalette.WindowText, QColor(text_color))
-                    container.setPalette(palette)
-                    container.setAutoFillBackground(True)
-                
-            except Exception as e:
-                pass
+            layout.addLayout(button_layout)
             
             # Show dialog
             dialog.exec_()
             
         except Exception as e:
-            pass
+            print(f"❌ Error showing project info: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _auto_save_project(self):
         """Auto-save project"""
@@ -713,11 +734,10 @@ class ToolbarManager:
         """Export project data"""
         try:
             if not self.current_project:
-                QMessageBox.warning(self.main_window, "No Project", "No project is currently active.")
+                self._show_styled_warning("No Project", "No project is currently active.")
                 return
             
-            QMessageBox.information(
-                self.main_window,
+            self._show_styled_information(
                 "Export Project Data",
                 ToolbarTexts.get_export_info_text("data") if ToolbarTexts else "Export feature not implemented yet."
             )
@@ -728,8 +748,7 @@ class ToolbarManager:
     def _export_3d_model(self):
         """Export 3D model"""
         try:
-            QMessageBox.information(
-                self.main_window,
+            self._show_styled_information(
                 "Export 3D Model",
                 ToolbarTexts.get_export_info_text("model") if ToolbarTexts else "Export feature not implemented yet."
             )
@@ -739,8 +758,7 @@ class ToolbarManager:
     def _export_report(self):
         """Export report"""
         try:
-            QMessageBox.information(
-                self.main_window,
+            self._show_styled_information(
                 "Export Report",
                 ToolbarTexts.get_export_info_text("report") if ToolbarTexts else "Export feature not implemented yet."
             )
@@ -748,24 +766,8 @@ class ToolbarManager:
             pass
     
     # =======================================
-    # **SETTINGS & APPLICATION METHODS**
+    # **APPLICATION METHODS**
     # =======================================
-    
-    def _go_home(self):
-        """Navigate to home location"""
-        try:
-            if hasattr(self.main_window, 'content_tabs') and hasattr(self.main_window.content_tabs, 'satellite_view'):
-                home_url = "https://www.google.com/maps/@48.3084263,18.0875649,15.96z/data=!3m1!1e3"
-                self.main_window.content_tabs.satellite_view.setUrl(QUrl(home_url))
-                self.main_window.statusBar().showMessage("Navigating to home location")
-                
-                self.main_window.content_tabs.setCurrentIndex(0)
-                if hasattr(self.main_window, 'left_panel'):
-                    self.main_window.left_panel.switch_to_tab_content(0)
-            else:
-                self.main_window.statusBar().showMessage("Satellite view not available")
-        except Exception as e:
-            pass
     
     def _exit_application(self):
         """Exit application"""
@@ -776,13 +778,7 @@ class ToolbarManager:
             if unsaved_changes:
                 message += "\n\nYou have an active project. Make sure to save your work before exiting."
             
-            reply = QMessageBox.question(
-                self.main_window,
-                "Exit PVmizer GEO",
-                message,
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
+            reply = self._show_styled_question("Exit PVmizer GEO", message)
             
             if reply == QMessageBox.Yes:
                 if hasattr(self.main_window, 'config'):
@@ -801,63 +797,211 @@ class ToolbarManager:
         except Exception as e:
             self.main_window.close()
     
-    def _create_styled_message_box(self, title, text, icon=QMessageBox.Information):
-        """Create styled message box"""
-        msg_box = QMessageBox(self.main_window)
-        msg_box.setIcon(icon)
-        msg_box.setWindowTitle(title)
-        msg_box.setText(text)
-        
-        try:
-            if ToolbarStyles:
-                msg_box_style = """
-                    QMessageBox {
-                        background-color: #2c3e50; color: #ecf0f1;
-                        border: 2px solid #34495e; border-radius: 8px;
-                    }
-                    QMessageBox QLabel {
-                        color: #ecf0f1; font-size: 13px; padding: 10px;
-                    }
-                    QMessageBox QPushButton {
-                        background-color: #3498db; color: white; border: none;
-                        border-radius: 6px; padding: 8px 16px; min-width: 80px; font-weight: bold;
-                    }
-                    QMessageBox QPushButton:hover { background-color: #2980b9; }
-                    QMessageBox QPushButton:pressed { background-color: #21618c; }
-                """
-                msg_box.setStyleSheet(msg_box_style)
-        except Exception as e:
-            pass
-        
-        return msg_box
-    
     def _show_about(self):
-        """Show about dialog"""
+        """Show about dialog with DialogStyles"""
         try:
+            # Create dialog
+            dialog = QDialog(self.main_window)
+            dialog.setWindowTitle("About PVmizer GEO")
+            dialog.setMinimumWidth(600)
+            dialog.setMinimumHeight(500)
+            dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+            
+            # Apply dialog styles
+            if DIALOG_STYLES_AVAILABLE:
+                dialog.setStyleSheet(DialogStyles.get_dark_dialog_style())
+            
+            # Main layout
+            layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(20, 20, 20, 20)
+            layout.setSpacing(15)
+            
+            # Get about text
             if ToolbarTexts:
                 enhanced_mode = getattr(self.main_window.config, 'enhanced_mode', False) if hasattr(self.main_window, 'config') else False
                 project_active = bool(self.current_project)
-                
                 about_text = ToolbarTexts.get_about_text("Dark", enhanced_mode, project_active)
             else:
                 about_text = "<h3>🌍 PVmizer GEO</h3><p>Professional geospatial design tool.</p>"
             
-            msg_box = self._create_styled_message_box("About PVmizer GEO", about_text)
-            msg_box.exec_()
+            # Create scroll area
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.NoFrame)
+            
+            # Content widget
+            content_widget = QWidget()
+            content_layout = QVBoxLayout(content_widget)
+            content_layout.setContentsMargins(10, 10, 10, 10)
+            
+            # About label
+            about_label = QLabel(about_text)
+            about_label.setWordWrap(True)
+            about_label.setTextFormat(Qt.RichText)
+            about_label.setOpenExternalLinks(True)
+            content_layout.addWidget(about_label)
+            content_layout.addStretch()
+            
+            scroll.setWidget(content_widget)
+            layout.addWidget(scroll)
+            
+            # Button layout
+            button_layout = QHBoxLayout()
+            button_layout.addStretch()
+            
+            # OK button
+            ok_button = QPushButton("✓ OK")
+            ok_button.setMinimumWidth(100)
+            ok_button.setMinimumHeight(35)
+            ok_button.clicked.connect(dialog.accept)
+            ok_button.setDefault(True)
+            button_layout.addWidget(ok_button)
+            
+            layout.addLayout(button_layout)
+            
+            # Show dialog
+            dialog.exec_()
             
         except Exception as e:
-            pass
+            print(f"❌ Error showing about dialog: {e}")
+            import traceback
+            traceback.print_exc()
     
-    def _show_help(self):
-        """Show help dialog"""
-        try:
-            if ToolbarTexts:
-                help_text = ToolbarTexts.get_help_text()
-            else:
-                help_text = "<h3>🌍 PVmizer GEO Help</h3><p>Help content unavailable.</p>"
-            
-            msg_box = self._create_styled_message_box("Help - PVmizer GEO", help_text)
-            msg_box.exec_()
-            
-        except Exception as e:
-            pass
+    # =======================================
+    # **STYLED DIALOG HELPERS**
+    # =======================================
+    
+    def _show_styled_information(self, title, text):
+        """Show styled information dialog"""
+        dialog = QDialog(self.main_window)
+        dialog.setWindowTitle(title)
+        dialog.setMinimumWidth(500)
+        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        
+        if DIALOG_STYLES_AVAILABLE:
+            dialog.setStyleSheet(DialogStyles.get_dark_dialog_style())
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        label = QLabel(text)
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        ok_button = QPushButton("✓ OK")
+        ok_button.setMinimumWidth(100)
+        ok_button.setMinimumHeight(35)
+        ok_button.clicked.connect(dialog.accept)
+        ok_button.setDefault(True)
+        button_layout.addWidget(ok_button)
+        
+        layout.addLayout(button_layout)
+        
+        dialog.exec_()
+    
+    def _show_styled_warning(self, title, text):
+        """Show styled warning dialog"""
+        dialog = QDialog(self.main_window)
+        dialog.setWindowTitle(title)
+        dialog.setMinimumWidth(500)
+        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        
+        if DIALOG_STYLES_AVAILABLE:
+            dialog.setStyleSheet(DialogStyles.get_dark_dialog_style())
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        label = QLabel(f"⚠️ {text}")
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        ok_button = QPushButton("✓ OK")
+        ok_button.setMinimumWidth(100)
+        ok_button.setMinimumHeight(35)
+        ok_button.clicked.connect(dialog.accept)
+        ok_button.setDefault(True)
+        button_layout.addWidget(ok_button)
+        
+        layout.addLayout(button_layout)
+        
+        dialog.exec_()
+    
+    def _show_styled_error(self, title, text):
+        """Show styled error dialog"""
+        dialog = QDialog(self.main_window)
+        dialog.setWindowTitle(title)
+        dialog.setMinimumWidth(500)
+        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        
+        if DIALOG_STYLES_AVAILABLE:
+            dialog.setStyleSheet(DialogStyles.get_dark_dialog_style())
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        label = QLabel(f"❌ {text}")
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        ok_button = QPushButton("✓ OK")
+        ok_button.setMinimumWidth(100)
+        ok_button.setMinimumHeight(35)
+        ok_button.clicked.connect(dialog.accept)
+        ok_button.setDefault(True)
+        button_layout.addWidget(ok_button)
+        
+        layout.addLayout(button_layout)
+        
+        dialog.exec_()
+    
+    def _show_styled_question(self, title, text):
+        """Show styled question dialog"""
+        dialog = QDialog(self.main_window)
+        dialog.setWindowTitle(title)
+        dialog.setMinimumWidth(500)
+        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        
+        if DIALOG_STYLES_AVAILABLE:
+            dialog.setStyleSheet(DialogStyles.get_dark_dialog_style())
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        label = QLabel(text)
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        yes_button = QPushButton("✓ Yes")
+        yes_button.setMinimumWidth(100)
+        yes_button.setMinimumHeight(35)
+        yes_button.clicked.connect(lambda: dialog.done(QMessageBox.Yes))
+        button_layout.addWidget(yes_button)
+        
+        no_button = QPushButton("✕ No")
+        no_button.setMinimumWidth(100)
+        no_button.setMinimumHeight(35)
+        no_button.clicked.connect(lambda: dialog.done(QMessageBox.No))
+        no_button.setDefault(True)
+        button_layout.addWidget(no_button)
+        
+        layout.addLayout(button_layout)
+        
+        result = dialog.exec_()
+        return result

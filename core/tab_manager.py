@@ -1,6 +1,8 @@
+#!/usr/bin/env python3
 """
 Tab Management Module
 Handles tab switching, finding, and accessibility management
+Enhanced with roof generation workflow support
 """
 
 from PyQt5.QtWidgets import QApplication
@@ -12,6 +14,53 @@ class TabManager:
     
     def __init__(self, main_window):
         self.main_window = main_window
+        self.model_tab = None
+        self.default_tab = None
+        self.maps_tab = None
+        self._tab_switch_pending = False
+        self._pending_roof_type = None
+    
+    def initialize_tab_references(self):
+        """Initialize references to all tabs after they're created"""
+        try:
+            print("🔧 Initializing tab references...")
+            
+            # Get model tab
+            if hasattr(self.main_window, 'model_tab'):
+                self.model_tab = self.main_window.model_tab
+                print("✅ TabManager: Model tab reference set")
+            else:
+                print("⚠️ TabManager: No model_tab attribute found")
+            
+            # Get default tab
+            if hasattr(self.main_window, 'default_tab'):
+                self.default_tab = self.main_window.default_tab
+                print("✅ TabManager: Default tab reference set")
+            else:
+                print("⚠️ TabManager: No default_tab attribute found")
+            
+            # Get maps tab
+            if hasattr(self.main_window, 'maps_tab'):
+                self.maps_tab = self.main_window.maps_tab
+                print("✅ TabManager: Maps tab reference set")
+            else:
+                print("⚠️ TabManager: No maps_tab attribute found")
+            
+            # Connect default tab to model tab
+            if self.default_tab and self.model_tab:
+                if hasattr(self.default_tab, 'set_model_tab'):
+                    self.default_tab.set_model_tab(self.model_tab)
+                    print("✅ TabManager: Connected default tab to model tab")
+                else:
+                    print("⚠️ TabManager: default_tab has no set_model_tab method")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ TabManager: Failed to initialize tab references: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     def switch_to_drawing_tab_with_debug(self):
         """Switch to drawing tab with detailed debugging"""
@@ -111,14 +160,29 @@ class TabManager:
             traceback.print_exc()
             return False
     
-    # Add to the existing TabManager class:
-
     def handle_roof_button_click(self, roof_type):
-        """Handle roof button click to show dialog and create roof"""
+        """
+        Handle roof button click from default tab
+        This is the NEW METHOD that creates the roof directly in model tab
+        """
+        print(f"🏠 TabManager: Handling {roof_type} roof button click")
+        
+        # Check if we should use the dialog workflow or direct creation
+        use_dialog = hasattr(self.main_window, 'roof_generation_manager')
+        
+        if use_dialog:
+            # Use dialog-based workflow (existing functionality)
+            return self._handle_roof_with_dialog(roof_type)
+        else:
+            # Use direct creation workflow (new functionality)
+            return self._handle_roof_direct_creation(roof_type)
+    
+    def _handle_roof_with_dialog(self, roof_type):
+        """Handle roof creation using dialog workflow"""
         try:
-            print(f"🏠 Handling {roof_type} roof button click...")
+            print(f"🏠 Using dialog workflow for {roof_type} roof...")
             
-            # IMPORTANT: Force enable model tab access BEFORE showing dialog
+            # Force enable model tab access BEFORE showing dialog
             self._force_enable_model_tab_for_roof()
             
             # Show roof dialog using the roof generation manager
@@ -136,7 +200,148 @@ class TabManager:
                 return False
             
         except Exception as e:
-            print(f"❌ Error handling roof button click: {e}")
+            print(f"❌ Error in dialog workflow: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _handle_roof_direct_creation(self, roof_type):
+        """Handle roof creation directly without dialog"""
+        try:
+            print(f"🏠 Using direct creation workflow for {roof_type} roof...")
+            
+            if not self.model_tab:
+                print("❌ TabManager: Model tab not available")
+                return False
+            
+            # Check if model tab is ready
+            if not self._check_model_tab_ready():
+                print("❌ TabManager: Model tab not ready")
+                return False
+            
+            # Force enable model tab
+            self._force_enable_model_tab_for_roof()
+            
+            # Switch to model tab first
+            if self._switch_to_model_tab():
+                # Wait for tab to be visible, then create roof
+                QTimer.singleShot(100, lambda: self._create_roof_in_model_tab(roof_type))
+                return True
+            
+            return False
+            
+        except Exception as e:
+            print(f"❌ Error in direct creation workflow: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _check_model_tab_ready(self):
+        """Check if model tab is ready for rendering"""
+        if not self.model_tab:
+            print("❌ No model_tab reference")
+            return False
+        
+        if not hasattr(self.model_tab, 'plotter'):
+            print("❌ model_tab has no plotter attribute")
+            return False
+        
+        if not self.model_tab.plotter:
+            print("❌ model_tab.plotter is None")
+            return False
+        
+        print("✅ Model tab is ready")
+        return True
+    
+    def _switch_to_model_tab(self):
+        """Switch to model tab"""
+        try:
+            if not hasattr(self.main_window, 'content_tabs'):
+                print("❌ TabManager: content_tabs not found")
+                return False
+            
+            content_tabs = self.main_window.content_tabs
+            
+            # Find model tab index
+            model_tab_index = -1
+            for i in range(content_tabs.count()):
+                if content_tabs.widget(i) == self.model_tab:
+                    model_tab_index = i
+                    break
+            
+            if model_tab_index < 0:
+                print("❌ TabManager: Model tab not found in content_tabs")
+                return False
+            
+            # Switch to model tab
+            content_tabs.setCurrentIndex(model_tab_index)
+            print(f"✅ TabManager: Switched to model tab (index {model_tab_index})")
+            
+            # Force UI update
+            content_tabs.update()
+            content_tabs.repaint()
+            QApplication.processEvents()
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ TabManager: Failed to switch to model tab: {e}")
+            return False
+    
+    def _create_roof_in_model_tab(self, roof_type):
+        """Create roof in model tab"""
+        try:
+            print(f"🏗️ TabManager: Creating {roof_type} roof in model tab")
+            
+            # Default dimensions
+            dimensions = {
+                'length': 10.0,
+                'width': 8.0,
+                'height': 3.0
+            }
+            
+            # Generate rectangular building points
+            length = dimensions['length']
+            width = dimensions['width']
+            height = dimensions['height']
+            
+            points = [
+                [0, 0],
+                [length, 0],
+                [length, width],
+                [0, width]
+            ]
+            
+            # Create building with roof in model tab
+            success = self.model_tab.create_building(
+                points=points,
+                height=height,
+                roof_type=roof_type,
+                roof_pitch=30.0,
+                scale=1.0  # Use scale=1.0 since we're already in meters
+            )
+            
+            if success:
+                print(f"✅ TabManager: {roof_type.capitalize()} roof created successfully")
+                
+                # Update status
+                if hasattr(self.main_window, 'statusBar'):
+                    self.main_window.statusBar().showMessage(
+                        f"{roof_type.capitalize()} roof created successfully", 
+                        3000
+                    )
+                
+                # Update workflow state
+                if hasattr(self.main_window, 'content_tabs'):
+                    if hasattr(self.main_window.content_tabs, 'building_created'):
+                        self.main_window.content_tabs.building_created = True
+            else:
+                print(f"❌ TabManager: Failed to create {roof_type} roof")
+            
+            return success
+            
+        except Exception as e:
+            print(f"❌ TabManager: Error creating roof: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -181,7 +386,7 @@ class TabManager:
             
     def _find_drawing_tab_index(self):
         """Find drawing tab index by searching tab names"""
-        drawing_keywords = ['drawing', 'draw', '✏️']
+        drawing_keywords = ['drawing', 'draw', '✏️', 'default']
         
         for i in range(self.main_window.content_tabs.count()):
             tab_text = self.main_window.content_tabs.tabText(i).lower()

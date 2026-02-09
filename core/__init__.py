@@ -8,8 +8,6 @@ from .component_manager import ComponentManager
 from .signal_manager import SignalManager
 from .tab_manager import TabManager
 from .building_manager import BuildingManager
-from .canvas_manager import CanvasManager
-from .debug_manager import DebugManager
 from .event_manager import EventManager
 from .initialization_manager import InitializationManager
 from .roof_generation_manager import RoofGenerationManager

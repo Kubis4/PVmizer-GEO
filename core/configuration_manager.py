@@ -30,17 +30,6 @@ class ConfigurationManager(QObject):
         # Detect available features
         self._detect_features()
     
-    def _detect_features(self):
-        """Detect available enhanced features"""
-        # Test enhanced canvas
-        try:
-            from drawing_view.drawing_canvas import DrawingCanvas
-            self.enhanced_mode = True
-        except ImportError:
-            self.enhanced_mode = False
-        
-       
-        print(f"Enhanced features: Canvas={self.enhanced_mode}, Roof={self.enhanced_roof_mode}")
     
     def get_wall_height_from_slider(self, slider_value):
         """Convert slider value to wall height in meters"""
