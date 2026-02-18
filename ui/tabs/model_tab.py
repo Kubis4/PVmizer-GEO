@@ -76,7 +76,6 @@ class ModelTab(QWidget):
         self.setup_ui()
         self._initialize_solar_systems()
         self._calculate_initial_sun_position()
-        self._create_single_ground_plane()
         self._force_create_initial_sun()
 
     def setup_ui(self):
@@ -107,15 +106,6 @@ class ModelTab(QWidget):
             
             self.plotter.model_tab = self
             
-            if hasattr(self.plotter, 'enable_shadows'):
-                self.plotter.enable_shadows()
-            
-            if hasattr(self.plotter, 'enable_anti_aliasing'):
-                self.plotter.enable_anti_aliasing()
-            
-            if hasattr(self.plotter, 'enable_depth_peeling'):
-                self.plotter.enable_depth_peeling()
-            
             if hasattr(self.plotter, 'iren'):
                 try:
                     self.plotter.iren.add_observer('StartInteractionEvent', self._on_camera_start)
@@ -124,15 +114,20 @@ class ModelTab(QWidget):
                     pass
             
             self.plotter.set_background('#87CEEB', top='#E6F3FF')
-            
-            if hasattr(self.plotter, 'show_axes'):
-                self.plotter.show_axes()
-            if hasattr(self.plotter, 'show_grid'):
-                self.plotter.show_grid()
-            
+
+            if hasattr(self.plotter, 'enable_shadows'):
+                try:
+                    self.plotter.enable_shadows(shadow_map_size=2048)
+                except TypeError:
+                    try:
+                        self.plotter.enable_shadows()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
             self.vtk_widget = self.plotter.interactor
             layout.addWidget(self.vtk_widget)
-            
         except Exception as e:
             self.plotter = None
             self.vtk_widget = None
@@ -242,6 +237,48 @@ class ModelTab(QWidget):
         except Exception as e:
             pass
 
+    def _setup_default_bright_lighting(self):
+        """Setup default bright lighting for model view (no sun system).
+        Sun system activates only when user interacts with Solar tab."""
+        if not self.plotter:
+            return
+        try:
+            # Remove all existing lights
+            self.plotter.remove_all_lights()
+
+            # Add a bright overhead light (simulates midday, no directional sun)
+            overhead = pv.Light(
+                position=(0, 0, 50),
+                focal_point=(0, 0, 0),
+                color='white',
+                intensity=0.8
+            )
+            overhead.positional = False  # Directional light from above
+            self.plotter.add_light(overhead)
+
+            # Add a fill light (headlight) so no face is completely dark
+            fill = pv.Light(color='white', intensity=0.3)
+            fill.SetLightTypeToHeadlight()
+            self.plotter.add_light(fill)
+
+            # Set moderate ambient on all actors so they're visible
+            if hasattr(self.plotter, 'renderer'):
+                actors = self.plotter.renderer.GetActors()
+                actors.InitTraversal()
+                actor = actors.GetNextItem()
+                while actor:
+                    prop = actor.GetProperty()
+                    if prop:
+                        prop.SetAmbient(0.3)
+                        prop.SetDiffuse(0.7)
+                    actor = actors.GetNextItem()
+
+            if hasattr(self.plotter, 'render'):
+                self.plotter.render()
+
+        except Exception as e:
+            pass
+
     def _force_create_initial_sun(self):
         """Force create initial sun"""
         if not self.enhanced_sun_system:
@@ -251,15 +288,24 @@ class ModelTab(QWidget):
             self.sun_position = [30, 30, 30]
         
         try:
+            # Calculate real elevation/azimuth from the already-computed sun position
+            sun_elevation = 45.0
+            sun_azimuth = 180.0
+            if self.sun_position:
+                h_dist = np.sqrt(self.sun_position[0]**2 + self.sun_position[1]**2)
+                if h_dist > 0:
+                    sun_elevation = np.degrees(np.arctan2(self.sun_position[2], h_dist))
+                sun_azimuth = np.degrees(np.arctan2(self.sun_position[0], self.sun_position[1])) % 360
+
             solar_settings = {
                 'current_hour': self.current_time,
                 'weather_factor': self.weather_factor,
-                'sun_elevation': 45.0,
-                'sun_azimuth': 180.0
+                'sun_elevation': sun_elevation,
+                'sun_azimuth': sun_azimuth,
             }
-            
+
             self.enhanced_sun_system.create_photorealistic_sun(
-                self.sun_position, 
+                self.sun_position,
                 solar_settings
             )
             
@@ -672,6 +718,10 @@ class ModelTab(QWidget):
                 # Emit signal
                 self.roof_generated.emit(self.current_roof)
                 print(f"✅ Roof object created and signal emitted")
+
+                # Set default bright view (no sun system yet)
+                # Sun system activates when user interacts with Solar tab
+                self._setup_default_bright_lighting()
             
         except Exception as e:
             print(f"❌ Error creating roof object: {e}")

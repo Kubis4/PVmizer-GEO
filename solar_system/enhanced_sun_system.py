@@ -69,12 +69,12 @@ class EnhancedRealisticSunSystem(QObject):
         # Lighting settings
         self.use_image_based_lighting = False
         self.ambient_intensity = 0.3
-        self.sun_intensity_multiplier = 2.0  # Increased for better coverage
+        self.sun_intensity_multiplier = 0.9  # Tuned for realistic brightness
         
-        # Visual settings - SUN SPHERE DISABLED FOR DEBUGGING
-        self.show_sun_sphere = False  # DISABLED
+        # Visual settings
+        self.show_sun_sphere = False
         self.hide_sun_sphere_with_raytracing = True
-        self.show_debug_visualization = True  # Enable debug visualization
+        self.show_debug_visualization = False
         
         # Update timers
         self.update_timer = QTimer()
@@ -96,7 +96,6 @@ class EnhancedRealisticSunSystem(QObject):
         self.ray_tracing_enabled = False
         self._tried_enable_ray_tracing = False
         
-        print(f"High-Performance Sun System Initialized (DEBUG MODE - Sun Sphere Disabled)")
 
     def _init_performance_monitoring(self):
         """Initialize performance monitoring"""
@@ -115,10 +114,8 @@ class EnhancedRealisticSunSystem(QObject):
             self.ray_tracing_enabled = True
             if hasattr(self.plotter.renderer, "SetUseFXAA"):
                 self.plotter.renderer.SetUseFXAA(True)
-            print(f"Ray tracing enabled ({mode})")
         except Exception as e:
             self.ray_tracing_enabled = False
-            print(f"Ray tracing not available: {e}")
     
     def set_performance_mode(self, mode):
         """Set performance mode"""
@@ -217,7 +214,6 @@ class EnhancedRealisticSunSystem(QObject):
             self._efficient_clear()
             self._clear_debug_visualization()
             self._create_night_lighting()
-            print("DEBUG: Night time - no sun position")
             return
         
         self.sun_position = np.array(sun_position)
@@ -232,24 +228,14 @@ class EnhancedRealisticSunSystem(QObject):
             self._calculate_angles_from_position()
         
         # DEBUG: Print sun position and angles
-        print(f"\n{'='*60}")
-        print(f"DEBUG: Sun Position Update")
-        print(f"  Time: {self.time_of_day:.2f}h")
-        print(f"  Sun Position: [{self.sun_position[0]:.2f}, {self.sun_position[1]:.2f}, {self.sun_position[2]:.2f}]")
-        print(f"  Sun Elevation: {self.sun_elevation:.2f}°")
-        print(f"  Sun Azimuth: {self.sun_azimuth:.2f}°")
-        print(f"  Building Center: [{self.building_center[0]:.2f}, {self.building_center[1]:.2f}, {self.building_center[2]:.2f}]")
         
         # Calculate roof center
         roof_center = self.building_center.copy()
         roof_center[2] = self.building_center[2] + self.building_height + (self.roof_height / 2)
-        print(f"  Roof Center: [{roof_center[0]:.2f}, {roof_center[1]:.2f}, {roof_center[2]:.2f}]")
         
         # Calculate sun direction vector
         sun_dir = self.sun_position - roof_center
         sun_dir_normalized = sun_dir / np.linalg.norm(sun_dir)
-        print(f"  Sun Direction (normalized): [{sun_dir_normalized[0]:.3f}, {sun_dir_normalized[1]:.3f}, {sun_dir_normalized[2]:.3f}]")
-        print(f"{'='*60}\n")
         
         # Check if update is needed
         if self._should_skip_update():
@@ -262,18 +248,31 @@ class EnhancedRealisticSunSystem(QObject):
         self._clear_debug_visualization()
         
         # Check for night time based on elevation
-        is_night = self.sun_elevation < -10
-        
+        is_night = self.sun_elevation < 0
+
         if is_night:
             self._create_night_lighting()
-            print("DEBUG: Night lighting applied (elevation < -10°)")
         else:
+            # Restore normal ambient so meshes receive daylight properly
+            self._set_all_actor_ambient(0.25)
             # Enable ray tracing for quality rendering
             self._ensure_ray_tracing(mode="pathtracing" if self.performance_mode == "quality" else "scivis")
-            
+
             # Create sun and lights
             self._create_optimized_sun_and_lights()
-            
+
+            # Re-enable VTK shadow mapping after lights are set up
+            if hasattr(self.plotter, 'enable_shadows'):
+                try:
+                    self.plotter.enable_shadows(shadow_map_size=2048)
+                except TypeError:
+                    try:
+                        self.plotter.enable_shadows()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
             # Add debug visualization
             if self.show_debug_visualization:
                 self._create_debug_visualization()
@@ -394,7 +393,6 @@ class EnhancedRealisticSunSystem(QObject):
         )
         self.debug_actors.append('debug_sun_text')
         
-        print(f"DEBUG: Visualization created - Sun targeting roof surface at {roof_target}")
 
 
     def _clear_debug_visualization(self):
@@ -459,322 +457,96 @@ class EnhancedRealisticSunSystem(QObject):
 
     def _efficient_clear(self):
         """Efficiently clear old components"""
-        actors_to_remove = []
-        
         if self.sun_actor:
-            actors_to_remove.append('sun_sphere')
-            self.sun_actor = None
-        
-        for i in range(3):
-            actors_to_remove.append(f'sun_glow_{i}')
-        
-        for name in actors_to_remove:
             try:
-                self.plotter.remove_actor(name, reset_camera=False)
+                self.plotter.remove_actor('sun_sphere', reset_camera=False)
             except:
                 pass
-        
+            self.sun_actor = None
+
+        for i in range(3):
+            try:
+                self.plotter.remove_actor(f'sun_glow_{i}', reset_camera=False)
+            except:
+                pass
+
         self.sun_glow_actors.clear()
-        
-        if self.current_lights:
+
+        # Always remove all lights so VTK defaults don't persist into night
+        try:
             self.plotter.remove_all_lights()
-            self.current_lights.clear()
+        except:
+            pass
+        self.current_lights.clear()
+
+    def _set_all_actor_ambient(self, value):
+        """Set ambient coefficient on every actor so night looks dark and day looks lit."""
+        try:
+            for actor in self.plotter.actors.values():
+                if hasattr(actor, 'GetProperty'):
+                    actor.GetProperty().SetAmbient(value)
+        except Exception:
+            pass
 
     def _create_night_lighting(self):
-        """Create simple night lighting"""
+        """Create dim blue-tinted night lighting"""
+        # Suppress mesh self-illumination so objects don't glow in the dark
+        self._set_all_actor_ambient(0.02)
         night_light = pv.Light(
             light_type='headlight',
-            intensity=0.1,
-            color=[0.2, 0.25, 0.4]
+            intensity=0.04,
+            color=[0.15, 0.18, 0.35]
         )
         self.plotter.add_light(night_light)
         self.current_lights.append(night_light)
 
     def _create_optimized_sun_and_lights(self):
-        """Create sun and lighting - OPTIMIZED FOR FULL ROOF ILLUMINATION"""
-        complexity = self.sun_complexity
-        
-        # ============================================
-        # EASY ADJUSTMENT CONTROLS
-        # ============================================
-        # Multiple targets for complete roof coverage
-        USE_MULTI_TARGET_LIGHTING = True  # Enable multiple target points
-        ROOF_PEAK_PRIORITY = True  # Prioritize lighting the roof peak
-        
-        # Main target height (for debug sphere)
-        TARGET_HEIGHT_RATIO = 2 # Higher to better illuminate roof
-        TARGET_HORIZONTAL_OFFSET = 0.0  # Keep centered
-        TARGET_SIDE_OFFSET = 0.0
-        # ============================================
-        
-        # Calculate sun visual properties
-        sun_size = 2.5 + 0.5 * np.sin(np.radians(max(0, self.sun_elevation)))
-        
-        # Color based on elevation
-        if self.sun_elevation < 15:
-            sun_color = [1.0, 0.6, 0.2]
-            light_color = [1.0, 0.7, 0.5]
-        elif self.sun_elevation < 30:
-            sun_color = [1.0, 0.85, 0.5]
-            light_color = [1.0, 0.9, 0.7]
+        """Create physically correct sun lighting — single directional light + soft sky fill."""
+        # Light colour shifts with elevation (orange at horizon, white-ish at noon)
+        if self.sun_elevation < 10:
+            light_color = [1.0, 0.60, 0.25]
+        elif self.sun_elevation < 25:
+            light_color = [1.0, 0.85, 0.55]
         else:
-            sun_color = [1.0, 0.95, 0.7]
-            light_color = [1.0, 0.95, 0.85]
-        
-        # Calculate building dimensions
-        ground_level = self.building_center[2] - self.building_height/2
-        building_top = self.building_center[2] + self.building_height/2
-        roof_peak = building_top + self.roof_height
-        
-        # Calculate sun direction
-        sun_dir_h = np.array([
-            self.sun_position[0] - self.building_center[0],
-            self.sun_position[1] - self.building_center[1],
-            0
-        ])
-        sun_dir_h_norm = sun_dir_h / (np.linalg.norm(sun_dir_h) + 0.001)
-        perp_dir = np.array([-sun_dir_h_norm[1], sun_dir_h_norm[0], 0])
-        
-        # MAIN TARGET - For debug visualization
-        height_range = roof_peak - ground_level
-        target_height = ground_level + (height_range * TARGET_HEIGHT_RATIO)
-        
-        roof_target = np.array([
-            self.building_center[0] + sun_dir_h_norm[0] * TARGET_HORIZONTAL_OFFSET,
-            self.building_center[1] + sun_dir_h_norm[1] * TARGET_HORIZONTAL_OFFSET,
-            target_height
-        ])
-        
-        # Store for debug visualization
-        self.debug_roof_target = roof_target
-        
-        # CREATE MULTIPLE STRATEGIC TARGET POINTS FOR COMPLETE ROOF COVERAGE
-        roof_targets = []
-        
-        if USE_MULTI_TARGET_LIGHTING:
-            # 1. ROOF PEAK - Most important for eliminating dark line
-            peak_target = self.building_center.copy()
-            peak_target[2] = roof_peak
-            roof_targets.append(('peak', peak_target, 1.0))  # (name, position, intensity_multiplier)
-            
-            # 2. ROOF CENTER (slightly below peak)
-            center_target = self.building_center.copy()
-            center_target[2] = building_top + self.roof_height * 0.7
-            roof_targets.append(('center', center_target, 0.8))
-            
-            # 3. FRONT SLOPE (sun-facing side)
-            front_target = self.building_center.copy()
-            front_target[0] += sun_dir_h_norm[0] * (self.building_width * 0.25)
-            front_target[1] += sun_dir_h_norm[1] * (self.building_width * 0.25)
-            front_target[2] = building_top + self.roof_height * 0.5
-            roof_targets.append(('front', front_target, 0.7))
-            
-            # 4. BACK SLOPE (opposite side)
-            back_target = self.building_center.copy()
-            back_target[0] -= sun_dir_h_norm[0] * (self.building_width * 0.25)
-            back_target[1] -= sun_dir_h_norm[1] * (self.building_width * 0.25)
-            back_target[2] = building_top + self.roof_height * 0.5
-            roof_targets.append(('back', back_target, 0.5))
-            
-            # 5. RIDGE LINE POINTS (along the peak)
-            for offset in [-self.building_length/3, 0, self.building_length/3]:
-                ridge_target = peak_target.copy()
-                ridge_target[0] += perp_dir[0] * offset
-                ridge_target[1] += perp_dir[1] * offset
-                roof_targets.append((f'ridge_{offset}', ridge_target, 0.6))
-        else:
-            # Single target mode (fallback)
-            roof_targets.append(('main', roof_target, 1.0))
-        
-        print(f"\n{'='*60}")
-        print(f"DEBUG: Multi-Target Lighting Configuration")
-        print(f"  Number of targets: {len(roof_targets)}")
-        print(f"  Roof peak height: {roof_peak:.2f}")
-        print(f"  Building top: {building_top:.2f}")
-        for name, pos, intensity_mult in roof_targets[:5]:
-            print(f"  {name:10s}: [{pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f}] (intensity: {intensity_mult:.1f})")
-        print(f"{'='*60}\n")
-        
-        # Calculate base intensity
-        base_intensity = 0.8 + 0.4 * np.sin(np.radians(min(90, self.sun_elevation)))
-        intensity = base_intensity * self.weather_factor * self.sun_intensity_multiplier
-        
-        # CREATE LIGHTS FOR EACH TARGET
-        light_count = 0
-        
-        # 1. PRIMARY LIGHTS FOR ROOF COVERAGE
-        for i, (name, target, intensity_mult) in enumerate(roof_targets):
-            if i == 0 or self.performance_mode != 'performance':
-                # Adjust light intensity based on target importance
-                light_intensity = intensity * intensity_mult
-                
-                # Special handling for peak light - make it stronger
-                if name == 'peak' and ROOF_PEAK_PRIORITY:
-                    light_intensity *= 1.5
-                
-                target_light = pv.Light(
-                    position=tuple(self.sun_position),
-                    focal_point=tuple(target),
-                    light_type='scene light',
-                    intensity=light_intensity,
-                    color=light_color,
-                    positional=False,
-                    show_actor=False
-                )
-                self.plotter.add_light(target_light)
-                self.current_lights.append(target_light)
-                light_count += 1
-                
-                # Add a second light from slightly different angle for peak
-                if name == 'peak' and self.performance_mode == 'quality':
-                    # Offset sun position slightly for soft shadows
-                    offset_sun = self.sun_position.copy()
-                    offset_sun[0] += 5
-                    offset_sun[1] += 5
-                    
-                    peak_light2 = pv.Light(
-                        position=tuple(offset_sun),
-                        focal_point=tuple(target),
-                        light_type='scene light',
-                        intensity=light_intensity * 0.5,
-                        color=light_color,
-                        positional=False,
-                        show_actor=False
-                    )
-                    self.plotter.add_light(peak_light2)
-                    self.current_lights.append(peak_light2)
-                    light_count += 1
-        
-        print(f"DEBUG: Created {light_count} targeted lights")
-        
-        # 2. ENHANCED AMBIENT LIGHT (stronger to fill shadows)
-        ambient_light = pv.Light(
-            light_type='headlight',
-            intensity=self.ambient_intensity * 4.0,  # Increased
-            color=[0.97, 0.97, 0.99]
+            light_color = [1.0, 0.97, 0.88]
+
+        # Intensity rises with elevation
+        base_intensity = 0.5 + 0.5 * np.sin(np.radians(min(90, self.sun_elevation)))
+        sun_intensity = base_intensity * self.weather_factor * self.sun_intensity_multiplier
+
+        # 1. PRIMARY SUN LIGHT — positional scene light from the real sun position.
+        #    positional=True lets VTK shadow mapping build a depth map from this
+        #    exact position → focal_point direction, giving correct cast shadows.
+        sun_light = pv.Light(
+            position=tuple(self.sun_position),
+            focal_point=tuple(self.building_center),
+            light_type='scene light',
+            intensity=sun_intensity,
+            color=light_color,
+            positional=True,
+            show_actor=False
         )
-        self.plotter.add_light(ambient_light)
-        self.current_lights.append(ambient_light)
-        
-        # 3. TOP-DOWN LIGHT (eliminates roof ridge shadows)
-        if self.performance_mode in ['balanced', 'quality']:
-            # Direct overhead light
-            overhead_pos = self.building_center.copy()
-            overhead_pos[2] = roof_peak + 50
-            
-            overhead_light = pv.Light(
-                position=tuple(overhead_pos),
-                focal_point=tuple(peak_target if USE_MULTI_TARGET_LIGHTING else roof_target),
-                light_type='scene light',
-                intensity=intensity * 0.6,
-                color=[0.98, 0.98, 1.0],
-                positional=False,
-                show_actor=False
-            )
-            self.plotter.add_light(overhead_light)
-            self.current_lights.append(overhead_light)
-            print(f"DEBUG: Overhead light added to eliminate ridge shadows")
-        
-        # 4. GRAZING LIGHT (parallel to roof for texture)
-        if self.performance_mode == 'quality':
-            # Light at same height as roof, from sun direction
-            grazing_pos = self.sun_position.copy()
-            grazing_pos[2] = roof_peak - self.roof_height * 0.2
-            
-            grazing_light = pv.Light(
-                position=tuple(grazing_pos),
-                focal_point=tuple(peak_target if USE_MULTI_TARGET_LIGHTING else roof_target),
-                light_type='scene light',
-                intensity=intensity * 0.4,
-                color=[1.0, 0.98, 0.95],
-                positional=False,
-                show_actor=False
-            )
-            self.plotter.add_light(grazing_light)
-            self.current_lights.append(grazing_light)
-            print(f"DEBUG: Grazing light added for roof texture")
-        
-        # 5. FILL LIGHT FROM OPPOSITE SIDE
-        if self.performance_mode != 'performance':
-            fill_position = self.building_center - sun_dir_h_norm * 50
-            fill_position[2] = self.sun_position[2]
-            
-            # Target the peak to ensure it's well lit
-            fill_target = peak_target if USE_MULTI_TARGET_LIGHTING else roof_target
-            
-            fill_light = pv.Light(
-                position=tuple(fill_position),
-                focal_point=tuple(fill_target),
-                light_type='scene light',
-                intensity=intensity * 0.6,
-                color=[0.92, 0.94, 0.99],
-                positional=False,
-                show_actor=False
-            )
-            self.plotter.add_light(fill_light)
-            self.current_lights.append(fill_light)
-            print(f"DEBUG: Fill light added from opposite side")
-        
-        # 6. CAMERA LIGHT (additional fill)
-        if self.performance_mode == 'quality':
-            camera_light = pv.Light(
-                light_type='camera light',
-                intensity=0.5,
-                color=[1.0, 1.0, 1.0]
-            )
-            self.plotter.add_light(camera_light)
-            self.current_lights.append(camera_light)
-        
-        # 7. SPOT LIGHT FOR ROOF PEAK (Ray tracing mode)
-        if self.ray_tracing_enabled and self.performance_mode == 'quality':
-            spot_target = peak_target if USE_MULTI_TARGET_LIGHTING else roof_target
-            
-            spot_light = pv.Light(
-                position=tuple(self.sun_position),
-                focal_point=tuple(spot_target),
-                light_type='scene light',
-                intensity=intensity * 0.8,
-                color=light_color,
-                positional=True,
-                cone_angle=80,  # Very wide to cover entire roof
-                exponent=0.1,
-                show_actor=False
-            )
-            spot_light.attenuation_values = (1, 0.00001, 0.0000001)
-            self.plotter.add_light(spot_light)
-            self.current_lights.append(spot_light)
-            print(f"DEBUG: Wide spot light added for ray tracing")
-        
-        print(f"DEBUG: Total lights created: {len(self.current_lights)}")
-        
-        # Special handling for low sun angles
-        if self.sun_elevation < 30:
-            print(f"DEBUG: Low sun angle detected ({self.sun_elevation:.1f}°), adding extra roof illumination")
-            
-            # Add extra light specifically for the roof at low angles
-            low_angle_pos = self.sun_position.copy()
-            low_angle_pos[2] = max(self.sun_position[2], roof_peak + 10)
-            
-            low_angle_light = pv.Light(
-                position=tuple(low_angle_pos),
-                focal_point=tuple(peak_target if USE_MULTI_TARGET_LIGHTING else roof_target),
-                light_type='scene light',
-                intensity=intensity * 0.5,
-                color=[1.0, 0.95, 0.9],
-                positional=False,
-                show_actor=False
-            )
-            self.plotter.add_light(low_angle_light)
-            self.current_lights.append(low_angle_light)
+        # Do NOT set cone angle — VTK default works with shadow mapping.
+        # SetConeAngle(180) breaks shadow maps, SetConeAngle(70) = spotlight artifact.
+        self.plotter.add_light(sun_light)
+        self.current_lights.append(sun_light)
+
+        # 2. SOFT SKY FILL — low intensity so shadow areas stay dim but not black.
+        sky_light = pv.Light(
+            light_type='headlight',
+            intensity=self.ambient_intensity * 0.4,
+            color=[0.75, 0.85, 1.0]
+        )
+        self.plotter.add_light(sky_light)
+        self.current_lights.append(sky_light)
 
 
     def _create_optimized_shadows(self):
-        """Create performance-optimized shadows"""
-        if self.ray_tracing_enabled:
-            self._clear_shadows()
-            return
-        
+        """Fake polygon shadows disabled — VTK shadow mapping (enable_shadows) handles real shadows."""
         self._clear_shadows()
+        return  # rely on VTK shadow mapping only
+        if self.ray_tracing_enabled:
+            return
         
         # Calculate shadow direction from actual sun position
         sun_dir = self.sun_position - self.building_center
@@ -978,7 +750,6 @@ class EnhancedRealisticSunSystem(QObject):
             
             if avg_fps < 30 and self.performance_mode != 'performance':
                 self.set_performance_mode('performance')
-                print(f"Auto-switching to performance mode (FPS: {avg_fps:.1f})")
             elif avg_fps > 50 and self.performance_mode == 'performance':
                 self.set_performance_mode('balanced')
             elif avg_fps > 60 and self.performance_mode == 'balanced':
@@ -1048,7 +819,6 @@ class EnhancedRealisticSunSystem(QObject):
         self.show_sun_sphere = visible
         self.scene_dirty = True
         self.update_timer.start(50)
-        print(f"DEBUG: Sun sphere visibility set to: {visible}")
 
     def set_hide_sun_with_raytracing(self, hide=True):
         """Set whether to automatically hide sun sphere when ray tracing is enabled"""
@@ -1061,14 +831,12 @@ class EnhancedRealisticSunSystem(QObject):
         self.sun_intensity_multiplier = multiplier
         self.scene_dirty = True
         self.update_timer.start(50)
-        print(f"DEBUG: Sun intensity multiplier set to: {multiplier}")
 
     def set_ambient_intensity(self, intensity):
         """Adjust ambient light intensity"""
         self.ambient_intensity = intensity
         self.scene_dirty = True
         self.update_timer.start(50)
-        print(f"DEBUG: Ambient intensity set to: {intensity}")
 
     def toggle_debug_visualization(self, enabled=None):
         """Toggle debug visualization on/off"""
@@ -1082,7 +850,6 @@ class EnhancedRealisticSunSystem(QObject):
         
         self.scene_dirty = True
         self.update_timer.start(50)
-        print(f"DEBUG: Debug visualization {'enabled' if self.show_debug_visualization else 'disabled'}")
 
     def get_solar_irradiance(self):
         """Calculate solar irradiance in W/m²"""

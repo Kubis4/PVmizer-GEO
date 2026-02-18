@@ -999,41 +999,55 @@ class DateTimeControls(QWidget):
             pass
     
     def _calculate_sun_position(self):
-        """Calculate sun azimuth and elevation"""
+        """Calculate sun azimuth and elevation using SolarCalculations for consistency"""
         try:
             current_time = time.time()
             if current_time - self._last_update < self._update_throttle:
                 return
-            
+
             decimal_hour = self.arc_slider.value() / 60.0
             day_of_year = self._get_day_of_year()
-            
-            solar_noon = 12.0
-            hour_angle = 15.0 * (decimal_hour - solar_noon)
-            
-            declination = 23.45 * math.sin(math.radians((360/365) * (day_of_year - 81)))
-            
-            lat_rad = math.radians(self.latitude)
-            dec_rad = math.radians(declination)
-            hour_rad = math.radians(hour_angle)
-            
-            elevation = math.asin(
-                math.sin(lat_rad) * math.sin(dec_rad) + 
-                math.cos(lat_rad) * math.cos(dec_rad) * math.cos(hour_rad)
-            )
-            elevation_deg = math.degrees(elevation)
-            
-            azimuth = math.atan2(
-                -math.sin(hour_rad),
-                math.tan(dec_rad) * math.cos(lat_rad) - math.sin(lat_rad) * math.cos(hour_rad)
-            )
-            azimuth_deg = (math.degrees(azimuth) + 180) % 360
-            
+
+            if SOLAR_CALC_AVAILABLE:
+                # Use the same SolarCalculations that drives the 3D sun
+                sun_pos = SolarCalculations.calculate_sun_position(
+                    decimal_hour, day_of_year, self.latitude, self.longitude
+                )
+                if sun_pos is None:
+                    # Below horizon
+                    self.azimuth_label.setText("🧭 --°")
+                    self.elevation_label.setText("📐 --°")
+                    self._last_update = current_time
+                    return
+
+                import numpy as np
+                h_dist = math.sqrt(sun_pos[0]**2 + sun_pos[1]**2)
+                elevation_deg = math.degrees(math.atan2(sun_pos[2], h_dist)) if h_dist > 0 else 90.0
+                azimuth_deg = math.degrees(math.atan2(sun_pos[0], sun_pos[1])) % 360
+            else:
+                # Fallback simplified calculation
+                solar_noon = 12.0
+                hour_angle = 15.0 * (decimal_hour - solar_noon)
+                declination = 23.45 * math.sin(math.radians((360/365) * (day_of_year - 81)))
+                lat_rad = math.radians(self.latitude)
+                dec_rad = math.radians(declination)
+                hour_rad = math.radians(hour_angle)
+                elevation = math.asin(
+                    math.sin(lat_rad) * math.sin(dec_rad) +
+                    math.cos(lat_rad) * math.cos(dec_rad) * math.cos(hour_rad)
+                )
+                elevation_deg = math.degrees(elevation)
+                azimuth = math.atan2(
+                    -math.sin(hour_rad),
+                    math.tan(dec_rad) * math.cos(lat_rad) - math.sin(lat_rad) * math.cos(hour_rad)
+                )
+                azimuth_deg = (math.degrees(azimuth) + 180) % 360
+
             self.azimuth_label.setText(f"🧭 {azimuth_deg:.0f}°")
             self.elevation_label.setText(f"📐 {elevation_deg:.0f}°")
-            
+
             self._last_update = current_time
-            
+
         except Exception as e:
             self.azimuth_label.setText("🧭 --°")
             self.elevation_label.setText("📐 --°")

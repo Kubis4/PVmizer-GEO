@@ -63,9 +63,9 @@ class ModificationsTab(QWidget):
         self.longitude = 18.0764
         self.panel_config = {
             'panel_count': 0,
-            'panel_power': 400,  # Watts per panel
-            'panel_area': 2.0,  # m² per panel
-            'efficiency': 0.20  # 20% efficiency
+            'panel_power': 440,  # SunPower Maxeon 440W
+            'panel_area': 1.94,  # m² per panel (1046mm x 1690mm ~Maxeon 6)
+            'efficiency': 0.227  # 22.7% efficiency
         }
         
         self.setup_ui()
@@ -77,6 +77,7 @@ class ModificationsTab(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
+        layout.setAlignment(Qt.AlignHCenter)
         
         # Apply styling with width constraints
         self.setStyleSheet("""
@@ -597,90 +598,25 @@ class ModificationsTab(QWidget):
             return False
 
     def _apply_environment_action_to_roof(self, action_type, parameters, roof):
-        """Apply environment action to roof with automatic attachment point management"""
+        """Apply environment action to roof — single tree/pole use interactive dot mode"""
         try:
-            placement_successful = False
-            
-            # Handle direct placement actions (add_tree, add_pole)
-            if action_type == 'add_tree' and hasattr(roof, 'add_environment_obstacle_at_point'):
-                # Show attachment points temporarily
-                if hasattr(roof, 'show_environment_attachment_points'):
-                    roof.show_environment_attachment_points()
-                elif hasattr(roof, 'add_attachment_points'):
-                    roof.add_attachment_points()
-                
-                # Set tree type
-                tree_type = parameters.get('tree_type', 'deciduous')
-                if hasattr(roof, 'tree_type_index'):
-                    if tree_type == 'pine':
-                        roof.tree_type_index = 1
-                    elif tree_type == 'oak':
-                        roof.tree_type_index = 2
-                    else:
-                        roof.tree_type_index = 0
-                
-                # Place the tree
-                result = roof.add_environment_obstacle_at_point('tree')
-                placement_successful = result
-                
-                # ALWAYS hide attachment points after placement attempt
-                if hasattr(roof, 'hide_environment_attachment_points'):
-                    roof.hide_environment_attachment_points()
-                elif hasattr(roof, 'attachment_points_actor') and roof.attachment_points_actor:
-                    roof.attachment_points_actor.SetVisibility(False)
-                
-            elif action_type == 'add_pole' and hasattr(roof, 'add_environment_obstacle_at_point'):
-                # Show attachment points temporarily
-                if hasattr(roof, 'show_environment_attachment_points'):
-                    roof.show_environment_attachment_points()
-                elif hasattr(roof, 'add_attachment_points'):
-                    roof.add_attachment_points()
-                
-                # Place the pole
-                result = roof.add_environment_obstacle_at_point('pole')
-                placement_successful = result
-                
-                # ALWAYS hide attachment points after placement attempt
-                if hasattr(roof, 'hide_environment_attachment_points'):
-                    roof.hide_environment_attachment_points()
-                elif hasattr(roof, 'attachment_points_actor') and roof.attachment_points_actor:
-                    roof.attachment_points_actor.SetVisibility(False)
-            
-            # Handle other action types...
-            elif action_type == 'clear_all_environment' and hasattr(roof, 'clear_environment_obstacles'):
-                roof.clear_environment_obstacles()
-                placement_successful = True
-                
-                # Hide attachment points when clearing
-                if hasattr(roof, 'hide_environment_attachment_points'):
-                    roof.hide_environment_attachment_points()
-            
-            # Handle prepare_tree_placement and prepare_pole_placement (for interactive mode)
-            elif action_type in ['prepare_tree_placement', 'prepare_pole_placement']:
-                # These are for interactive placement mode - handled by environment manager
-                if hasattr(roof, 'handle_environment_action'):
-                    result = roof.handle_environment_action(action_type, parameters)
-                    placement_successful = result
-            
-            # Default handler
-            elif hasattr(roof, 'handle_environment_action'):
-                result = roof.handle_environment_action(action_type, parameters)
-                placement_successful = result
-            
-            # Trigger render after any action
-            if placement_successful:
+            if not hasattr(roof, 'handle_environment_action'):
+                return False
+
+            # Single tree/pole → interactive placement (show dots, click to place)
+            if action_type == 'add_tree':
+                action_type = 'prepare_tree_placement'
+            elif action_type == 'add_pole':
+                action_type = 'prepare_pole_placement'
+
+            result = roof.handle_environment_action(action_type, parameters)
+
+            if result:
                 self._trigger_render()
-            
-            return placement_successful
-                
+
+            return result
+
         except Exception as e:
-            # On error, try to hide attachment points anyway
-            try:
-                if hasattr(roof, 'hide_environment_attachment_points'):
-                    roof.hide_environment_attachment_points()
-            except:
-                pass
-            
             return False
 
 
@@ -709,21 +645,29 @@ class ModificationsTab(QWidget):
             config = show_solar_panel_dialog(parent=self, is_flat_roof=False)
             
             if config:
+                # Calculate panel area from dialog dimensions (mm → m²)
+                p_len_mm = config.get('panel_length', 1700)
+                p_wid_mm = config.get('panel_width', 1000)
+                panel_area = (p_len_mm / 1000.0) * (p_wid_mm / 1000.0)
+
                 # Update panel configuration
                 self.panel_config.update({
-                    'panel_count': config.get('panel_count', 10),
                     'panel_power': config.get('panel_power', 400),
+                    'panel_area': panel_area,
                     'efficiency': config.get('efficiency', 0.20)
                 })
-                
-                # Emit signal for roof application
+
+                # Emit signal for roof application (places panels on roof)
                 self.solar_panel_config_changed.emit(config)
-                
-                # Update performance
+
+                # Update performance (reads actual placed panels from roof)
                 self._update_performance()
-                
-                QMessageBox.information(self, "Success", 
-                    f"Solar panel configuration applied!\n{self.panel_config['panel_count']} panels configured.")
+
+                panel_count = self.panel_config['panel_count']
+                QMessageBox.information(self, "Success",
+                    f"Solar panel configuration applied!\n"
+                    f"Panel area: {panel_area:.2f} m² | Power: {config.get('panel_power', 400)}W\n"
+                    f"Panels placed: {panel_count}")
                         
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error opening solar panel dialog: {e}")
@@ -751,55 +695,235 @@ class ModificationsTab(QWidget):
 
     # ==================== PERFORMANCE CALCULATIONS ====================
     
+    # Side name → facing azimuth (degrees, 0=N, 90=E, 180=S, 270=W)
+    SIDE_AZIMUTH = {
+        # Gable roof sides (ridge runs along Y-axis)
+        'left': 270.0,   # faces west
+        'right': 90.0,   # faces east
+        # Hip / Pyramid roof sides
+        'front': 180.0,  # faces south
+        'back': 0.0,     # faces north
+        # Flat roof zones — all face up (tilt overrides to 0)
+        'center': 180.0, 'north': 180.0, 'south': 180.0,
+        'east': 180.0, 'west': 180.0,
+    }
+
+    @staticmethod
+    def _clear_sky_irradiance(sin_elev):
+        """Compute clear-sky DNI and DHI from sun elevation (Hottel + Liu-Jordan).
+        Returns (dni, dhi) in W/m².  sin_elev must be > 0."""
+        air_mass = min(1.0 / max(sin_elev, 0.01), 38.0)
+        # Kasten-Young clear-sky DNI (W/m²)
+        dni = 1353.0 * 0.7 ** (air_mass ** 0.678)
+        # Diffuse ≈ 10-15% of GHI; GHI = DNI * sin_elev + DHI
+        dhi = max(0.0, 120.0 * sin_elev)  # simplified clear-sky diffuse
+        return max(0.0, dni), max(0.0, dhi)
+
     def _update_performance(self):
-        """Update solar performance metrics and emit signal"""
+        """Update solar performance based on actual panel placement per roof side"""
         try:
-            # Calculate solar parameters
+            # Get per-side panel counts from the actual roof
+            sides_info = self._get_panels_per_side()
+
+            if not sides_info:
+                # No panels placed on the roof
+                self.performance_updated.emit(0.0, 0.0, 0.0, 0.0)
+                return
+
+            panel_area = self.panel_config['panel_area']
+            panel_power_w = self.panel_config['panel_power']
+            efficiency = self.panel_config['efficiency']
+            total_panel_count = sum(s['count'] for s in sides_info)
+
+            # Sun position
             solar_elevation = self._calculate_solar_elevation()
             solar_azimuth = self._calculate_solar_azimuth()
-            
-            # Calculate irradiance (simplified model)
-            if solar_elevation > 0:
-                # Base irradiance calculation
-                air_mass = 1 / math.sin(math.radians(solar_elevation))
-                air_mass = max(1.0, min(air_mass, 10.0))
-                
-                # Atmospheric attenuation
-                clear_sky_irradiance = 1000 * (0.7 ** (air_mass ** 0.678))
-                
-                # Panel efficiency factor
-                efficiency_factor = self.panel_config['efficiency']
-                
-                # Calculate power output
-                panel_area = self.panel_config['panel_area']
-                panel_count = self.panel_config['panel_count']
-                
-                current_power = (clear_sky_irradiance * panel_area * panel_count * 
-                               efficiency_factor) / 1000  # Convert to kW
-                
-                # Daily energy estimate (simplified)
-                peak_sun_hours = max(0, 6 + 2 * math.sin(math.radians(solar_elevation)))
-                daily_energy = current_power * peak_sun_hours
-                
-                # System efficiency
-                system_efficiency = (current_power / 
-                                   (panel_count * self.panel_config['panel_power'] / 1000)) * 100 if panel_count > 0 else 0.0
-                system_efficiency = min(100, max(0, system_efficiency))
-                
-                # Irradiance percentage
-                irradiance_percent = min(100, (clear_sky_irradiance / 1000) * 100)
-                
-            else:
-                current_power = 0.0
-                daily_energy = 0.0
-                system_efficiency = 0.0
-                irradiance_percent = 0.0
-            
-            # Emit performance update signal
-            self.performance_updated.emit(current_power, daily_energy, system_efficiency, irradiance_percent)
-            
-        except Exception as e:
+
+            if solar_elevation <= 0:
+                self.performance_updated.emit(0.0, 0.0, 0.0, 0.0)
+                return
+
+            elev_rad = math.radians(solar_elevation)
+            sin_elev = math.sin(elev_rad)
+            cos_elev = math.cos(elev_rad)
+
+            # Clear-sky DNI and DHI (separate beam/diffuse)
+            dni, dhi = self._clear_sky_irradiance(sin_elev)
+
+            # Shadow factors from ray-tracing (tree crowns blocking panels)
+            shadow_factors = self._shadow_factors_for_sun(
+                sides_info, solar_elevation, solar_azimuth)
+
+            # Sum power across all sides (each has its own tilt + azimuth)
+            total_power_kw = 0.0
+            weighted_poa = 0.0  # for average irradiance display
+
+            for side in sides_info:
+                tilt = side['tilt']
+                az = side['azimuth']
+                count = side['count']
+
+                # cos(AOI) per side — angle between sun ray and panel normal
+                az_diff = math.radians(solar_azimuth - az)
+                cos_aoi = (sin_elev * math.cos(tilt) +
+                           cos_elev * math.sin(tilt) * math.cos(az_diff))
+                cos_aoi = max(0.0, cos_aoi)  # sun behind this face → 0
+
+                # POA = beam component + diffuse component (isotropic sky model)
+                poa_beam = dni * cos_aoi
+                poa_diffuse = dhi * (1.0 + math.cos(tilt)) / 2.0
+                poa = poa_beam + poa_diffuse
+                poa = min(poa, 1200.0)
+
+                # Apply shadow factor (fraction of panels lit) — only blocks beam
+                sf = shadow_factors.get(side['name'], 1.0)
+                poa_effective = poa_beam * sf + poa_diffuse
+
+                side_power = (poa_effective * panel_area * count * efficiency) / 1000.0
+                # Clamp: no side can exceed its panels' nameplate total
+                max_side_kw = count * panel_power_w / 1000.0
+                side_power = min(side_power, max_side_kw)
+                total_power_kw += side_power
+                weighted_poa += poa * count * sf
+
+            avg_poa = weighted_poa / total_panel_count if total_panel_count > 0 else 0.0
+
+            # Daily energy (integrate over all sides)
+            daily_energy = self._estimate_daily_energy_per_side(sides_info, panel_area, efficiency)
+
+            # System efficiency vs nameplate
+            nameplate_kw = total_panel_count * panel_power_w / 1000.0
+            system_efficiency = (total_power_kw / nameplate_kw * 100.0) if nameplate_kw > 0 else 0.0
+            system_efficiency = min(100.0, max(0.0, system_efficiency))
+
+            irradiance_percent = min(100.0, (avg_poa / 1000.0) * 100.0)
+
+            self.performance_updated.emit(total_power_kw, daily_energy,
+                                          system_efficiency, irradiance_percent)
+        except Exception:
             pass
+
+    def _get_panels_per_side(self):
+        """Get list of dicts with count/tilt/azimuth for each side that has panels"""
+        try:
+            # Use self.current_roof directly (set via on_roof_created signal)
+            roof = self.current_roof
+            if not roof or not hasattr(roof, 'solar_panel_handler') or not roof.solar_panel_handler:
+                # Fallback: try via model tab
+                model_tab = self._get_model_tab()
+                if model_tab and hasattr(model_tab, 'current_roof'):
+                    roof = model_tab.current_roof
+            if not roof or not hasattr(roof, 'solar_panel_handler') or not roof.solar_panel_handler:
+                return []
+            handler = roof.solar_panel_handler
+            if not hasattr(handler, 'panels_count_by_side'):
+                return []
+
+            counts = handler.panels_count_by_side
+            if sum(counts.values()) == 0:
+                return []
+
+            # Roof tilt
+            tilt_rad = 0.0
+            if hasattr(roof, 'slope_angle'):
+                tilt_rad = float(roof.slope_angle)
+            elif hasattr(roof, 'roof_angle'):
+                tilt_rad = math.radians(float(roof.roof_angle))
+
+            # Flat roof override
+            is_flat = tilt_rad < 0.05  # ~3 degrees
+            if hasattr(handler, 'panel_tilt') and handler.panel_tilt > 0:
+                tilt_rad = math.radians(handler.panel_tilt)
+                is_flat = False
+
+            sides = []
+            for side_name, count in counts.items():
+                if count <= 0:
+                    continue
+                face_az = self.SIDE_AZIMUTH.get(side_name, 180.0)
+                face_tilt = 0.0 if is_flat else tilt_rad
+                sides.append({'name': side_name, 'count': count,
+                              'tilt': face_tilt, 'azimuth': face_az})
+
+            # Update total panel_config count for display
+            self.panel_config['panel_count'] = sum(s['count'] for s in sides)
+            return sides
+        except Exception:
+            return []
+
+    def _estimate_daily_energy_per_side(self, sides_info, panel_area, efficiency):
+        """Integrate daily energy across all sides in 30-min steps with shadow ray-tracing"""
+        try:
+            lat_rad = math.radians(self.latitude)
+            dec = math.radians(
+                23.45 * math.sin(math.radians(360.0 * (284 + self.day_of_year) / 365.0)))
+
+            cos_ws = max(-1.0, min(1.0, -math.tan(lat_rad) * math.tan(dec)))
+            sunrise_ha = math.acos(cos_ws)
+            sunrise = 12.0 - math.degrees(sunrise_ha) / 15.0
+            sunset = 12.0 + math.degrees(sunrise_ha) / 15.0
+
+            # Pre-fetch tree crowns once for the whole day
+            crowns = self._get_tree_crowns()
+            has_trees = len(crowns) > 0
+
+            # Get handler for panel positions (used for shadow checks)
+            handler = None
+            if has_trees and self.current_roof:
+                handler = getattr(self.current_roof, 'solar_panel_handler', None)
+
+            panel_power_w = self.panel_config.get('panel_power', 440)
+            total_wh = 0.0
+            step = 0.5
+            t = sunrise
+            while t < sunset:
+                ha = math.radians(15.0 * (t - 12.0))
+                sin_elev = (math.sin(lat_rad) * math.sin(dec) +
+                            math.cos(lat_rad) * math.cos(dec) * math.cos(ha))
+                if sin_elev <= 0.01:
+                    t += step
+                    continue
+                elev_rad = math.asin(sin_elev)
+                cos_elev = math.cos(elev_rad)
+
+                # Sun azimuth at this time step
+                cos_az = (math.sin(dec) - math.sin(lat_rad) * sin_elev) / \
+                         (math.cos(lat_rad) * cos_elev) if cos_elev > 0.001 else 0.0
+                cos_az = max(-1.0, min(1.0, cos_az))
+                az_deg = math.degrees(math.acos(cos_az))
+                if t > 12.0:
+                    az_deg = 360.0 - az_deg
+
+                # DNI / DHI clear-sky model (same as _update_performance)
+                dni, dhi = self._clear_sky_irradiance(sin_elev)
+
+                # Shadow factors at this time step
+                step_shadow = {}
+                if has_trees and handler and hasattr(handler, 'panel_positions_by_side'):
+                    elev_deg = math.degrees(elev_rad)
+                    step_shadow = self._shadow_factors_for_sun(
+                        sides_info, elev_deg, az_deg)
+
+                for side in sides_info:
+                    az_diff = math.radians(az_deg - side['azimuth'])
+                    cos_aoi = (sin_elev * math.cos(side['tilt']) +
+                               cos_elev * math.sin(side['tilt']) * math.cos(az_diff))
+                    cos_aoi = max(0.0, cos_aoi)
+                    poa_beam = dni * cos_aoi
+                    poa_diffuse = dhi * (1.0 + math.cos(side['tilt'])) / 2.0
+                    sf = step_shadow.get(side['name'], 1.0)
+                    # Shadow blocks beam only; diffuse still reaches
+                    poa_effective = poa_beam * sf + poa_diffuse
+                    side_w = poa_effective * panel_area * side['count'] * efficiency
+                    # Clamp at nameplate
+                    max_w = side['count'] * panel_power_w
+                    side_w = min(side_w, max_w)
+                    total_wh += side_w * step
+
+                t += step
+            return total_wh / 1000.0
+        except Exception:
+            return 0.0
     
     def _calculate_solar_elevation(self):
         """Calculate solar elevation angle"""
@@ -826,14 +950,121 @@ class ModificationsTab(QWidget):
             return 45.0  # Default value
     
     def _calculate_solar_azimuth(self):
-        """Calculate solar azimuth angle"""
+        """Calculate solar azimuth angle (0=N, 90=E, 180=S, 270=W)"""
         try:
-            # Simplified azimuth calculation
+            declination = 23.45 * math.sin(math.radians(360 * (284 + self.day_of_year) / 365))
             hour_angle = 15 * (self.current_time - 12)
-            return 180 + hour_angle  # Simplified model
-            
-        except Exception as e:
-            return 180.0  # Default value
+
+            lat_rad = math.radians(self.latitude)
+            dec_rad = math.radians(declination)
+            hour_rad = math.radians(hour_angle)
+
+            sin_elev = (math.sin(lat_rad) * math.sin(dec_rad) +
+                        math.cos(lat_rad) * math.cos(dec_rad) * math.cos(hour_rad))
+            elev_rad = math.asin(max(-1.0, min(1.0, sin_elev)))
+            cos_elev = math.cos(elev_rad)
+
+            if cos_elev < 0.001:
+                return 180.0
+
+            cos_az = (math.sin(dec_rad) - math.sin(lat_rad) * sin_elev) / \
+                     (math.cos(lat_rad) * cos_elev)
+            cos_az = max(-1.0, min(1.0, cos_az))
+            azimuth = math.degrees(math.acos(cos_az))
+
+            # Afternoon → west side (azimuth > 180)
+            if hour_angle > 0:
+                azimuth = 360.0 - azimuth
+
+            return azimuth
+
+        except Exception:
+            return 180.0
+
+    # ==================== RAY-SHADOW CALCULATIONS ====================
+
+    def _get_tree_crowns(self):
+        """Extract tree crown spheres from roof's environment obstacles.
+        Returns list of (cx, cy, cz, radius) tuples.
+        """
+        roof = self.current_roof
+        if not roof:
+            return []
+        obstacles = getattr(roof, 'environment_obstacles', [])
+        crowns = []
+        for obs in obstacles:
+            if 'tree' not in obs.get('type', ''):
+                continue
+            pos = obs.get('position', [0, 0])
+            h = obs.get('height', 7.0)
+            r = obs.get('radius', 2.0)
+            # Crown sphere center sits atop the trunk
+            crowns.append((float(pos[0]), float(pos[1]), float(h - r), float(r)))
+        return crowns
+
+    @staticmethod
+    def _ray_intersects_sphere(px, py, pz, dx, dy, dz, cx, cy, cz, r):
+        """Test if ray from (px,py,pz) toward direction (dx,dy,dz) hits sphere (cx,cy,cz,r).
+        Returns True if sphere blocks the ray (intersection at t > 0).
+        """
+        ocx = px - cx
+        ocy = py - cy
+        ocz = pz - cz
+        b = 2.0 * (ocx * dx + ocy * dy + ocz * dz)
+        c = ocx * ocx + ocy * ocy + ocz * ocz - r * r
+        disc = b * b - 4.0 * c
+        if disc < 0:
+            return False
+        sqrt_d = math.sqrt(disc)
+        t2 = (-b + sqrt_d) / 2.0  # far intersection
+        return t2 > 0.0
+
+    def _shadow_factors_for_sun(self, sides_info, solar_elevation, solar_azimuth):
+        """Compute per-side shadow factor (0=fully shadowed, 1=fully lit).
+        Casts a ray from each stored panel center toward the sun and checks
+        intersection with tree crown spheres.
+        """
+        try:
+            roof = self.current_roof
+            if not roof:
+                return {}
+
+            handler = getattr(roof, 'solar_panel_handler', None)
+            if not handler or not hasattr(handler, 'panel_positions_by_side'):
+                return {}
+
+            crowns = self._get_tree_crowns()
+            if not crowns:
+                return {}  # no trees → no shadow reduction
+
+            elev_rad = math.radians(solar_elevation)
+            az_rad = math.radians(solar_azimuth)
+            sun_dx = math.cos(elev_rad) * math.sin(az_rad)
+            sun_dy = math.cos(elev_rad) * math.cos(az_rad)
+            sun_dz = math.sin(elev_rad)
+
+            factors = {}
+            for side in sides_info:
+                name = side['name']
+                positions = handler.panel_positions_by_side.get(name, [])
+                if not positions:
+                    continue
+                lit = 0
+                for p in positions:
+                    blocked = False
+                    for (cx, cy, cz, cr) in crowns:
+                        if self._ray_intersects_sphere(
+                                p[0], p[1], p[2],
+                                sun_dx, sun_dy, sun_dz,
+                                cx, cy, cz, cr):
+                            blocked = True
+                            break
+                    if not blocked:
+                        lit += 1
+                factors[name] = lit / len(positions)
+            return factors
+        except Exception:
+            return {}
 
     # ==================== UTILITY METHODS ====================
 

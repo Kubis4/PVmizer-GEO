@@ -163,17 +163,17 @@ class SolarCalculations:
             elevation = np.degrees(elevation_rad)
             
             # Calculate sun azimuth angle
-            azimuth_rad = np.arccos(
-                (np.sin(decl_rad) - np.sin(elevation_rad) * np.sin(lat_rad)) /
-                (np.cos(elevation_rad) * np.cos(lat_rad))
-            )
+            cos_az_arg = (np.sin(decl_rad) - np.sin(elevation_rad) * np.sin(lat_rad)) / \
+                         (np.cos(elevation_rad) * np.cos(lat_rad))
+            cos_az_arg = np.clip(cos_az_arg, -1.0, 1.0)  # Prevent NaN from float precision
+            azimuth_rad = np.arccos(cos_az_arg)
             
             # Correct azimuth for afternoon
             if hour_angle > 0:
                 azimuth_rad = 2 * np.pi - azimuth_rad
                 
             # Convert to 3D position
-            distance = 30  # Distance from origin
+            distance = 50  # Distance from origin — far enough for near-parallel rays
             
             x = distance * np.cos(elevation_rad) * np.sin(azimuth_rad)  # East
             y = distance * np.cos(elevation_rad) * np.cos(azimuth_rad)  # North

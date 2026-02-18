@@ -41,6 +41,7 @@ class BasePanelHandler:
         self.active_sides = set()
         self.enable_debug_display = False
         self.show_debug = False
+        self.panel_positions_by_side = {}  # {side_name: [np.array([x,y,z]), ...]}
         
         # Load texture
         self.panel_texture = load_panel_texture()
@@ -241,6 +242,12 @@ class BasePanelHandler:
         try:
             if not valid_panels:
                 return
+
+            # Store panel center positions for shadow ray-casting
+            if self.current_side:
+                self.panel_positions_by_side[self.current_side] = [
+                    np.array(p['center'], dtype=float) for p in valid_panels
+                ]
                 
             panel_width_m = self.panel_width * self.mm_to_m
             panel_length_m = self.panel_length * self.mm_to_m
@@ -294,43 +301,16 @@ class BasePanelHandler:
             print(f"Error creating panel batch: {e}")
     
     def update_debug_display_common(self, roof_type_specific_text=""):
-        """Common debug display logic"""
+        """Clean view — no debug overlay in 3D view"""
         try:
-            # Remove existing actors
             if self.text_actor:
                 self.plotter.remove_actor(self.text_actor)
                 self.text_actor = None
-            
             if self.performance_actor:
                 self.plotter.remove_actor(self.performance_actor)
                 self.performance_actor = None
-            
-            # Calculate performance
-            perf_data = self.calculate_performance()
-            
-            if perf_data and perf_data.get('panel_count', 0) > 0:
-                # Import translations
-                try:
-                    from translations import _
-                except ImportError:
-                    _ = lambda x: x
-                
-                # Build debug message
-                debug_msg = self._build_debug_message(perf_data, _)
-                debug_msg += roof_type_specific_text
-                
-                # Add to display
-                self.performance_actor = self.plotter.add_text(
-                    debug_msg,
-                    position="upper_left",
-                    font_size=12,
-                    color="black"
-                )
-            
-            self.plotter.render()
-            
-        except Exception as e:
-            print(f"Error updating debug display: {e}")
+        except Exception:
+            pass
     
     def _build_debug_message(self, perf_data, _):
         """Build common debug message"""
@@ -534,19 +514,11 @@ class BasePanelHandler:
             return False
     
     def update_text(self, message):
-        """Update status text"""
+        """Clean view — no status text overlay"""
         try:
             if self.text_actor:
                 self.plotter.remove_actor(self.text_actor)
-            
-            self.text_actor = self.plotter.add_text(
-                message,
-                position="lower_right",
-                font_size=12,
-                color="black"
-            )
-            
-            self.plotter.render()
+                self.text_actor = None
         except Exception as e:
             print(f"Error updating text: {e}")
     

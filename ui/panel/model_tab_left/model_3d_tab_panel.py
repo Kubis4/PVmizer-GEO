@@ -49,6 +49,9 @@ class Model3DTabPanel(QWidget):
         self.tab_widget = None
         
         # Performance display components
+        self.performance_panel_model_label = None
+        self.performance_panel_count_label = None
+        self.performance_per_panel_label = None
         self.performance_power_label = None
         self.performance_energy_label = None
         self.performance_efficiency_label = None
@@ -192,7 +195,7 @@ class Model3DTabPanel(QWidget):
                 border-top-right-radius: 8px !important;
                 font-size: 13px !important;
                 font-weight: bold !important;
-                max-width: 140px !important;
+                max-width: 200px !important;
             }
             
             QTabBar::tab:selected {
@@ -233,13 +236,8 @@ class Model3DTabPanel(QWidget):
         solar_tab = QWidget()
         self.setup_solar_simulation_tab(solar_tab)
         self.tab_widget.addTab(solar_tab, "☀️ Solar")
-        
-        # Tab 3: Stats (SHORTENED from Performance as requested)
-        stats_tab = QWidget()
-        self.setup_stats_tab(stats_tab)
-        self.tab_widget.addTab(stats_tab, "📊 Stats")
-        
-        layout.addWidget(self.tab_widget)
+
+        layout.addWidget(self.tab_widget, alignment=Qt.AlignHCenter)
         layout.addStretch()
     
     def setup_solar_simulation_tab(self, tab_widget):
@@ -247,6 +245,7 @@ class Model3DTabPanel(QWidget):
         layout = QVBoxLayout(tab_widget)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
+        layout.setAlignment(Qt.AlignHCenter)
         
         # Make tab content transparent and width-constrained to match left panel
         tab_widget.setStyleSheet("""
@@ -267,7 +266,58 @@ class Model3DTabPanel(QWidget):
         else:
             self._create_fallback_datetime_controls(layout)
         
-        # Location Controls (using separated LocationControls)
+        # Current Production section (above location)
+        production_group = QGroupBox("⚡ Current Production")
+        production_group.setMaximumWidth(410)
+        prod_layout = QVBoxLayout(production_group)
+        prod_layout.setSpacing(6)
+        prod_layout.setContentsMargins(8, 15, 8, 8)
+
+        self.performance_panel_model_label = QLabel("Panel: SunPower Maxeon 440W")
+        self.performance_panel_model_label.setWordWrap(True)
+        prod_layout.addWidget(self.performance_panel_model_label)
+
+        self.performance_panel_count_label = QLabel("Panels Placed: --")
+        self.performance_panel_count_label.setWordWrap(True)
+        prod_layout.addWidget(self.performance_panel_count_label)
+
+        self.performance_power_label = QLabel("Power: --")
+        self.performance_power_label.setWordWrap(True)
+        prod_layout.addWidget(self.performance_power_label)
+
+        self.performance_per_panel_label = QLabel("Per Panel: --")
+        self.performance_per_panel_label.setWordWrap(True)
+        prod_layout.addWidget(self.performance_per_panel_label)
+
+        self.performance_energy_label = QLabel("Daily Energy: --")
+        self.performance_energy_label.setWordWrap(True)
+        prod_layout.addWidget(self.performance_energy_label)
+
+        self.performance_efficiency_label = QLabel("Efficiency: --")
+        self.performance_efficiency_label.setWordWrap(True)
+        prod_layout.addWidget(self.performance_efficiency_label)
+
+        self.irradiance_progress = QProgressBar()
+        self.irradiance_progress.setRange(0, 100)
+        self.irradiance_progress.setValue(0)
+        self.irradiance_progress.setTextVisible(True)
+        self.irradiance_progress.setFormat("Irradiance: %p%")
+        self.irradiance_progress.setMaximumHeight(20)
+        self.irradiance_progress.setMaximumWidth(390)
+        prod_layout.addWidget(self.irradiance_progress)
+
+        self.performance_progress = QProgressBar()
+        self.performance_progress.setRange(0, 100)
+        self.performance_progress.setValue(0)
+        self.performance_progress.setTextVisible(True)
+        self.performance_progress.setFormat("Performance: %p%")
+        self.performance_progress.setMaximumHeight(20)
+        self.performance_progress.setMaximumWidth(390)
+        prod_layout.addWidget(self.performance_progress)
+
+        layout.addWidget(production_group)
+
+        # Location Controls (below production)
         if LOCATION_CONTROLS_AVAILABLE:
             try:
                 self.location_controls = LocationControls(self.main_window)
@@ -276,104 +326,7 @@ class Model3DTabPanel(QWidget):
                 self._create_fallback_location_controls(layout)
         else:
             self._create_fallback_location_controls(layout)
-        
-        layout.addStretch()
-    
-    def setup_stats_tab(self, tab_widget):
-        """Setup stats tab with transparent background, default font sizes, and width constraints"""
-        layout = QVBoxLayout(tab_widget)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(12)
-        
-        # Make tab content transparent and width-constrained to match left panel
-        tab_widget.setStyleSheet("""
-            QWidget {
-                background-color: transparent !important;
-                max-width: 410px !important;
-            }
-        """)
-        
-        # Current Performance Metrics with DEFAULT FONT SIZES and WIDTH CONSTRAINTS
-        current_group = QGroupBox("⚡ Current Performance")
-        current_group.setMaximumWidth(410)
-        current_layout = QVBoxLayout(current_group)
-        current_layout.setSpacing(8)
-        current_layout.setContentsMargins(8, 15, 8, 8)
-        
-        # Power display with DEFAULT FONT SIZE
-        self.performance_power_label = QLabel("Current Power: Calculating...")
-        self.performance_power_label.setWordWrap(True)  # Prevent horizontal overflow
-        current_layout.addWidget(self.performance_power_label)
-        
-        # Energy display with DEFAULT FONT SIZE
-        self.performance_energy_label = QLabel("Daily Energy: Calculating...")
-        self.performance_energy_label.setWordWrap(True)  # Prevent horizontal overflow
-        current_layout.addWidget(self.performance_energy_label)
-        
-        # Efficiency display with DEFAULT FONT SIZE
-        self.performance_efficiency_label = QLabel("System Efficiency: Calculating...")
-        self.performance_efficiency_label.setWordWrap(True)  # Prevent horizontal overflow
-        current_layout.addWidget(self.performance_efficiency_label)
-        
-        layout.addWidget(current_group)
-        
-        # Visual Indicators with DEFAULT FONT SIZES and WIDTH CONSTRAINTS
-        indicators_group = QGroupBox("📊 Performance Indicators")
-        indicators_group.setMaximumWidth(410)
-        indicators_layout = QVBoxLayout(indicators_group)
-        indicators_layout.setSpacing(8)
-        indicators_layout.setContentsMargins(8, 15, 8, 8)
-        
-        # Irradiance progress with DEFAULT FONT SIZE
-        irradiance_label = QLabel("☀️ Solar Irradiance")
-        irradiance_label.setWordWrap(True)  # Prevent horizontal overflow
-        indicators_layout.addWidget(irradiance_label)
-        
-        self.irradiance_progress = QProgressBar()
-        self.irradiance_progress.setRange(0, 100)
-        self.irradiance_progress.setValue(0)
-        self.irradiance_progress.setTextVisible(True)
-        self.irradiance_progress.setFormat("Irradiance: %p%")
-        self.irradiance_progress.setMaximumHeight(25)
-        self.irradiance_progress.setMaximumWidth(390)  # Constrain progress bar width
-        indicators_layout.addWidget(self.irradiance_progress)
-        
-        # Performance progress with DEFAULT FONT SIZE
-        performance_label = QLabel("⚡ System Performance")
-        performance_label.setWordWrap(True)  # Prevent horizontal overflow
-        indicators_layout.addWidget(performance_label)
-        
-        self.performance_progress = QProgressBar()
-        self.performance_progress.setRange(0, 100)
-        self.performance_progress.setValue(0)
-        self.performance_progress.setTextVisible(True)
-        self.performance_progress.setFormat("Performance: %p%")
-        self.performance_progress.setMaximumHeight(25)
-        self.performance_progress.setMaximumWidth(390)  # Constrain progress bar width
-        indicators_layout.addWidget(self.performance_progress)
-        
-        layout.addWidget(indicators_group)
-        
-        # Controls with DEFAULT FONT SIZES and WIDTH CONSTRAINTS
-        controls_group = QGroupBox("🔄 Performance Controls")
-        controls_group.setMaximumWidth(410)
-        controls_layout = QVBoxLayout(controls_group)
-        controls_layout.setContentsMargins(8, 15, 8, 8)
-        
-        # Update button with DEFAULT FONT SIZE and WIDTH CONSTRAINT
-        update_btn = QPushButton("🔄 Refresh Performance Data")
-        update_btn.setMaximumHeight(32)  # Match default button height
-        update_btn.setMaximumWidth(390)  # Constrain button width
-        update_btn.clicked.connect(self._manual_performance_update)
-        controls_layout.addWidget(update_btn)
-        
-        # Auto-update info with DEFAULT FONT SIZE
-        auto_info = QLabel("📝 Performance data automatically updates every 30 seconds")
-        auto_info.setWordWrap(True)  # Prevent horizontal overflow
-        auto_info.setMaximumWidth(390)  # Constrain label width
-        controls_layout.addWidget(auto_info)
-        
-        layout.addWidget(controls_group)
+
         layout.addStretch()
     
     def _manual_performance_update(self):
@@ -429,20 +382,40 @@ class Model3DTabPanel(QWidget):
     def _update_performance_display(self, power, energy, efficiency, irradiance_percent=0):
         """Update performance display in the stats tab"""
         try:
+            # Get panel info from modifications tab
+            panel_count = 0
+            panel_power_w = 440
+            if self.modifications_tab and hasattr(self.modifications_tab, 'panel_config'):
+                cfg = self.modifications_tab.panel_config
+                panel_count = cfg.get('panel_count', 0)
+                panel_power_w = cfg.get('panel_power', 440)
+
+            if hasattr(self, 'performance_panel_model_label') and self.performance_panel_model_label:
+                self.performance_panel_model_label.setText(
+                    f"Panel: SunPower Maxeon {panel_power_w}W")
+            if hasattr(self, 'performance_panel_count_label') and self.performance_panel_count_label:
+                self.performance_panel_count_label.setText(f"Panels Placed: {panel_count}")
             if hasattr(self, 'performance_power_label') and self.performance_power_label:
-                self.performance_power_label.setText(f"Current Power: {power:.1f} kW")
+                self.performance_power_label.setText(f"Current Power: {power:.2f} kW")
+            if hasattr(self, 'performance_per_panel_label') and self.performance_per_panel_label:
+                if panel_count > 0:
+                    per_panel_w = (power * 1000.0) / panel_count
+                    self.performance_per_panel_label.setText(
+                        f"Per Panel: {per_panel_w:.1f} W / {panel_power_w} W")
+                else:
+                    self.performance_per_panel_label.setText("Per Panel: --")
             if hasattr(self, 'performance_energy_label') and self.performance_energy_label:
                 self.performance_energy_label.setText(f"Daily Energy: {energy:.1f} kWh")
             if hasattr(self, 'performance_efficiency_label') and self.performance_efficiency_label:
                 self.performance_efficiency_label.setText(f"System Efficiency: {efficiency:.1f}%")
-            
+
             # Update progress bars
             if hasattr(self, 'performance_progress') and self.performance_progress:
                 self.performance_progress.setValue(min(100, max(0, int(efficiency))))
-            
+
             if hasattr(self, 'irradiance_progress') and self.irradiance_progress:
                 self.irradiance_progress.setValue(min(100, max(0, int(irradiance_percent))))
-                
+
         except Exception as e:
             pass
     

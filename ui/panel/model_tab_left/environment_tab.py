@@ -250,36 +250,14 @@ class EnvironmentTab(QWidget):
         self.pole_height_value.setText(f"{value}%")
     
     def _select_tree_placement(self, tree_type):
-        """Select tree type and show placement points"""
+        """Place one tree of the selected type at a random free attachment point"""
         try:
-            self.current_placement_mode = f'tree_{tree_type}'
-            self._update_button_states()
-            
-            # Show attachment points if not visible
-            if not self.attachment_points_visible:
-                self.attachment_points_visible = True
-                self.toggle_points_btn.setText("📍 Hide Points")
-                self.toggle_points_btn.setChecked(True)
-                
-                # Emit signal to show points
-                self.environment_action_requested.emit('toggle_attachment_points', {
-                    'visible': True
-                })
-            
-            # Emit signal to prepare placement
-            self.environment_action_requested.emit('prepare_tree_placement', {
+            self.environment_action_requested.emit('add_tree', {
                 'tree_type': tree_type,
                 'size_multiplier': self.tree_size_multiplier
             })
-            
-            # Show user instruction
-            QMessageBox.information(self, "Tree Placement", 
-                                f"{tree_type.title()} tree selected!\n"
-                                "Now RIGHT-CLICK on black dots to place trees.\n"
-                                "(Points will hide automatically after placement)")
-            
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"Error selecting tree placement: {e}")
+            QMessageBox.warning(self, "Error", f"Error placing tree: {e}")
     
     def _add_multiple_trees(self, count):
         """Add multiple trees of mixed types"""
@@ -293,35 +271,13 @@ class EnvironmentTab(QWidget):
             QMessageBox.warning(self, "Error", f"Error adding multiple trees: {e}")
     
     def _select_pole_placement(self):
-        """Select pole and show placement points"""
+        """Place one utility pole at a random free attachment point"""
         try:
-            self.current_placement_mode = 'pole'
-            self._update_button_states()
-            
-            # Show attachment points if not visible
-            if not self.attachment_points_visible:
-                self.attachment_points_visible = True
-                self.toggle_points_btn.setText("📍 Hide Points")
-                self.toggle_points_btn.setChecked(True)
-                
-                # Emit signal to show points
-                self.environment_action_requested.emit('toggle_attachment_points', {
-                    'visible': True
-                })
-            
-            # Emit signal to prepare placement
-            self.environment_action_requested.emit('prepare_pole_placement', {
+            self.environment_action_requested.emit('add_pole', {
                 'height_multiplier': self.pole_height_multiplier
             })
-            
-            # Show user instruction
-            QMessageBox.information(self, "Pole Placement", 
-                                "Utility pole selected!\n"
-                                "Now RIGHT-CLICK on black dots to place poles.\n"
-                                "(Points will hide automatically after placement)")
-            
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"Error selecting pole placement: {e}")
+            QMessageBox.warning(self, "Error", f"Error placing pole: {e}")
     
     def _add_multiple_poles(self, count):
         """Add multiple poles"""

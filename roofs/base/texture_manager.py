@@ -15,7 +15,6 @@ class TextureManager:
         """Initialize texture manager"""
         self.roof = base_roof
         self._setup_textures()
-        print("✅ TextureManager initialized")
     
     def _setup_textures(self):
         """Setup texture paths with fallback locations"""
@@ -35,17 +34,15 @@ class TextureManager:
             full_path = resource_path(dir_path)
             if os.path.exists(full_path):
                 texture_dir = full_path
-                print(f"✅ Found texture directory: {texture_dir}")
                 break
         
         if not texture_dir:
             texture_dir = resource_path("textures")
-            print(f"⚠️ No texture directory found, using default: {texture_dir}")
         
         # House textures
         self.wall_texture_file = os.path.join(texture_dir, "wall.jpg")
         self.brick_texture_file = os.path.join(texture_dir, "brick.jpg")
-        self.roof_tile_texture_file = os.path.join(texture_dir, "roof_tiles.jpg")
+        self.roof_tile_texture_file = os.path.join(texture_dir, "rooftile.jpg")
         
         # Environment textures
         self.grass_texture_file = os.path.join(texture_dir, "grass.png")
@@ -66,12 +63,10 @@ class TextureManager:
         self.default_pine_color = "#5A9A5A"
         self.default_bark_color = "#B08060"
         
-        print("✅ Texture paths configured")
     
     def load_texture_safely(self, filename, default_color="#A9A9A9"):
         """Safely load texture with comprehensive fallback"""
         if not filename:
-            print(f"⚠️ No filename provided, using default color")
             return default_color, False
         
         base_filename = os.path.basename(filename)
@@ -80,10 +75,9 @@ class TextureManager:
         if os.path.exists(filename):
             try:
                 texture = pv.read_texture(filename)
-                print(f"✅ Loaded texture: {base_filename}")
                 return texture, True
             except Exception as e:
-                print(f"❌ Error loading texture {base_filename}: {e}")
+                pass
         
         # Try alternative extensions
         name_without_ext = os.path.splitext(base_filename)[0]
@@ -94,22 +88,19 @@ class TextureManager:
             if os.path.exists(alt_filename):
                 try:
                     texture = pv.read_texture(alt_filename)
-                    print(f"✅ Loaded alternative texture: {name_without_ext}{ext}")
                     return texture, True
                 except Exception as e:
-                    print(f"❌ Error loading alternative texture: {e}")
+                    pass
         
         # Try in current working directory
         cwd_path = os.path.join(os.getcwd(), base_filename)
         if os.path.exists(cwd_path):
             try:
                 texture = pv.read_texture(cwd_path)
-                print(f"✅ Loaded texture from CWD: {base_filename}")
                 return texture, True
             except Exception as e:
-                print(f"❌ Error loading texture from CWD: {e}")
+                pass
         
-        print(f"⚠️ Texture not found: {base_filename}, using default color: {default_color}")
         return default_color, False
     
     def calculate_texture_scale(self):
@@ -147,5 +138,4 @@ class TextureManager:
             return texture_coords
             
         except Exception as e:
-            print(f"❌ Error generating texture coordinates: {e}")
             return np.zeros((mesh.points.shape[0], 2))

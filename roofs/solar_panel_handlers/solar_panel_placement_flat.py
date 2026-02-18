@@ -203,6 +203,7 @@ class SolarPanelPlacementFlat(BasePanelHandler):
         for area in self.panels_count_by_side:
             self.panels_count_by_side[area] = 0
             self.panels_skipped_by_side[area] = 0
+        self.panel_positions_by_side = {}
         
         # Reset area tracking
         if hasattr(self, '_last_area'):
@@ -315,10 +316,16 @@ class SolarPanelPlacementFlat(BasePanelHandler):
                     panel_positions.append([x, y, z])
                     panels_placed += 1
         
+        # Store panel center positions for shadow ray-casting
+        if hasattr(self, 'current_area') and self.current_area:
+            self.panel_positions_by_side[self.current_area] = [
+                np.array(pos, dtype=float) for pos in panel_positions
+            ]
+
         # Create instanced panels
         if panel_positions:
             self._create_instanced_panels(panel_positions)
-        
+
         print(f"✅ Placed {panels_placed} panels in {self.current_area} area using centered coordinates")
         return panels_placed
     

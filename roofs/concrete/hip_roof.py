@@ -14,9 +14,7 @@ import os
 try:
     from roofs.solar_panel_handlers.solar_panel_placement_hip import SolarPanelPlacementHip
     SOLAR_HANDLER_AVAILABLE = True
-    print("✅ Solar panel handler imported successfully")
 except ImportError as e:
-    print(f"⚠️ Could not import solar panel handler: {e}")
     SOLAR_HANDLER_AVAILABLE = False
     SolarPanelPlacementHip = None
 
@@ -35,7 +33,7 @@ class HipRoof(BaseRoof):
         self.slope_angle = np.arctan(self.height / (self.width / 2))
         
         # Set texture paths using resource_path for robust loading
-        texture_base_path = "PVmizer GEO/textures"
+        texture_base_path = "textures"
         
         # Define paths for different textures
         self.roof_texture_path = resource_path(os.path.join(texture_base_path, "rooftile.jpg"))
@@ -87,9 +85,8 @@ class HipRoof(BaseRoof):
             ambient.color = [0.9, 0.9, 1.0]
             self.plotter.add_light(ambient)
             
-            print("✅ Lighting configured")
         except Exception as e:
-            print(f"⚠️ Could not setup lighting: {e}")
+            pass
     
     def create_roof_geometry(self):
         """Create hip roof at the top of the building"""
@@ -217,10 +214,8 @@ class HipRoof(BaseRoof):
                     specular=0.1
                 )
             
-            print("✅ Roof created with texture")
             
         except Exception as e:
-            print(f"⚠️ Error applying roof texture: {e}")
             # Fallback to color
             self.plotter.add_mesh(
                 self.roof_mesh,
@@ -280,7 +275,7 @@ class HipRoof(BaseRoof):
 
             # Load wall texture
             wall_texture, texture_loaded = self.load_texture_safely(
-                self.brick_texture_path if os.path.exists(resource_path(os.path.join("PVmizer GEO/textures", "brick.jpg"))) else self.wall_texture_path,
+                self.brick_texture_path if os.path.exists(resource_path(os.path.join("textures", "brick.jpg"))) else self.wall_texture_path,
                 self.wall_color
             )
             
@@ -309,10 +304,8 @@ class HipRoof(BaseRoof):
             # Add foundation
             self._add_foundation()
             
-            print("✅ Building base created")
             
         except Exception as e:
-            print(f"❌ Error creating building base: {e}")
             import traceback
             traceback.print_exc()
     
@@ -341,10 +334,9 @@ class HipRoof(BaseRoof):
                 specular=0.02
             )
             
-            print("✅ Foundation added")
             
         except Exception as e:
-            print(f"⚠️ Could not add foundation: {e}")
+            pass
     
     def initialize_roof(self, dimensions):
         """Initialize roof with building and environment"""
@@ -366,27 +358,22 @@ class HipRoof(BaseRoof):
                 self.theme
             )
             self.annotator.add_annotations()
-            print("✅ Annotations added")
         except Exception as e:
-            print(f"⚠️ Could not add annotations: {e}")
             self.annotator = None
         
         # Setup key bindings
         try:
             self.setup_key_bindings()
             self._setup_environment_key_bindings()
-            print("✅ Key bindings configured (t=tree, p=pole, a=points, e=clear)")
         except Exception as e:
-            print(f"⚠️ Error setting up key bindings: {e}")
+            pass
         
         # Set camera view
         try:
             self.set_default_camera_view()
-            print("✅ Camera positioned")
         except Exception as e:
-            print(f"⚠️ Could not set camera view: {e}")
+            pass
         
-        print(f"🏠 {self.__class__.__name__} complete with building and environment")
     
     def calculate_camera_position(self):
         """Calculate optimal camera position"""
@@ -399,7 +386,6 @@ class HipRoof(BaseRoof):
     def setup_roof_specific_key_bindings(self):
         """Setup hip roof key bindings"""
         if self.solar_panel_handler:
-            print("✅ Adding panel key bindings (1-4 for sides)")
             self.plotter.add_key_event("1", lambda: self.safe_add_panels("front"))
             self.plotter.add_key_event("2", lambda: self.safe_add_panels("right"))
             self.plotter.add_key_event("3", lambda: self.safe_add_panels("back"))
@@ -411,7 +397,7 @@ class HipRoof(BaseRoof):
             if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
                 self.solar_panel_handler.add_panels(side)
         except Exception as e:
-            print(f"Error adding panels to {side}: {e}")
+            pass
     
     def get_solar_panel_areas(self):
         """Get valid panel areas"""
@@ -564,15 +550,11 @@ class HipRoof(BaseRoof):
                     color='black',
                     point_size=10,
                     render_points_as_spheres=True,
-                    pickable=True
+                    pickable=False,
+                    lighting=False  # No lighting = no shadow casting
                 )
                 
-                self.plotter.enable_point_picking(
-                    callback=self.attachment_point_clicked,
-                    show_message=False,
-                    pickable_window=False,
-                    tolerance=0.05
-                )
+                self._setup_roof_obstacle_click()
                 
                 if not hasattr(self, 'placement_instruction') or not self.placement_instruction:
                     remaining = 6 - self.obstacle_count
@@ -585,7 +567,6 @@ class HipRoof(BaseRoof):
             return True
             
         except Exception as e:
-            print(f"Error adding attachment points: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -645,11 +626,12 @@ class HipRoof(BaseRoof):
                     self.plotter.remove_actor(self.attachment_point_actor)
                     self.attachment_point_actor = None
                 
+                self._remove_roof_obstacle_click()
                 try:
                     self.plotter.disable_picking()
-                except:
+                except Exception:
                     pass
-                
+
                 remaining = 6 - self.obstacle_count
                 if remaining > 0:
                     display_name = self.get_translated_obstacle_name(self.selected_obstacle_type)
@@ -671,7 +653,6 @@ class HipRoof(BaseRoof):
                 self.update_instruction(_("Failed to add obstacle. Try a different location."))
                 
         except Exception as e:
-            print(f"Error in attachment point callback: {e}")
             import traceback
             traceback.print_exc()
     
@@ -694,5 +675,4 @@ class HipRoof(BaseRoof):
             
             return closest_index
         except Exception as e:
-            print(f"Error finding closest attachment point: {e}")
             return None

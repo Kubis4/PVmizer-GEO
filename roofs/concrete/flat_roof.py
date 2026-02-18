@@ -14,9 +14,7 @@ import os
 try:
     from roofs.solar_panel_handlers.solar_panel_placement_flat import SolarPanelPlacementFlat
     SOLAR_HANDLER_AVAILABLE = True
-    print("✅ Solar panel handler imported successfully")
 except ImportError as e:
-    print(f"⚠️ Could not import solar panel handler: {e}")
     SOLAR_HANDLER_AVAILABLE = False
     SolarPanelPlacementFlat = None
 
@@ -51,7 +49,7 @@ class FlatRoof(BaseRoof):
         self.building_height = 3.0
         
         # Set texture paths
-        texture_base_path = "PVmizer GEO/textures"
+        texture_base_path = "textures"
         self.roof_texture_path = resource_path(os.path.join(texture_base_path, "wall.jpg"))
         self.wall_texture_path = resource_path(os.path.join(texture_base_path, "wall.jpg"))
         self.brick_texture_path = resource_path(os.path.join(texture_base_path, "brick.jpg"))
@@ -75,7 +73,6 @@ class FlatRoof(BaseRoof):
         # Initialize roof using template method
         self.initialize_roof(dimensions)
         
-        print(f"🏠 FlatRoof initialized with proper annotations")
     
     def initialize_roof(self, dimensions):
         """Initialize roof with building"""
@@ -100,9 +97,7 @@ class FlatRoof(BaseRoof):
                     base_height=self.building_height  # Pass the base height
                 )
                 self.annotator.add_annotations()
-                print("✅ Annotations added using RoofAnnotation")
         except Exception as e:
-            print(f"⚠️ Could not add annotations: {e}")
             import traceback
             traceback.print_exc()
             self.annotator = None
@@ -112,16 +107,14 @@ class FlatRoof(BaseRoof):
             self.setup_key_bindings()
             if hasattr(self, '_setup_environment_key_bindings'):
                 self._setup_environment_key_bindings()
-            print("✅ Key bindings configured")
         except Exception as e:
-            print(f"⚠️ Error setting up key bindings: {e}")
+            pass
         
         # Set camera view
         try:
             self.set_default_camera_view()
-            print("✅ Camera positioned")
         except Exception as e:
-            print(f"⚠️ Could not set camera view: {e}")
+            pass
     
     def _setup_lighting(self):
         """Setup realistic lighting"""
@@ -142,9 +135,8 @@ class FlatRoof(BaseRoof):
             ambient.color = [0.9, 0.9, 1.0]
             self.plotter.add_light(ambient)
             
-            print("✅ Lighting configured")
         except Exception as e:
-            print(f"⚠️ Could not setup lighting: {e}")
+            pass
     
     def create_roof_geometry(self):
         """Create flat roof CENTERED on the grass plane"""
@@ -221,7 +213,6 @@ class FlatRoof(BaseRoof):
                 smooth_shading=True
             )
         
-        print("✅ Roof surface created with wall.jpg texture")
     
     def _create_building_walls_centered(self):
         """Create building walls CENTERED at origin"""
@@ -290,7 +281,6 @@ class FlatRoof(BaseRoof):
                 smooth_shading=True
             )
         
-        print("✅ Building walls created")
     
     def _create_parapet_walls_centered(self):
         """Create parapet walls CENTERED at origin with proper texture coordinates"""
@@ -371,7 +361,6 @@ class FlatRoof(BaseRoof):
                     smooth_shading=True
                 )
         
-        print("✅ Parapet walls created with proper texture coordinates")
     
     def _add_foundation_centered(self):
         """Add foundation CENTERED at origin"""
@@ -397,7 +386,6 @@ class FlatRoof(BaseRoof):
             specular=0.02
         )
         
-        print("✅ Foundation added")
     
     def calculate_camera_position(self):
         """Calculate camera position for centered building"""
@@ -410,7 +398,6 @@ class FlatRoof(BaseRoof):
     def setup_roof_specific_key_bindings(self):
         """Setup key bindings"""
         if self.solar_panel_handler:
-            print("✅ Adding panel placement key bindings")
             self.plotter.add_key_event("1", lambda: self.safe_add_panels("center"))
             self.plotter.add_key_event("2", lambda: self.safe_add_panels("north"))
             self.plotter.add_key_event("3", lambda: self.safe_add_panels("south"))
@@ -495,15 +482,11 @@ class FlatRoof(BaseRoof):
                     color='black',
                     point_size=10,
                     render_points_as_spheres=True,
-                    pickable=True
+                    pickable=False,
+                    lighting=False  # No lighting = no shadow casting
                 )
                 
-                self.plotter.enable_point_picking(
-                    callback=self.attachment_point_clicked,
-                    show_message=False,
-                    pickable_window=False,
-                    tolerance=0.05
-                )
+                self._setup_roof_obstacle_click()
                 
                 remaining = 6 - self.obstacle_count
                 display_name = self.get_translated_obstacle_name(
@@ -517,7 +500,6 @@ class FlatRoof(BaseRoof):
             return True
             
         except Exception as e:
-            print(f"Error adding attachment points: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -564,12 +546,16 @@ class FlatRoof(BaseRoof):
             self.attachment_points_occupied[closest_point_idx]['occupied'] = True
             self.attachment_points_occupied[closest_point_idx]['obstacle'] = obstacle
         
-        self.plotter.disable_picking()
-        
+        self._remove_roof_obstacle_click()
+        try:
+            self.plotter.disable_picking()
+        except Exception:
+            pass
+
         if hasattr(self, 'attachment_point_actor') and self.attachment_point_actor:
             self.plotter.remove_actor(self.attachment_point_actor)
             self.attachment_point_actor = None
-        
+
         # Update panels if needed
         if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
             active_areas = getattr(self.solar_panel_handler, 'active_areas', [])

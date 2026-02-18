@@ -314,10 +314,11 @@ class SolarPanelPlacementGable(BasePanelHandler):
         # Clear boundaries for this side
         self._clear_boundaries_for_side(side)
         
-        # Reset counts for this side
+        # Reset counts and stored positions for this side
         self.panels_count_by_side[side] = 0
         self.panels_skipped_by_side[side] = 0
-        
+        self.panel_positions_by_side.pop(side, None)
+
         print(f"✅ Reset panel count for {side}")
         print(f"🗑️ After removal - active_sides: {list(self.active_sides)}")
         print(f"🗑️ === REMOVE_PANELS_FROM_SIDE COMPLETED ===\n")

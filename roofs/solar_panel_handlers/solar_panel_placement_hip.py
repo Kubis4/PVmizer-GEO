@@ -146,12 +146,13 @@ class SolarPanelPlacementHip(BasePanelHandler):
             self.boundaries_by_side[side] = []
             print(f"✅ Removed {boundaries_removed} boundary actors from {side}")
         
-        # Reset counts for this side
+        # Reset counts and stored positions for this side
         old_count = self.panels_count_by_side.get(side, 0)
         self.panels_count_by_side[side] = 0
         self.panels_skipped_by_side[side] = 0
+        self.panel_positions_by_side.pop(side, None)
         print(f"✅ Reset panel count for {side} (was {old_count}, now 0)")
-        
+
         print(f"🗑️ After removal - active_sides: {list(self.active_sides)}")
         print(f"🗑️ === REMOVE_PANELS_FROM_SIDE COMPLETED ===\n")
     

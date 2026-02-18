@@ -231,10 +231,11 @@ class SolarPanelPlacementPyramid(BasePanelHandler):
         if side in self.panel_meshes_by_side:
             self.panel_meshes_by_side[side] = []
         
-        # Reset counts for this side
+        # Reset counts and stored positions for this side
         old_count = self.panels_count_by_side.get(side, 0)
         self.panels_count_by_side[side] = 0
         self.panels_skipped_by_side[side] = 0
+        self.panel_positions_by_side.pop(side, None)
         print(f"✅ Reset panel count for {side} (was {old_count}, now 0)")
         
         # ✅ FORCE RENDER UPDATE

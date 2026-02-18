@@ -39,7 +39,7 @@ class PyramidRoof(BaseRoof):
         self.slope_angle = np.arctan(self.height / half_diagonal)
         
         # Texture paths - MATCH GABLE ROOF
-        texture_base_path = "PVmizer GEO/textures"
+        texture_base_path = "textures"
         self.roof_texture_path = resource_path(os.path.join(texture_base_path, "rooftile.jpg"))
         self.wall_texture_path = resource_path(os.path.join(texture_base_path, "wall.jpg"))
         self.brick_texture_path = resource_path(os.path.join(texture_base_path, "brick.jpg"))
@@ -457,9 +457,8 @@ class PyramidRoof(BaseRoof):
                 if mesh and hasattr(self.sun_system, 'register_scene_object'):
                     cast_shadow = 'foundation' not in name.lower()
                     self.sun_system.register_scene_object(mesh, name, cast_shadow)
-                    print(f"✅ Registered '{name}' with sun system (cast_shadow={cast_shadow})")
         except Exception as e:
-            print(f"⚠️ Error registering meshes with sun system: {e}")
+            pass
     
     def _register_shadow_receivers(self):
         """Register shadow receivers - MATCH GABLE ROOF"""
@@ -474,7 +473,7 @@ class PyramidRoof(BaseRoof):
                     if hasattr(self.sun_system, 'register_shadow_receiver'):
                         self.sun_system.register_shadow_receiver(mesh, face_name)
         except Exception as e:
-            print(f"⚠️ Error registering shadow receivers: {e}")
+            pass
     
     def rotate_building(self, angle_delta):
         """Rotate building with automatic shadow updates - MATCH GABLE ROOF"""
@@ -513,10 +512,9 @@ class PyramidRoof(BaseRoof):
             # Force render
             self.plotter.render()
             
-            print(f"🔄 Building rotated to {self.rotation_angle}° with shadow update")
             
         except Exception as e:
-            print(f"⚠️ Error rotating building: {e}")
+            pass
     
     def _store_solar_panels_state(self):
         """Store solar panel state - MATCH GABLE ROOF"""
@@ -538,7 +536,7 @@ class PyramidRoof(BaseRoof):
                     for side in active_sides:
                         self.solar_panel_handler.add_panels(side)
                 except Exception as e:
-                    print(f"⚠️ Error restoring solar panels: {e}")
+                    pass
     
     def initialize_roof(self, dimensions):
         """Initialize roof - MATCH GABLE ROOF"""
@@ -561,26 +559,21 @@ class PyramidRoof(BaseRoof):
                     self.theme
                 )
                 self.annotator.add_annotations()
-                print("✅ Annotations added")
         except Exception as e:
-            print(f"⚠️ Could not add annotations: {e}")
             self.annotator = None
         
         # Setup key bindings
         try:
             self.setup_key_bindings()
-            print("✅ Key bindings configured")
         except Exception as e:
-            print(f"⚠️ Error setting up key bindings: {e}")
+            pass
         
         # Set camera view
         try:
             self.set_default_camera_view()
-            print("✅ Camera positioned")
         except Exception as e:
-            print(f"⚠️ Could not set camera view: {e}")
+            pass
         
-        print(f"🏠 {self.__class__.__name__} complete with shadow support")
     
     def calculate_camera_position(self):
         """Calculate camera position - MATCH GABLE ROOF"""
@@ -602,7 +595,6 @@ class PyramidRoof(BaseRoof):
         try:
             # Solar panel controls
             if self.solar_panel_handler:
-                print("✅ Adding panel key bindings (1-4 for sides)")
                 self.plotter.add_key_event("1", lambda: self.safe_add_panels("front"))
                 self.plotter.add_key_event("2", lambda: self.safe_add_panels("right"))
                 self.plotter.add_key_event("3", lambda: self.safe_add_panels("back"))
@@ -620,10 +612,9 @@ class PyramidRoof(BaseRoof):
             self.plotter.add_key_event("Left", lambda: self.rotate_building(-15))
             self.plotter.add_key_event("Right", lambda: self.rotate_building(15))
             
-            print("✅ Rotation controls: +/- (15°), [/] (5°), Arrow keys (15°)")
             
         except Exception as e:
-            print(f"⚠️ Error setting up key bindings: {e}")
+            pass
     
     def safe_add_panels(self, side):
         """Safely add panels"""
@@ -631,7 +622,7 @@ class PyramidRoof(BaseRoof):
             if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
                 self.solar_panel_handler.add_panels(side)
         except Exception as e:
-            print(f"Error adding panels to {side}: {e}")
+            pass
     
     def safe_clear_panels(self):
         """Safely clear panels"""
@@ -639,7 +630,7 @@ class PyramidRoof(BaseRoof):
             if hasattr(self, 'solar_panel_handler') and self.solar_panel_handler:
                 self.solar_panel_handler.clear_panels()
         except Exception as e:
-            print(f"Error clearing panels: {e}")
+            pass
     
     def get_solar_panel_areas(self):
         """Get panel areas"""
@@ -813,15 +804,11 @@ class PyramidRoof(BaseRoof):
                     color='black',
                     point_size=10,
                     render_points_as_spheres=True,
-                    pickable=True
+                    pickable=False,
+                    lighting=False  # No lighting = no shadow casting
                 )
                 
-                self.plotter.enable_point_picking(
-                    callback=self.attachment_point_clicked,
-                    show_message=False,
-                    pickable_window=False,
-                    tolerance=0.05
-                )
+                self._setup_roof_obstacle_click()
                 
                 if not hasattr(self, 'placement_instruction') or not self.placement_instruction:
                     remaining = 6 - self.obstacle_count
@@ -834,7 +821,6 @@ class PyramidRoof(BaseRoof):
             return True
             
         except Exception as e:
-            print(f"Error adding attachment points: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -891,11 +877,12 @@ class PyramidRoof(BaseRoof):
                     self.plotter.remove_actor(self.attachment_point_actor)
                     self.attachment_point_actor = None
                 
+                self._remove_roof_obstacle_click()
                 try:
                     self.plotter.disable_picking()
-                except:
+                except Exception:
                     pass
-                
+
                 remaining = 6 - self.obstacle_count
                 if remaining > 0:
                     display_name = self.get_translated_obstacle_name(self.selected_obstacle_type)
@@ -918,7 +905,6 @@ class PyramidRoof(BaseRoof):
                 self.update_instruction(_("Failed to add obstacle. Try a different location."))
                 
         except Exception as e:
-            print(f"Error in attachment point callback: {e}")
             import traceback
             traceback.print_exc()
     
@@ -941,5 +927,4 @@ class PyramidRoof(BaseRoof):
             
             return closest_index
         except Exception as e:
-            print(f"Error finding closest attachment point: {e}")
             return None

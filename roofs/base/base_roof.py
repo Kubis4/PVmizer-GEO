@@ -103,112 +103,18 @@ class BaseRoof(ABC):
         # Setup mouse interaction for environment
         self._setup_environment_mouse_interaction()
         
-        # Add axes
-        try:
-            self.plotter.add_axes()
-        except:
-            pass
     
     def _setup_environment_mouse_interaction(self):
-        """Setup mouse interaction for environment placement"""
+        """Setup mouse interaction for environment placement (VTK observers only)"""
         try:
             if not self.plotter:
                 return
-            
-            # Setup right-click callback for environment placement
-            def on_right_click():
-                """Handle right-click for environment placement"""
-                try:
-                    if not self.current_placement_type:
-                        return
-                    
-                    # Get the picked point
-                    picked_point = None
-                    if hasattr(self.plotter, 'picked_point') and self.plotter.picked_point is not None:
-                        picked_point = self.plotter.picked_point
-                    elif hasattr(self.plotter, 'picker') and self.plotter.picker:
-                        picked_point = self.plotter.picker.GetPickPosition()
-                    
-                    if picked_point is None:
-                        return
-                    
-                    # Find closest attachment point
-                    closest_point = self._find_closest_environment_attachment_point(picked_point)
-                    if closest_point:
-                        self._place_environment_object_at_point(closest_point)
-                    
-                except Exception:
-                    pass
-            
-            # Try different methods to add right-click callback
-            try:
-                # Method 1: PyVista key event (using 'r' as right-click substitute)
-                self.plotter.add_key_event('r', on_right_click)
-            except:
-                pass
-            
-            # Method 2: VTK observer for actual right-click
-            try:
-                if hasattr(self.plotter, 'iren') and self.plotter.iren:
-                    def vtk_right_click_handler(obj, event):
-                        if event == 'RightButtonPressEvent':
-                            on_right_click()
-                    
-                    self.plotter.iren.AddObserver('RightButtonPressEvent', vtk_right_click_handler)
-            except:
-                pass
-            
-            # Method 3: Enable picker for point selection
-            try:
-                if hasattr(self.plotter, 'enable_point_picking'):
-                    self.plotter.enable_point_picking(callback=self._on_point_picked, show_message=False)
-            except:
-                pass
-            
+
+            # Environment placement is handled by environment_manager's
+            # _setup_click_placement_callback (left-click VTK observers).
+            # No additional global observers needed here.
             self.mouse_callback_active = True
-            
-        except Exception:
-            pass
-    
-    def _on_point_picked(self, point):
-        """Callback when a point is picked in the 3D view"""
-        try:
-            if not self.current_placement_type:
-                return
-            
-            # Safely check if point is valid without boolean evaluation
-            valid_point = None
-            
-            # Handle different point formats
-            if point is not None:
-                try:
-                    # Handle numpy arrays
-                    if isinstance(point, np.ndarray):
-                        if point.size >= 3:
-                            valid_point = (float(point.flat[0]), float(point.flat[1]), float(point.flat[2]))
-                        elif point.size >= 2:
-                            valid_point = (float(point.flat[0]), float(point.flat[1]), 0.0)
-                    
-                    # Handle lists and tuples
-                    elif isinstance(point, (list, tuple)):
-                        if len(point) >= 3:
-                            valid_point = (float(point[0]), float(point[1]), float(point[2]))
-                        elif len(point) >= 2:
-                            valid_point = (float(point[0]), float(point[1]), 0.0)
-                    
-                    # Handle single numbers (not valid points)
-                    elif isinstance(point, (int, float, np.number)):
-                        valid_point = None
-                        
-                except Exception:
-                    valid_point = None
-            
-            # Only proceed if we have a valid point
-            if valid_point:
-                closest_point = self._find_closest_environment_attachment_point(valid_point)
-                if closest_point:
-                    self._place_environment_object_at_point(closest_point)
-            
+
         except Exception:
             pass
     
@@ -356,33 +262,14 @@ class BaseRoof(ABC):
             pass
     
     def _update_placement_instruction(self):
-        """Update or clear placement instruction"""
+        """Update or clear placement instruction — clean view, no text overlay"""
         try:
-            # Remove existing instruction
             if hasattr(self, 'placement_instruction') and self.placement_instruction:
                 try:
                     self.plotter.remove_actor(self.placement_instruction)
                 except:
                     pass
                 self.placement_instruction = None
-            
-            # Add new instruction if in placement mode
-            if self.current_placement_type:
-                if self.current_placement_type.startswith('tree_'):
-                    tree_type = self.current_placement_type.replace('tree_', '').title()
-                    message = f"RIGHT-CLICK on black dots to place {tree_type} tree (or press 'r' key)"
-                elif self.current_placement_type == 'pole':
-                    message = "RIGHT-CLICK on black dots to place utility pole (or press 'r' key)"
-                else:
-                    message = "RIGHT-CLICK on black dots to place object (or press 'r' key)"
-                
-                self.placement_instruction = self.plotter.add_text(
-                    message,
-                    position="upper_left",
-                    font_size=14,
-                    color="blue"
-                )
-            
         except Exception:
             pass
     
@@ -675,98 +562,21 @@ class BaseRoof(ABC):
     # ==================== ENVIRONMENT TAB CONNECTION ====================
     
     def handle_environment_action(self, action_type, parameters):
-        """Main handler for environment actions from EnvironmentTab"""
+        """Main handler for environment actions — delegates to environment_manager"""
         try:
-            # Handle placement preparation actions
-            if action_type == 'prepare_tree_placement':
-                tree_type = parameters.get('tree_type', 'deciduous')
-                self.current_placement_type = f'tree_{tree_type}'
-                self.tree_size_multiplier = parameters.get('size_multiplier', 1.0)
-                
-                # Show attachment points if not visible
-                if not self.attachment_points_visible:
-                    self.show_environment_attachment_points()
-                
-                self._update_placement_instruction()
-                return True
-                
-            elif action_type == 'prepare_pole_placement':
-                self.current_placement_type = 'pole'
-                self.pole_height_multiplier = parameters.get('height_multiplier', 1.0)
-                
-                # Show attachment points if not visible
-                if not self.attachment_points_visible:
-                    self.show_environment_attachment_points()
-                
-                self._update_placement_instruction()
-                return True
-            
-            elif action_type == 'toggle_attachment_points':
-                visible = parameters.get('visible', False)
-                if visible:
-                    self.show_environment_attachment_points()
-                else:
-                    self.hide_environment_attachment_points()
-                return True
-            
-            # Handle direct placement actions (for buttons like "Add 5 Trees")
-            elif action_type == 'add_tree':
-                tree_type = parameters.get('tree_type', 'deciduous')
-                position = parameters.get('position', None)
-                
-                # Set tree type
-                if tree_type == 'pine':
-                    self.tree_type_index = 1
-                elif tree_type == 'oak':
-                    self.tree_type_index = 2
-                else:
-                    self.tree_type_index = 0
-                
-                if position:
-                    # Place at specific position
-                    success = self.environment_manager.add_environment_obstacle_at_point('tree', position=position)
-                else:
-                    # Place at random position
-                    success = self.environment_manager.add_environment_obstacle_at_point('tree')
-                
-                if success:
-                    self.environment_obstacles = self.environment_manager.environment_obstacles
-                    if hasattr(self.plotter, 'render'):
-                        self.plotter.render()
-                
-                return success
-                
-            elif action_type == 'add_pole':
-                position = parameters.get('position', None)
-                
-                if position:
-                    # Place at specific position
-                    success = self.environment_manager.add_environment_obstacle_at_point('pole', position=position)
-                else:
-                    # Place at random position
-                    success = self.environment_manager.add_environment_obstacle_at_point('pole')
-                
-                if success:
-                    self.environment_obstacles = self.environment_manager.environment_obstacles
-                    if hasattr(self.plotter, 'render'):
-                        self.plotter.render()
-                
-                return success
-            
-            # Route other actions to environment manager
-            else:
-                self.environment_manager.handle_environment_action(action_type, parameters)
-                
-                # Update root level references after action
-                self.environment_obstacles = self.environment_manager.environment_obstacles
-                self.environment_attachment_points = self.environment_manager.environment_attachment_points
-                
-                # Force render after any environment action
-                if hasattr(self.plotter, 'render'):
-                    self.plotter.render()
-                
-                return True
-                
+            # Delegate all actions to environment manager
+            self.environment_manager.handle_environment_action(action_type, parameters)
+
+            # Update root level references after action
+            self.environment_obstacles = self.environment_manager.environment_obstacles
+            self.environment_attachment_points = self.environment_manager.environment_attachment_points
+
+            # Force render
+            if hasattr(self.plotter, 'render'):
+                self.plotter.render()
+
+            return True
+
         except Exception:
             return False
     
@@ -906,26 +716,23 @@ class BaseRoof(ABC):
             else:
                 internal_type = obstacle_type
             
+            # Reset placement flag so a new obstacle can be placed
+            self.obstacle_placed_this_session = False
+
             self.selected_obstacle_type = internal_type
             self.obstacle_dimensions = dimensions
-            
+
             if dimensions is None:
                 return self.add_obstacle_button_clicked()
             else:
+                # Clear any existing instruction text
                 if hasattr(self, 'placement_instruction') and self.placement_instruction:
-                    self.plotter.remove_actor(self.placement_instruction)
-                
-                display_name = self.get_translated_obstacle_name(internal_type)
-                remaining = 6 - self.obstacle_count
-                
-                self.placement_instruction = self.plotter.add_text(
-                    _('click_to_place') + f" {display_name} " +
-                    f"({self.obstacle_count}/6, {remaining} " + _('remaining') + ")",
-                    position="lower_left",
-                    font_size=12,
-                    color="black"
-                )
-                
+                    try:
+                        self.plotter.remove_actor(self.placement_instruction)
+                    except:
+                        pass
+                    self.placement_instruction = None
+
                 return self.add_attachment_points()
                 
         except Exception:
@@ -946,7 +753,7 @@ class BaseRoof(ABC):
                     self.attachment_points_occupied[idx]['occupied'] = False
                     self.attachment_points_occupied[idx]['obstacle'] = None
             
-            self.update_instruction(_('obstacle_removed') + " (0/6)")
+            self.update_instruction("")
     
     def get_translated_obstacle_name(self, obstacle_type):
         """Get translated name"""
@@ -960,16 +767,13 @@ class BaseRoof(ABC):
             return obstacle_type
     
     def update_instruction(self, message):
-        """Update instruction text"""
+        """Update instruction — clean view, no text overlay"""
         if hasattr(self, 'placement_instruction') and self.placement_instruction:
-            self.plotter.remove_actor(self.placement_instruction)
-        
-        self.placement_instruction = self.plotter.add_text(
-            message,
-            position="lower_left",
-            font_size=12,
-            color="black"
-        )
+            try:
+                self.plotter.remove_actor(self.placement_instruction)
+            except:
+                pass
+            self.placement_instruction = None
     
     def add_obstacle_button_clicked(self):
         """Handle obstacle button click"""
@@ -1025,26 +829,93 @@ class BaseRoof(ABC):
         return False
     
     def find_closest_attachment_point(self, click_point):
-        """Find closest attachment point"""
+        """Find closest attachment point — uses XY distance (z-buffer depth can be imprecise)"""
         if not hasattr(self, 'attachment_points_occupied') or not self.attachment_points_occupied:
             return None, None
-            
+
         min_distance = float('inf')
         closest_idx = None
         closest_point = None
-        
-        click_point_array = np.array(click_point)
-        
+
+        cx, cy = float(click_point[0]), float(click_point[1])
+
         for idx, point_data in self.attachment_points_occupied.items():
             point = point_data['position']
-            distance = np.linalg.norm(np.array(point) - click_point_array)
-            
+            dx = float(point[0]) - cx
+            dy = float(point[1]) - cy
+            distance = (dx * dx + dy * dy) ** 0.5
+
             if distance < min_distance:
                 min_distance = distance
                 closest_idx = idx
                 closest_point = point
-        
+
+        if min_distance > 4.0:
+            return None, None
+
         return closest_idx, closest_point
+
+    # ---- VTK observer-based roof obstacle picking ----
+
+    def _setup_roof_obstacle_click(self):
+        """Setup VTK left-click observers for roof obstacle placement.
+        Disables interactor style so left-click doesn't rotate the camera."""
+        self._remove_roof_obstacle_click()
+        self._obstacle_press_pos = None
+
+        # Disable camera interaction so left-click goes to our handler
+        iren = self.plotter.iren
+        self._saved_obstacle_interactor_style = iren.GetInteractorStyle()
+        iren.SetInteractorStyle(None)
+
+        def on_press(obj, event):
+            self._obstacle_press_pos = self.plotter.iren.GetEventPosition()
+
+        def on_release(obj, event):
+            if self._obstacle_press_pos is None:
+                return
+            cur = self.plotter.iren.GetEventPosition()
+            if abs(cur[0] - self._obstacle_press_pos[0]) > 5 or abs(cur[1] - self._obstacle_press_pos[1]) > 5:
+                self._obstacle_press_pos = None
+                return
+            try:
+                import vtk as _vtk
+                renderer = getattr(self.plotter, 'renderer', None)
+                if renderer is None and hasattr(self.plotter, 'renderers'):
+                    renderer = self.plotter.renderers[0]
+                if renderer is None:
+                    return
+                picker = _vtk.vtkWorldPointPicker()
+                picker.Pick(self._obstacle_press_pos[0], self._obstacle_press_pos[1], 0, renderer)
+                world_pos = picker.GetPickPosition()
+                self.attachment_point_clicked(np.array(world_pos))
+            except Exception:
+                pass
+            self._obstacle_press_pos = None
+
+        self._obstacle_press_cb = self.plotter.iren.AddObserver(
+            'LeftButtonPressEvent', on_press)
+        self._obstacle_release_cb = self.plotter.iren.AddObserver(
+            'LeftButtonReleaseEvent', on_release)
+
+    def _remove_roof_obstacle_click(self):
+        """Remove VTK observers for roof obstacle placement and restore interactor."""
+        for attr in ('_obstacle_press_cb', '_obstacle_release_cb'):
+            cb_id = getattr(self, attr, None)
+            if cb_id is not None:
+                try:
+                    self.plotter.iren.RemoveObserver(cb_id)
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+        # Restore camera interaction
+        saved = getattr(self, '_saved_obstacle_interactor_style', None)
+        if saved is not None:
+            try:
+                self.plotter.iren.SetInteractorStyle(saved)
+            except Exception:
+                pass
+            self._saved_obstacle_interactor_style = None
     
     # ==================== SOLAR PANEL METHODS ====================
     

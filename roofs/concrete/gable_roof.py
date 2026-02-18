@@ -36,7 +36,7 @@ class GableRoof(BaseRoof):
         self.slope_angle = np.arctan(self.height / (self.width / 2))
         
         # Texture paths
-        texture_base_path = "PVmizer GEO/textures"
+        texture_base_path = "textures"
         self.roof_texture_path = resource_path(os.path.join(texture_base_path, "rooftile.jpg"))
         self.wall_texture_path = resource_path(os.path.join(texture_base_path, "wall.jpg"))
         self.brick_texture_path = resource_path(os.path.join(texture_base_path, "brick.jpg"))
@@ -773,26 +773,12 @@ class GableRoof(BaseRoof):
                     color='black',
                     point_size=10,
                     render_points_as_spheres=True,
-                    pickable=True
+                    pickable=False,
+                    lighting=False  # No lighting = no shadow casting
                 )
                 
-                # Enable point picking
-                self.plotter.enable_point_picking(
-                    callback=self.attachment_point_clicked,
-                    show_message=False,
-                    pickable_window=False,
-                    tolerance=0.05
-                )
-                
-                # Update instruction
-                remaining = 6 - self.obstacle_count
-                display_name = self.get_translated_obstacle_name(
-                    getattr(self, 'selected_obstacle_type', 'Chimney')
-                )
-                self.update_instruction(
-                    _('click_to_place') + f" {display_name} " +
-                    f"({self.obstacle_count}/6, {remaining} " + _('remaining') + ")"
-                )
+                # Enable click-to-place via VTK observers (shadow-safe)
+                self._setup_roof_obstacle_click()
             
             return True
             
@@ -802,11 +788,9 @@ class GableRoof(BaseRoof):
     def attachment_point_clicked(self, point, *args):
         """Handle attachment point click for obstacle placement"""
         if hasattr(self, 'obstacle_placed_this_session') and self.obstacle_placed_this_session:
-            self.update_instruction(_('obstacle_already_placed'))
             return
-        
+
         if not hasattr(self, 'selected_obstacle_type') or not self.selected_obstacle_type:
-            self.update_instruction(_('select_obstacle_type'))
             return
         
         closest_point_idx, closest_point = self.find_closest_attachment_point(point)
@@ -815,7 +799,6 @@ class GableRoof(BaseRoof):
             return
         
         if self.is_point_occupied(closest_point):
-            self.update_instruction(_('point_occupied'))
             return
         
         # Get point data
@@ -843,20 +826,15 @@ class GableRoof(BaseRoof):
             self.attachment_points_occupied[closest_point_idx]['obstacle'] = obstacle
         
         # Disable picking and remove points
-        self.plotter.disable_picking()
+        self._remove_roof_obstacle_click()
+        try:
+            self.plotter.disable_picking()
+        except Exception:
+            pass
         
         if hasattr(self, 'attachment_point_actor') and self.attachment_point_actor:
             self.plotter.remove_actor(self.attachment_point_actor)
             self.attachment_point_actor = None
         
-        # Update instruction
-        remaining = 6 - self.obstacle_count
-        if remaining > 0:
-            display_name = self.get_translated_obstacle_name(self.selected_obstacle_type)
-            self.update_instruction(
-                f"{display_name} " + _('placed') +
-                f" ({self.obstacle_count}/6, {remaining} " + _('remaining') + "). " +
-                _('press_add_obstacle')
-            )
-        else:
-            self.update_instruction(_('obstacle_max_reached') + " (6/6)")
+        # Clear instruction text
+        self.update_instruction("")
